@@ -317,7 +317,8 @@ def api_admin_inventory():
         supplier = data.get('supplier', '預設進貨廠商')
         remark = data.get('remark', '')
 
-        success = db_service.add_inventory_log(product_id, product_name, purchase_qty, purchase_cost, supplier, remark)
+        item_name = data.get('item_name', '-').strip() or '-'
+        success = db_service.add_inventory_log(product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, remark)
         if success:
             return jsonify({"status": "success", "message": "進貨紀錄已儲存，商品庫存已更新！"})
         return jsonify({"status": "error", "message": "進貨失敗"}), 500

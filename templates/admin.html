@@ -323,6 +323,7 @@
                 <tr>
                   <th class="p-3">進貨日期</th>
                   <th class="p-3">商品名稱</th>
+                  <th class="p-3 text-line-green font-bold">項目名稱</th>
                   <th class="p-3">進貨數量</th>
                   <th class="p-3">進貨單價成本</th>
                   <th class="p-3">供應商 / 備註</th>
@@ -734,7 +735,14 @@
       
       <div>
         <label class="block text-xs font-label-caps text-on-surface-variant mb-1">選擇進貨商品</label>
-        <select id="inv-product-select" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2">
+        <select id="inv-product-select" onchange="onInventoryProductChange()" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2">
+          <!-- Dynamic -->
+        </select>
+      </div>
+
+      <div id="inv-item-select-wrapper" class="hidden">
+        <label class="block text-xs font-label-caps text-line-green mb-1 font-bold">選擇進貨項目規格 (款式)</label>
+        <select id="inv-item-select" onchange="onInventoryItemChange()" class="w-full bg-surface-container-high border border-line-green text-white font-label-caps text-xs p-2">
           <!-- Dynamic -->
         </select>
       </div>
@@ -1298,9 +1306,10 @@
         if (json.status === 'success') {
           const tbody = document.getElementById('inventory-table-body');
           tbody.innerHTML = json.data.map(l => `
-            <tr>
+            <tr class="hover:bg-surface-container/50">
               <td class="p-3 text-on-surface-variant">${l.purchase_date}</td>
               <td class="p-3 font-bold text-white">${l.product_name}</td>
+              <td class="p-3 text-line-green font-bold">${l.item_name || '-'}</td>
               <td class="p-3 text-line-green font-bold">+${l.purchase_qty} 件</td>
               <td class="p-3 text-secondary-container font-bold">$${parseFloat(l.purchase_cost).toFixed(2)}</td>
               <td class="p-3">${l.supplier} / ${l.remark || '-'}</td>
@@ -1313,6 +1322,54 @@
     function updateInventorySelect() {
       const select = document.getElementById('inv-product-select');
       select.innerHTML = productsList.map(p => `<option value="${p.id}">${p.name} (庫存: ${p.stock_qty})</option>`).join('');
+      onInventoryProductChange();
+    }
+
+    function onInventoryProductChange() {
+      const prodId = document.getElementById('inv-product-select').value;
+      const prod = productsList.find(p => p.id === prodId);
+      const wrapper = document.getElementById('inv-item-select-wrapper');
+      const itemSelect = document.getElementById('inv-item-select');
+      
+      let itemsArr = [];
+      if (prod) {
+        try {
+          if (typeof prod.items_json === 'string') itemsArr = JSON.parse(prod.items_json || '[]');
+          else if (Array.isArray(prod.items_json)) itemsArr = prod.items_json;
+        } catch(e){}
+      }
+
+      if (itemsArr && itemsArr.length > 0) {
+        wrapper.classList.remove('hidden');
+        itemSelect.innerHTML = `<option value="-">-- 全品項預設/主商品 --</option>` + 
+          itemsArr.map((item) => `<option value="${item.name}">${item.name} (單價成本: $${parseFloat(item.cost_price !== undefined ? item.cost_price : 0).toFixed(2)})</option>`).join('');
+      } else {
+        wrapper.classList.add('hidden');
+        itemSelect.innerHTML = `<option value="-">-</option>`;
+      }
+
+      // Default cost
+      const defaultCost = prod ? (prod.cost_price || 15.00) : 15.00;
+      document.getElementById('inv-cost').value = defaultCost;
+    }
+
+    function onInventoryItemChange() {
+      const prodId = document.getElementById('inv-product-select').value;
+      const prod = productsList.find(p => p.id === prodId);
+      const selectedItemName = document.getElementById('inv-item-select').value;
+
+      if (prod && selectedItemName !== '-') {
+        let itemsArr = [];
+        try {
+          if (typeof prod.items_json === 'string') itemsArr = JSON.parse(prod.items_json || '[]');
+          else if (Array.isArray(prod.items_json)) itemsArr = prod.items_json;
+        } catch(e){}
+        
+        const matchedItem = itemsArr.find(i => i.name === selectedItemName);
+        if (matchedItem && matchedItem.cost_price !== undefined) {
+          document.getElementById('inv-cost').value = matchedItem.cost_price;
+        }
+      }
     }
 
     function openInventoryModal() {
@@ -1323,9 +1380,12 @@
     async function saveInventorySubmit() {
       const prodId = document.getElementById('inv-product-select').value;
       const prod = productsList.find(p => p.id === prodId);
+      const itemName = document.getElementById('inv-item-select').value || '-';
+
       const payload = {
         product_id: prodId,
         product_name: prod ? prod.name : '自訂進貨品項',
+        item_name: itemName,
         purchase_qty: parseInt(document.getElementById('inv-qty').value || 0),
         purchase_cost: parseFloat(document.getElementById('inv-cost').value || 0),
         supplier: document.getElementById('inv-supplier').value.trim(),
