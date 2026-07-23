@@ -610,14 +610,24 @@
           <input type="number" step="0.01" id="prod-edit-price" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
         </div>
         <div>
-          <label class="block text-xs font-label-caps text-secondary-container mb-1">3D設計與生產成本 (COST $)</label>
+          <label class="block text-xs font-label-caps text-secondary-container mb-1">3D列印成本 ($ COST)</label>
           <input type="number" step="0.01" id="prod-edit-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+        </div>
+        <div>
+          <label class="block text-xs font-label-caps text-amber-400 mb-1">UV列印成本 ($ COST)</label>
+          <input type="number" step="0.01" id="prod-edit-uv-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
         </div>
       </div>
 
       <div>
         <label class="block text-xs font-label-caps text-on-surface-variant mb-1">商品主圖網址 (IMAGE URL)</label>
-        <input type="text" id="prod-edit-image" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+        <div class="flex gap-2">
+          <input type="text" id="prod-edit-image" class="flex-1 bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+          <label class="bg-primary-fixed/20 hover:bg-primary-fixed/40 text-primary-fixed px-3 py-2 text-xs font-bold rounded cursor-pointer transition-all flex items-center gap-1 border border-primary-fixed/30 whitespace-nowrap">
+            <span class="material-symbols-outlined text-sm">upload</span> 上傳圖片
+            <input type="file" accept="image/*" class="hidden" onchange="uploadMainProductImage(this)" />
+          </label>
+        </div>
       </div>
 
       <div>
@@ -1091,24 +1101,29 @@
       } catch(e){ alert('圖片上傳發生錯誤'); }
     }
 
+    function setVal(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.value = (val !== undefined && val !== null) ? val : '';
+    }
+
     function openProductModal(p = null) {
-      document.getElementById('prod-edit-id').value = p ? p.id : '';
-      document.getElementById('prod-edit-name').value = p ? p.name : '';
-      document.getElementById('prod-edit-category').value = p ? p.category : '3d-print';
-      document.getElementById('prod-edit-material').value = p ? p.material : 'TPU_95A';
-      document.getElementById('prod-edit-price').value = p ? p.price : '45.00';
-      document.getElementById('prod-edit-cost').value = p ? (p.cost_price || 15.00) : '15.00';
-      document.getElementById('prod-edit-uv-cost').value = p ? (p.uv_cost_price || 5.00) : '5.00';
-      document.getElementById('prod-edit-badge').value = p ? p.badge : '';
-      document.getElementById('prod-edit-image').value = p ? p.image_url : '';
+      setVal('prod-edit-id', p ? p.id : '');
+      setVal('prod-edit-name', p ? p.name : '');
+      setVal('prod-edit-category', p ? p.category : '3d-print');
+      setVal('prod-edit-material', p ? p.material : 'TPU_95A');
+      setVal('prod-edit-price', p ? p.price : '45.00');
+      setVal('prod-edit-cost', p ? (p.cost_price || 15.00) : '15.00');
+      setVal('prod-edit-uv-cost', p ? (p.uv_cost_price || 5.00) : '5.00');
+      setVal('prod-edit-badge', p ? p.badge : '');
+      setVal('prod-edit-image', p ? p.image_url : '');
       
       let multiImgsText = '';
       try {
         const arr = JSON.parse(p ? p.images_json : '[]');
-        multiImgsText = arr.join('\n');
+        multiImgsText = Array.isArray(arr) ? arr.join('\n') : '';
       } catch(e){}
-      document.getElementById('prod-edit-images-list').value = multiImgsText;
-      document.getElementById('prod-edit-desc').value = p ? p.description : '';
+      setVal('prod-edit-images-list', multiImgsText);
+      setVal('prod-edit-desc', p ? p.description : '');
 
       currentProductItems = [];
       if (p) {
@@ -1122,7 +1137,12 @@
       }
       renderProductItemsList();
 
-      document.getElementById('modal-product').classList.remove('hidden');
+      const modal = document.getElementById('modal-product');
+      if (modal) {
+        modal.classList.remove('hidden');
+      } else {
+        console.error("modal-product element not found in DOM");
+      }
     }
 
     function editProduct(id) {
