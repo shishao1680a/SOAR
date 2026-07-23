@@ -7,6 +7,8 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from db_service import DBService
 from line_service import LineService
+from pdf_service import convert_pdf_to_images
+from linebot.models import TextSendMessage, ImageSendMessage
 from functools import wraps
 
 load_dotenv(override=False)
@@ -267,7 +269,7 @@ def api_admin_inventory():
         logs = db_service.get_inventory_logs()
         return jsonify({"status": "success", "data": logs})
 
-# --- LINE Group & Broadcast APIs (支援真實圖片 ImageSendMessage) ---
+# --- LINE Group & Broadcast APIs (PDF 自動轉圖 + 每 5 張圖片一則訊息分批推播) ---
 
 @app.route('/api/admin/line-groups', methods=['GET', 'POST'])
 @admin_or_coach_required
@@ -297,60 +299,86 @@ def api_admin_delete_line_group(group_id):
 @app.route('/api/admin/line/broadcast', methods=['POST'])
 @admin_or_coach_required
 def api_admin_line_broadcast():
-    """廣播推播：支援純文字或 FormData 圖片多檔真實推播 (ImageSendMessage，強制 HTTPS)"""
+    """廣播推播：支援文字、圖片與 PDF 自動轉圖片 (每 5 則訊息一包分批發送)"""
+    group_ids = []
+    message_text = ""
+    uploaded_files = []
+
     if request.files or (request.content_type and 'multipart/form-data' in request.content_type):
-        group_ids = request.form.getlist('group_ids') or [request.form.get('group_id')]
-        message_text = request.form.get('message', '').strip()
+        group_ids = request.form.getlist('group_ids') or request.form.getlist('group_ids[]') or [request.form.get('group_id')]
+        message_text = request.form.get('message', '').strip() or request.form.get('message_text', '').strip()
         uploaded_files = request.files.getlist('files')
-
-        host_base = request.host_url.rstrip('/')
-        if host_base.startswith('http://'):
-            host_base = 'https://' + host_base[7:]
-
-        image_urls = []
-        for file in uploaded_files:
-            if file and file.filename:
-                orig_filename = secure_filename(file.filename) or f"img_{uuid.uuid4().hex[:6]}.jpg"
-                ext = os.path.splitext(orig_filename)[1].lower()
-                if not ext:
-                    ext = ".jpg"
-
-                unique_name = f"{uuid.uuid4().hex[:12]}{ext}"
-                file_path = os.path.join(UPLOAD_FOLDER, unique_name)
-                file.save(file_path)
-
-                public_url = f"{host_base}/uploads/{unique_name}"
-                print(f"[Broadcast API] Uploaded file public HTTPS URL: {public_url}")
-
-                if ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
-                    image_urls.append(public_url)
-                else:
-                    message_text += f"\n📎 檔案下載網址: {public_url}"
-
-        success_count = 0
-        for gid in group_ids:
-            if gid:
-                ok = line_service.push_messages_batch(gid, text_content=message_text, image_urls=image_urls)
-                if ok:
-                    success_count += 1
-
-        return jsonify({
-            "status": "success",
-            "message": f"訊息與 {len(image_urls)} 張圖片已成功推送至 {success_count} 個 LINE 群組！"
-        })
     else:
         data = request.get_json() or {}
-        group_id = data.get('group_id')
-        message_text = data.get('message')
+        group_ids = [data.get('group_id')] if data.get('group_id') else []
+        message_text = data.get('message', '').strip()
 
-        if not message_text:
-            return jsonify({"status": "error", "message": "訊息內容不能為空"}), 400
+    group_ids = [g for g in group_ids if g]
+    if not group_ids:
+        return jsonify({"status": "error", "message": "請選擇至少一個 LINE 目標發送群組"}), 400
 
-        success = line_service.push_text_message(group_id, message_text)
-        return jsonify({
-            "status": "success" if success else "simulated",
-            "message": f"已推播訊息至 LINE 群組 [{group_id or '預設群組'}]"
-        })
+    host_base = request.host_url.rstrip('/')
+    if host_base.startswith('http://'):
+        host_base = 'https://' + host_base[7:]
+
+    message_objects = []
+
+    # 1. 如果有文字內容，加入第一則訊息
+    if message_text:
+        message_objects.append(TextSendMessage(text=message_text))
+
+    # 2. 處理檔案 (圖片 / PDF / 一般文件)
+    pdf_count = 0
+    image_count = 0
+
+    for file in uploaded_files:
+        if file and file.filename:
+            orig_filename = secure_filename(file.filename) or f"doc_{uuid.uuid4().hex[:6]}"
+            ext = os.path.splitext(orig_filename)[1].lower()
+            if not ext:
+                ext = ".jpg" if "image" in file.mimetype else ".pdf"
+
+            unique_id = uuid.uuid4().hex[:12]
+            saved_filename = f"{unique_id}{ext}"
+            file_path = os.path.join(UPLOAD_FOLDER, saved_filename)
+            file.save(file_path)
+
+            file_public_url = f"{host_base}/uploads/{saved_filename}"
+
+            if ext == '.pdf':
+                pdf_count += 1
+                # 轉 PDF 各頁為圖片 (.jpg)
+                try:
+                    converted_imgs = convert_pdf_to_images(file_path, output_folder=UPLOAD_FOLDER)
+                    for img_fname in converted_imgs:
+                        img_url = f"{host_base}/uploads/{img_fname}"
+                        message_objects.append(ImageSendMessage(original_content_url=img_url, preview_image_url=img_url))
+                        image_count += 1
+                except Exception as pdf_err:
+                    print(f"Error converting PDF to images: {pdf_err}")
+
+                # 附上原始 PDF 下載網址
+                message_objects.append(TextSendMessage(text=f"📎 原始 PDF 檔案下載網址: {file_public_url}"))
+            elif ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
+                image_count += 1
+                message_objects.append(ImageSendMessage(original_content_url=file_public_url, preview_image_url=file_public_url))
+            else:
+                message_objects.append(TextSendMessage(text=f"📎 檔案下載網址: {file_public_url}"))
+
+    if not message_objects:
+        return jsonify({"status": "error", "message": "發送內容不能為空，請輸入文字或選擇檔案！"}), 400
+
+    # 3. 呼叫 line_service 進行每 5 則訊息一包的分批發送 (push_messages_chunked)
+    success_count = 0
+    for gid in group_ids:
+        ok = line_service.push_messages_chunked(gid, message_objects)
+        if ok:
+            success_count += 1
+
+    return jsonify({
+        "status": "success",
+        "message": f"成功推播至 {success_count} 個 LINE 群組！（共傳送 {len(message_objects)} 則訊息包，包含 {image_count} 張圖片及 {pdf_count} 份 PDF 下載連結）"
+    })
 
 # --- Bulletin APIs ---
 
