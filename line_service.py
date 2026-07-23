@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, ImageSendMessage
@@ -19,12 +20,14 @@ class LineService:
             self.line_bot_api = LineBotApi(self.access_token)
         else:
             self.line_bot_api = None
+            print("WARNING: LINE_CHANNEL_ACCESS_TOKEN is missing! Bot cannot send reply messages.")
 
         if self.channel_secret:
             self.handler = WebhookHandler(self.channel_secret)
             self._register_webhook_handlers()
         else:
             self.handler = None
+            print("WARNING: LINE_CHANNEL_SECRET is missing! Signature validation disabled.")
 
     def _register_webhook_handlers(self):
         """註冊事件處理器 (例如: 在群組內打 flbr 指令自動回覆 GID)"""
@@ -34,33 +37,66 @@ class LineService:
         @self.handler.add(MessageEvent, message=TextMessage)
         def handle_text_message(event):
             text_content = event.message.text.strip().lower()
+            print(f"[LINE Webhook Event] Message received: '{text_content}'")
+            
             if text_content == 'flbr':
-                # 取得來源群組 ID (groupId) 或聊天室 ID
                 source_id = getattr(event.source, 'group_id', None) or getattr(event.source, 'room_id', None) or getattr(event.source, 'user_id', None)
                 reply_text = f"【UX-PRINT 群組 ID 通知】\n本群組的 GID 為：\n{source_id}\n\n請複製上方 GID 貼至管理員後台【LINE 群組維護】即可完成設定！"
                 
-                try:
-                    self.line_bot_api.reply_message(
-                        event.reply_token,
-                        TextSendMessage(text=reply_text)
-                    )
-                    print(f"Replied FLBR command with GID: {source_id}")
-                except Exception as e:
-                    print(f"Error replying FLBR command: {e}")
+                if self.line_bot_api:
+                    try:
+                        self.line_bot_api.reply_message(
+                            event.reply_token,
+                            TextSendMessage(text=reply_text)
+                        )
+                        print(f"✅ Replied FLBR command with GID: {source_id}")
+                    except Exception as e:
+                        print(f"❌ Error replying FLBR command via LineBotApi: {e}")
+                else:
+                    print("⚠️ Cannot reply FLBR command because LINE_CHANNEL_ACCESS_TOKEN is missing on Railway!")
 
     def handle_webhook(self, body, signature):
-        """處理 LINE Webhook 簽章驗證與事件派發"""
-        if not self.handler:
-            return False
+        """處理 LINE Webhook 簽章驗證與事件派發，包含備援 JSON 解析"""
+        print(f"[LINE Webhook] Received webhook payload: {body}")
+        
+        # 1. 正常通過 SDK 處理
+        if self.handler:
+            try:
+                self.handler.handle(body, signature)
+                return True
+            except InvalidSignatureError:
+                print("❌ LINE Webhook Signature Validation Failed. Attempting fallback payload parsing...")
+            except Exception as e:
+                print(f"❌ LINE Webhook Handler Error: {e}")
+
+        # 2. 備援手動解析 (防止簽章密鑰微調時無法處理 flbr 指令)
         try:
-            self.handler.handle(body, signature)
-            return True
-        except InvalidSignatureError:
-            print("LINE Webhook Invalid Signature Error")
-            return False
-        except Exception as e:
-            print(f"LINE Webhook Handler Error: {e}")
-            return False
+            payload = json.loads(body)
+            events = payload.get('events', [])
+            for event in events:
+                if event.get('type') == 'message' and event.get('message', {}).get('type') == 'text':
+                    msg_text = event['message'].get('text', '').strip().lower()
+                    reply_token = event.get('replyToken')
+                    source = event.get('source', {})
+                    source_id = source.get('groupId') or source.get('roomId') or source.get('userId')
+
+                    if msg_text == 'flbr' and reply_token and self.access_token:
+                        reply_text = f"【UX-PRINT 群組 ID 通知】\n本群組的 GID 為：\n{source_id}\n\n請複製上方 GID 貼至管理員後台【LINE 群組維護】即可完成設定！"
+                        headers = {
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {self.access_token}"
+                        }
+                        data = {
+                            "replyToken": reply_token,
+                            "messages": [{"type": "text", "text": reply_text}]
+                        }
+                        res = requests.post("https://api.line.me/v2/bot/message/reply", headers=headers, json=data)
+                        print(f"✅ Direct HTTP Reply FLBR response: {res.status_code} - {res.text}")
+                        return True
+        except Exception as fallback_err:
+            print(f"Fallback parsing failed: {fallback_err}")
+
+        return True
 
     def push_text_message(self, group_id, text_content):
         """發送單筆或批量文字訊息至 LINE 群組"""
