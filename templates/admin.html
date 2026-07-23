@@ -300,6 +300,7 @@
               <tr>
                 <th class="p-3">商品圖片 (主圖/多圖)</th>
                 <th class="p-3">商品名稱</th>
+                <th class="p-3 text-line-green font-bold">項目名稱</th>
                 <th class="p-3">分類 / 材質/小分類</th>
                 <th class="p-3">銷售價 (PRICE)</th>
                 <th class="p-3">3D列印成本</th>
@@ -1037,12 +1038,21 @@
       const tbody = document.getElementById('product-table-body');
       tbody.innerHTML = productsList.map(p => {
         let multiImgs = [];
-        let itemsCount = 0;
+        let itemsArr = [];
         try { multiImgs = JSON.parse(p.images_json || '[]'); } catch(e){}
         try {
-          const itemsArr = typeof p.items_json === 'string' ? JSON.parse(p.items_json || '[]') : (p.items_json || []);
-          itemsCount = itemsArr.length;
-        } catch(e){}
+          itemsArr = typeof p.items_json === 'string' ? JSON.parse(p.items_json || '[]') : (p.items_json || []);
+        } catch(e){ itemsArr = []; }
+
+        const itemsHtml = (itemsArr && itemsArr.length > 0)
+          ? itemsArr.map((item, idx) => `
+              <div class="flex items-center gap-1.5 bg-surface-container-high/90 px-2 py-1 rounded border border-outline-variant/60 whitespace-nowrap mb-1">
+                ${item.image_url ? `<img src="${item.image_url}" class="w-4 h-4 object-cover rounded border border-outline-variant shrink-0" />` : '<span class="material-symbols-outlined text-[12px] text-line-green shrink-0">tune</span>'}
+                <span class="font-bold text-white text-[11px]">${item.name}</span>
+                <span class="text-[10px] text-primary-fixed ml-auto font-mono">$${parseFloat(item.price !== undefined ? item.price : 0).toFixed(2)}</span>
+              </div>
+            `).join('')
+          : `<span class="text-gray-400 italic text-[11px]">- (無項目)</span>`;
 
         return `
           <tr class="hover:bg-surface-container/50">
@@ -1052,9 +1062,14 @@
                 ${multiImgs.length > 1 ? `<span class="text-[10px] bg-secondary-container text-white px-1 font-bold rounded">+${multiImgs.length - 1}圖</span>` : ''}
               </div>
             </td>
-            <td class="p-3 font-bold text-white">
+            <td class="p-3 font-bold text-white whitespace-nowrap">
               ${p.name}
-              ${itemsCount > 0 ? `<span class="block text-[10px] text-primary-fixed font-normal">(${itemsCount} 個項目規格)</span>` : ''}
+              ${itemsArr.length > 0 ? `<span class="block text-[10px] text-gray-400 font-normal">(${itemsArr.length} 個項目)</span>` : ''}
+            </td>
+            <td class="p-3">
+              <div class="max-w-[220px] space-y-1">
+                ${itemsHtml}
+              </div>
             </td>
             <td class="p-3"><span class="text-primary-fixed">${p.category}</span> / ${p.material}</td>
             <td class="p-3 text-primary-fixed font-bold">$${parseFloat(p.price).toFixed(2)}</td>
