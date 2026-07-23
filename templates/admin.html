@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html class="dark" lang="zh-TW">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>管理員後台 - UX-PRINT 系統管理中心</title>
+  
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,400;0,700;0,800;0,900;1,400;1,700;1,800;1,900&family=Hanken+Grotesk:wght@400;700&family=JetBrains+Mono:wght@700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-dim": "#131313",
+            "background": "#131313",
+            "primary-fixed": "#c3f400",
+            "on-primary-fixed": "#161e00",
+            "secondary-container": "#fe6b00",
+            "surface-container": "#201f1f",
+            "surface-container-high": "#2a2a2a",
+            "surface-container-low": "#1c1b1b",
+            "outline-variant": "#444933",
+            "line-green": "#06C755"
+          },
+          fontFamily: {
+            "body-md": ["Hanken Grotesk", "Noto Sans TC", "sans-serif"],
+            "label-caps": ["JetBrains Mono", "monospace"],
+            "display-lg": ["Anybody", "Noto Sans TC", "sans-serif"]
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #131313;
+      background-image: radial-gradient(#2a2a2a 1px, transparent 1px);
+      background-size: 32px 32px;
+      color: #e5e2e1;
+    }
+    .scanline {
+      position: relative;
+      overflow: hidden;
+    }
+    .scanline::after {
+      content: "";
+      position: absolute;
+      top: -100%;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, transparent, rgba(195, 244, 0, 0.15), transparent);
+      animation: scan 3s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes scan {
+      0% { top: -100%; }
+      100% { top: 100%; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-body-md antialiased selection:bg-primary-fixed selection:text-on-primary-fixed">
+
+  <!-- Top Admin Header -->
+  <header class="p-4 md:px-8 border-b-2 border-outline-variant bg-background/90 backdrop-blur-md flex justify-between items-center z-40 sticky top-0">
+    <div class="flex items-center gap-4">
+      <a href="/" class="font-display-lg text-xl md:text-2xl italic font-black text-primary-fixed border-b-4 border-secondary-container">
+        UX-PRINT <span class="text-xs text-white not-italic font-label-caps bg-surface-container px-1.5 py-0.5 border border-outline-variant">ADMIN CENTER</span>
+      </a>
+      <span class="hidden md:inline-block text-xs font-label-caps text-on-surface-variant">/ 管理員後台控制中心</span>
+    </div>
+
+    <div class="flex items-center gap-4 text-xs font-label-caps">
+      <a href="/" class="text-on-surface-variant hover:text-primary-fixed flex items-center gap-1">
+        <span class="material-symbols-outlined text-sm">home</span> 回首頁
+      </a>
+      <a href="/logout" class="text-error hover:underline flex items-center gap-1 font-bold">
+        <span class="material-symbols-outlined text-sm">logout</span> 登出 (LOGOUT)
+      </a>
+    </div>
+  </header>
+
+  <div class="flex-grow flex flex-col md:flex-row">
+
+    <!-- Sidebar Navigation (對應圖1左側側邊欄) -->
+    <aside class="w-full md:w-64 bg-surface-container-low border-r border-outline-variant p-4 flex-shrink-0">
+      <div class="p-3 bg-surface-container border border-primary-fixed/40 mb-6 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-primary-fixed/20 text-primary-fixed border border-primary-fixed flex items-center justify-center font-bold text-lg">
+          <span class="material-symbols-outlined">admin_panel_settings</span>
+        </div>
+        <div>
+          <h4 class="font-bold text-white text-xs">管理員中心</h4>
+          <span class="font-label-caps text-[10px] text-primary-fixed">系統最高權限</span>
+        </div>
+      </div>
+
+      <nav class="space-y-1 font-label-caps text-xs">
+        <button onclick="switchAdminSection('dashboard')" id="side-dashboard" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 bg-primary-fixed text-on-primary-fixed">
+          <span class="material-symbols-outlined text-sm">dashboard</span> 儀表板
+        </button>
+
+        <button onclick="switchAdminSection('users')" id="side-users" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+          <span class="material-symbols-outlined text-sm">group</span> 成員管理
+        </button>
+
+        <button onclick="switchAdminSection('products')" id="side-products" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+          <span class="material-symbols-outlined text-sm">inventory_2</span> 商品與進貨維護
+        </button>
+
+        <button onclick="switchAdminSection('line-groups')" id="side-line-groups" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+          <span class="material-symbols-outlined text-sm">forum</span> 群組與 LINE 發送
+        </button>
+
+        <button onclick="switchAdminSection('bulletins')" id="side-bulletins" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+          <span class="material-symbols-outlined text-sm">campaign</span> 公佈欄訊息維護
+        </button>
+      </nav>
+    </aside>
+
+    <!-- Main Admin Workspace -->
+    <main class="flex-grow p-4 md:p-8 space-y-8 overflow-x-hidden">
+
+      <!-- SECTION 1: DASHBOARD (儀表板首頁，對應圖1之卡片佈局) -->
+      <div id="sec-dashboard" class="space-y-6">
+        <div>
+          <h1 class="font-display-lg text-2xl md:text-3xl italic font-black text-white">管理員後台</h1>
+          <p class="font-label-caps text-xs text-on-surface-variant">歡迎回來，管理員。請點擊下方卡片進入各項系統管理模組。</p>
+        </div>
+
+        <!-- Top Modules Cards (圖1上方卡片) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          <!-- Card 1: 成員清單管理 -->
+          <div class="bg-surface-container-low p-6 border border-outline-variant hover:border-primary-fixed transition-all flex flex-col justify-between scanline">
+            <div class="space-y-3">
+              <div class="w-12 h-12 bg-primary-fixed/20 text-primary-fixed rounded flex items-center justify-center">
+                <span class="material-symbols-outlined text-2xl">manage_accounts</span>
+              </div>
+              <h3 class="font-headline-md text-lg italic font-bold text-white">成員清單管理</h3>
+              <p class="text-xs text-on-surface-variant leading-relaxed">
+                查看系統已註冊的會員資料、修改角色權限 (管理員/一般會員) 或進行帳號維護。
+              </p>
+            </div>
+            <button onclick="switchAdminSection('users')" class="mt-6 w-full py-2 bg-primary-fixed text-on-primary-fixed font-label-caps font-bold italic text-xs hover:glow-primary transition-all">
+              管理成員
+            </button>
+          </div>
+
+          <!-- Card 2: 商品與進貨維護 -->
+          <div class="bg-surface-container-low p-6 border border-outline-variant hover:border-primary-fixed transition-all flex flex-col justify-between scanline">
+            <div class="space-y-3">
+              <div class="w-12 h-12 bg-secondary-container/20 text-secondary-container rounded flex items-center justify-center">
+                <span class="material-symbols-outlined text-2xl">style</span>
+              </div>
+              <h3 class="font-headline-md text-lg italic font-bold text-white">商品與進貨維護</h3>
+              <p class="text-xs text-on-surface-variant leading-relaxed">
+                維護商品清單，支援多圖上傳相簿、3D設計成本計算、庫存追蹤與進貨單記錄服務。
+              </p>
+            </div>
+            <button onclick="switchAdminSection('products')" class="mt-6 w-full py-2 bg-secondary-container text-white font-label-caps font-bold italic text-xs hover:shadow-[0_0_12px_rgba(254,107,0,0.5)] transition-all">
+              管理商品與進貨
+            </button>
+          </div>
+
+          <!-- Card 3: 公佈欄編輯與廣播 -->
+          <div class="bg-surface-container-low p-6 border border-outline-variant hover:border-primary-fixed transition-all flex flex-col justify-between scanline">
+            <div class="space-y-3">
+              <div class="w-12 h-12 bg-line-green/20 text-line-green rounded flex items-center justify-center">
+                <span class="material-symbols-outlined text-2xl">campaign</span>
+              </div>
+              <h3 class="font-headline-md text-lg italic font-bold text-white">公佈欄與訊息廣播</h3>
+              <p class="text-xs text-on-surface-variant leading-relaxed">
+                發布與管理首頁最新公告，支援圖片附件上傳，並能一鍵廣播至 LINE 社團。
+              </p>
+            </div>
+            <button onclick="switchAdminSection('bulletins')" class="mt-6 w-full py-2 bg-line-green text-white font-label-caps font-bold italic text-xs hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all">
+              管理公告與推播
+            </button>
+          </div>
+
+        </div>
+
+        <!-- LINE與各項群組功能區塊 (圖1下半部區塊) -->
+        <div class="pt-6 border-t border-outline-variant">
+          <div class="flex items-center gap-2 mb-4">
+            <span class="material-symbols-outlined text-line-green text-2xl">forum</span>
+            <h2 class="font-headline-md text-xl italic font-bold text-white">LINE 與各項群組功能</h2>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <!-- 1. 群組維護 -->
+            <div class="bg-surface-container-low p-5 border border-line-green/40 flex flex-col justify-between">
+              <div class="space-y-2">
+                <div class="w-10 h-10 bg-line-green/20 text-line-green rounded flex items-center justify-center">
+                  <span class="material-symbols-outlined text-xl">settings_suggest</span>
+                </div>
+                <h4 class="font-bold text-white text-base">群組維護</h4>
+                <p class="text-xs text-on-surface-variant">管理通知發送群組 ID、群組說明與權限設定。</p>
+              </div>
+              <button onclick="switchAdminSection('line-groups')" class="mt-4 py-1.5 bg-surface-container border border-line-green text-line-green font-label-caps text-xs hover:bg-line-green hover:text-white transition-all">
+                管理群組
+              </button>
+            </div>
+
+            <!-- 2. 發送群組訊息 -->
+            <div class="bg-surface-container-low p-5 border border-line-green/40 flex flex-col justify-between">
+              <div class="space-y-2">
+                <div class="w-10 h-10 bg-line-green/20 text-line-green rounded flex items-center justify-center">
+                  <span class="material-symbols-outlined text-xl">send</span>
+                </div>
+                <h4 class="font-bold text-white text-base">發送群組訊息</h4>
+                <p class="text-xs text-on-surface-variant">批量發送文字、圖片或檔案至指定 LINE 群組。</p>
+              </div>
+              <button onclick="switchAdminSection('line-groups')" class="mt-4 py-1.5 bg-line-green text-white font-label-caps text-xs font-bold hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all">
+                發送訊息
+              </button>
+            </div>
+
+            <!-- 3. 公佈欄訊息維護 -->
+            <div class="bg-surface-container-low p-5 border border-line-green/40 flex flex-col justify-between">
+              <div class="space-y-2">
+                <div class="w-10 h-10 bg-line-green/20 text-line-green rounded flex items-center justify-center">
+                  <span class="material-symbols-outlined text-xl">mark_chat_read</span>
+                </div>
+                <h4 class="font-bold text-white text-base">公佈欄訊息維護</h4>
+                <p class="text-xs text-on-surface-variant">發布與管理首頁最新公告，支援圖片與附件上傳。</p>
+              </div>
+              <button onclick="switchAdminSection('bulletins')" class="mt-4 py-1.5 bg-surface-container border border-line-green text-line-green font-label-caps text-xs hover:bg-line-green hover:text-white transition-all">
+                管理公告
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: MEMBER MANAGEMENT (成員管理) -->
+      <div id="sec-users" class="hidden space-y-6">
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="font-display-lg text-2xl italic font-black text-white">成員清單管理</h2>
+            <p class="font-label-caps text-xs text-on-surface-variant">檢視系統已註冊成員、修改角色權限 (管理員/會員) 或新增帳號</p>
+          </div>
+          <button onclick="openUserModal()" class="px-4 py-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs font-bold italic flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">person_add</span> 新增成員
+          </button>
+        </div>
+
+        <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
+          <table class="w-full text-left font-label-caps text-xs">
+            <thead class="bg-surface-container border-b border-outline-variant text-primary-fixed">
+              <tr>
+                <th class="p-3">姓名 / LINE 暱稱</th>
+                <th class="p-3">帳號 (USERNAME)</th>
+                <th class="p-3">LINE ID</th>
+                <th class="p-3">角色權限</th>
+                <th class="p-3">電話</th>
+                <th class="p-3">註冊時間</th>
+                <th class="p-3 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="user-table-body" class="divide-y divide-outline-variant/40">
+              <!-- Dynamically rendered -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECTION 3: PRODUCT & INVENTORY MANAGEMENT (商品與進貨維護) -->
+      <div id="sec-products" class="hidden space-y-6">
+        <div class="flex justify-between items-center flex-wrap gap-3">
+          <div>
+            <h2 class="font-display-lg text-2xl italic font-black text-white">商品與進貨維護</h2>
+            <p class="font-label-caps text-xs text-on-surface-variant">商品多圖相簿上傳、3D設計成本 (cost_price) 紀錄與商品進貨單服務</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="openInventoryModal()" class="px-3 py-2 bg-secondary-container text-white font-label-caps text-xs font-bold italic flex items-center gap-1">
+              <span class="material-symbols-outlined text-sm">add_box</span> 商品進貨服務
+            </button>
+            <button onclick="openProductModal()" class="px-3 py-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs font-bold italic flex items-center gap-1">
+              <span class="material-symbols-outlined text-sm">add_circle</span> 新增商品作品
+            </button>
+          </div>
+        </div>
+
+        <!-- Products Table -->
+        <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
+          <table class="w-full text-left font-label-caps text-xs">
+            <thead class="bg-surface-container border-b border-outline-variant text-primary-fixed">
+              <tr>
+                <th class="p-3">商品圖片 (主圖/多圖)</th>
+                <th class="p-3">商品名稱</th>
+                <th class="p-3">分類 / 材質</th>
+                <th class="p-3">銷售價 (PRICE)</th>
+                <th class="p-3">3D設計成本 (COST)</th>
+                <th class="p-3">目前庫存</th>
+                <th class="p-3 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="product-table-body" class="divide-y divide-outline-variant/40">
+              <!-- Dynamically rendered -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Inventory Logs Table (進貨紀錄) -->
+        <div class="pt-6 border-t border-outline-variant">
+          <h3 class="font-headline-md text-lg italic font-bold text-white mb-3">📦 商品進貨歷程服務紀錄</h3>
+          <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
+            <table class="w-full text-left font-label-caps text-xs">
+              <thead class="bg-surface-container border-b border-outline-variant text-secondary">
+                <tr>
+                  <th class="p-3">進貨日期</th>
+                  <th class="p-3">商品名稱</th>
+                  <th class="p-3">進貨數量</th>
+                  <th class="p-3">進貨單價成本</th>
+                  <th class="p-3">供應商 / 備註</th>
+                </tr>
+              </thead>
+              <tbody id="inventory-table-body" class="divide-y divide-outline-variant/40">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 4: LINE GROUPS (群組維護與訊息發送) -->
+      <div id="sec-line-groups" class="hidden space-y-6">
+        <div>
+          <h2 class="font-display-lg text-2xl italic font-black text-white">LINE 群組維護與批量發送</h2>
+          <p class="font-label-caps text-xs text-on-surface-variant">管理社團 LINE 群組 ID，並可推播文字或圖片訊息至指定的 LINE 群組</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Send Message Card -->
+          <div class="bg-surface-container-low p-5 border border-line-green/40 space-y-4">
+            <h3 class="font-headline-md text-base italic font-bold text-line-green flex items-center gap-1">
+              <span class="material-symbols-outlined">send</span> 發送群組訊息 (文字/圖片)
+            </h3>
+            
+            <div>
+              <label class="block text-xs font-label-caps text-on-surface-variant mb-1">選擇目標 LINE 群組</label>
+              <select id="send-group-select" class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-2">
+                <!-- Dynamic group options -->
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-label-caps text-on-surface-variant mb-1">推播訊息內容</label>
+              <textarea id="send-message-text" rows="4" placeholder="請輸入欲廣播發送給社團成員的訊息內容..." class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-2 outline-none"></textarea>
+            </div>
+
+            <button onclick="sendLineGroupBroadcast()" class="w-full py-2 bg-line-green text-white font-label-caps font-bold italic text-xs hover:shadow-[0_0_15px_rgba(6,199,85,0.5)] transition-all">
+              立即發送至 LINE 群組
+            </button>
+          </div>
+
+          <!-- Group List Management Card -->
+          <div class="bg-surface-container-low p-5 border border-outline-variant space-y-4">
+            <div class="flex justify-between items-center">
+              <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-1">
+                <span class="material-symbols-outlined">settings_suggest</span> 群組清單維護
+              </h3>
+              <button onclick="openLineGroupModal()" class="px-2.5 py-1 bg-surface-container border border-line-green text-line-green font-label-caps text-xs hover:bg-line-green hover:text-white transition-all">
+                + 新增群組 ID
+              </button>
+            </div>
+
+            <div id="line-group-list" class="space-y-3">
+              <!-- Dynamically rendered -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 5: BULLETINS (公佈欄訊息維護) -->
+      <div id="sec-bulletins" class="hidden space-y-6">
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="font-display-lg text-2xl italic font-black text-white">公佈欄訊息維護</h2>
+            <p class="font-label-caps text-xs text-on-surface-variant">發布與管理首頁最新公告，支援圖片與一鍵同步推播至 LINE 群組</p>
+          </div>
+          <button onclick="openBulletinModal()" class="px-4 py-2 bg-line-green text-white font-label-caps text-xs font-bold italic flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">add_alert</span> 發布新公告
+          </button>
+        </div>
+
+        <div id="admin-bulletin-list" class="space-y-4">
+          <!-- Dynamically rendered -->
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- MODALS -->
+
+  <!-- User Modal (新增/編輯成員) -->
+  <div id="modal-user" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+    <div class="bg-surface-container border-2 border-primary-fixed max-w-md w-full p-6 space-y-4">
+      <h3 class="font-headline-md italic text-lg font-bold text-white">編輯成員資料與權限</h3>
+      <input type="hidden" id="user-edit-id" />
+      
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">姓名 / 暱稱</label>
+        <input type="text" id="user-edit-name" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+      </div>
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">帳號 (USERNAME)</label>
+        <input type="text" id="user-edit-username" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+      </div>
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">密碼 (PASSWORD)</label>
+        <input type="password" id="user-edit-password" placeholder="若不修改請留空" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+      </div>
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">LINE ID</label>
+        <input type="text" id="user-edit-lineid" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+      </div>
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">角色權限 (ROLE)</label>
+        <select id="user-edit-role" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2">
+          <option value="member">一般成員 (member)</option>
+          <option value="admin">最高管理員 (admin)</option>
+        </select>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('modal-user')" class="flex-1 py-2 bg-surface-container-high text-on-surface-variant font-label-caps text-xs">取消</button>
+        <button onclick="saveUserSubmit()" class="flex-1 py-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs font-bold italic">儲存成員</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Modal (新增/編輯商品 - 包含多圖與3D設計成本) -->
+  <div id="modal-product" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+    <div class="bg-surface-container border-2 border-primary-fixed max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <h3 class="font-headline-md italic text-lg font-bold text-white">編輯商品 (多圖與3D成本維護)</h3>
+      <input type="hidden" id="prod-edit-id" />
+      
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">商品名稱</label>
+        <input type="text" id="prod-edit-name" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-label-caps text-on-surface-variant mb-1">分類</label>
+          <select id="prod-edit-category" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2">
+            <option value="3d-print">3D列印套件 (3d-print)</option>
+            <option value="uv-print">UV炫彩作品 (uv-print)</option>
+            <option value="custom">社團限定 (custom)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-label-caps text-on-surface-variant mb-1">材質等級</label>
+          <select id="prod-edit-material" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2">
+            <option value="TPU_95A">TPU_95A</option>
+            <option value="PLA_PRO">PLA_PRO</option>
+            <option value="NYLON_CF">NYLON_CF</option>
+            <option value="UV_RESIN">UV_RESIN</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-label-caps text-primary-fixed mb-1">銷售價格 (PRICE $)</label>
+          <input type="number" step="0.01" id="prod-edit-price" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+        </div>
+        <div>
+          <label class="block text-xs font-label-caps text-secondary-container mb-1">3D設計與生產成本 (COST $)</label>
+          <input type="number" step="0.01" id="prod-edit-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">商品主圖網址 (IMAGE URL)</label>
+        <input type="text" id="prod-edit-image" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">多張照片網址 (多圖上傳相簿，一行一個網址)</label>
+        <textarea id="prod-edit-images-list" rows="3" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 outline-none"></textarea>
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">規格標籤 / 說明</label>
+        <input type="text" id="prod-edit-badge" placeholder="例: TPU HIGH-IMPACT" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 mb-2" />
+        <textarea id="prod-edit-desc" rows="2" placeholder="詳細規格與商品描述..." class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 outline-none"></textarea>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('modal-product')" class="flex-1 py-2 bg-surface-container-high text-on-surface-variant font-label-caps text-xs">取消</button>
+        <button onclick="saveProductSubmit()" class="flex-1 py-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs font-bold italic">儲存商品</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inventory Purchase Modal (商品進貨服務對話框) -->
+  <div id="modal-inventory" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+    <div class="bg-surface-container border-2 border-secondary-container max-w-md w-full p-6 space-y-4">
+      <h3 class="font-headline-md italic text-lg font-bold text-white">📦 商品進貨服務紀錄</h3>
+      
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">選擇進貨商品</label>
+        <select id="inv-product-select" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2">
+          <!-- Dynamic -->
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-label-caps text-on-surface-variant mb-1">進貨數量</label>
+          <input type="number" id="inv-qty" value="50" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+        </div>
+        <div>
+          <label class="block text-xs font-label-caps text-on-surface-variant mb-1">進貨單價成本 ($)</label>
+          <input type="number" step="0.01" id="inv-cost" value="15.00" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">供應商 / 廠商名稱</label>
+        <input type="text" id="inv-supplier" value="Bambu 3D 資材供應商" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">備註說明</label>
+        <input type="text" id="inv-remark" placeholder="進貨批號或進貨單據編號" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('modal-inventory')" class="flex-1 py-2 bg-surface-container-high text-on-surface-variant font-label-caps text-xs">取消</button>
+        <button onclick="saveInventorySubmit()" class="flex-1 py-2 bg-secondary-container text-white font-label-caps text-xs font-bold italic">儲存進貨紀錄</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulletin Modal (發布/編輯公告) -->
+  <div id="modal-bulletin" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+    <div class="bg-surface-container border-2 border-line-green max-w-md w-full p-6 space-y-4">
+      <h3 class="font-headline-md italic text-lg font-bold text-white">發布與編輯公佈欄訊息</h3>
+      <input type="hidden" id="bull-edit-id" />
+      
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">公告標題</label>
+        <input type="text" id="bull-edit-title" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-label-caps text-on-surface-variant mb-1">分類標籤 (TAG)</label>
+          <input type="text" id="bull-edit-tag" value="最新公告" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+        </div>
+        <div class="flex items-center pt-4">
+          <label class="flex items-center gap-2 cursor-pointer font-label-caps text-xs text-secondary-container font-bold">
+            <input type="checkbox" id="bull-edit-pinned" class="form-checkbox bg-surface-container border-outline-variant text-secondary-container"/>
+            置頂公告
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">摘要說明</label>
+        <input type="text" id="bull-edit-summary" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">詳細內容 (支援換行與圖片連結)</label>
+        <textarea id="bull-edit-content" rows="4" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 outline-none"></textarea>
+      </div>
+
+      <div class="p-2 bg-line-green/10 border border-line-green/40">
+        <label class="flex items-center gap-2 cursor-pointer font-label-caps text-xs text-line-green font-bold">
+          <input type="checkbox" id="bull-edit-broadcast" checked class="form-checkbox bg-surface-container border-line-green text-line-green"/>
+          同時發送推播至 LINE 社團群組
+        </label>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('modal-bulletin')" class="flex-1 py-2 bg-surface-container-high text-on-surface-variant font-label-caps text-xs">取消</button>
+        <button onclick="saveBulletinSubmit()" class="flex-1 py-2 bg-line-green text-white font-label-caps text-xs font-bold italic">儲存並發布</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic JavaScript -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      loadUsers();
+      loadProducts();
+      loadInventoryLogs();
+      loadLineGroups();
+      loadBulletins();
+    });
+
+    function switchAdminSection(secId) {
+      ['dashboard', 'users', 'products', 'line-groups', 'bulletins'].forEach(s => {
+        document.getElementById(`sec-${s}`).classList.add('hidden');
+        const sideBtn = document.getElementById(`side-${s}`);
+        if (sideBtn) {
+          sideBtn.className = "w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors";
+        }
+      });
+
+      document.getElementById(`sec-${secId}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`side-${secId}`);
+      if (activeBtn) {
+        activeBtn.className = "w-full text-left p-3 rounded font-bold italic flex items-center gap-2 bg-primary-fixed text-on-primary-fixed";
+      }
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.add('hidden');
+    }
+
+    // --- Member Management Logic ---
+    let usersList = [];
+    async function loadUsers() {
+      try {
+        const res = await fetch('/api/admin/users');
+        const json = await res.json();
+        if (json.status === 'success') {
+          usersList = json.data;
+          renderUsersTable();
+        }
+      } catch(e) { console.error(e); }
+    }
+
+    function renderUsersTable() {
+      const tbody = document.getElementById('user-table-body');
+      tbody.innerHTML = usersList.map(u => `
+        <tr class="hover:bg-surface-container/50">
+          <td class="p-3 flex items-center gap-2">
+            <img src="${u.avatar_url}" class="w-7 h-7 rounded-full border border-primary-fixed" />
+            <span class="font-bold text-white">${u.name}</span>
+          </td>
+          <td class="p-3 text-primary-fixed font-bold">${u.username || '-'}</td>
+          <td class="p-3 text-line-green">${u.line_id || '-'}</td>
+          <td class="p-3">
+            <span class="px-2 py-0.5 ${u.role === 'admin' ? 'bg-primary-fixed text-on-primary-fixed' : 'bg-surface-container text-on-surface-variant'} rounded font-bold">
+              ${u.role === 'admin' ? '最高管理員' : '一般成員'}
+            </span>
+          </td>
+          <td class="p-3">${u.phone || '-'}</td>
+          <td class="p-3 text-on-surface-variant text-[11px]">${u.register_date || '-'}</td>
+          <td class="p-3 text-right">
+            <button onclick="editUser('${u.id}')" class="text-primary-fixed hover:underline mr-2">編輯</button>
+            <button onclick="deleteUser('${u.id}')" class="text-error hover:underline">刪除</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function openUserModal(u = null) {
+      document.getElementById('user-edit-id').value = u ? u.id : '';
+      document.getElementById('user-edit-name').value = u ? u.name : '';
+      document.getElementById('user-edit-username').value = u ? (u.username || '') : '';
+      document.getElementById('user-edit-password').value = '';
+      document.getElementById('user-edit-lineid').value = u ? (u.line_id || '') : '';
+      document.getElementById('user-edit-role').value = u ? u.role : 'member';
+      document.getElementById('modal-user').classList.remove('hidden');
+    }
+
+    function editUser(id) {
+      const u = usersList.find(item => item.id === id);
+      if (u) openUserModal(u);
+    }
+
+    async function saveUserSubmit() {
+      const payload = {
+        id: document.getElementById('user-edit-id').value,
+        name: document.getElementById('user-edit-name').value.trim(),
+        username: document.getElementById('user-edit-username').value.trim(),
+        password: document.getElementById('user-edit-password').value.trim(),
+        line_id: document.getElementById('user-edit-lineid').value.trim(),
+        role: document.getElementById('user-edit-role').value
+      };
+
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('成員資料更新成功！');
+        closeModal('modal-user');
+        loadUsers();
+      } else { alert(json.message); }
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('確定要刪除此成員嗎？')) return;
+      const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.status === 'success') { loadUsers(); }
+    }
+
+    // --- Product & Inventory Logic ---
+    let productsList = [];
+    async function loadProducts() {
+      try {
+        const res = await fetch('/api/products');
+        const json = await res.json();
+        if (json.status === 'success') {
+          productsList = json.data;
+          renderProductsTable();
+          updateInventorySelect();
+        }
+      } catch(e) { console.error(e); }
+    }
+
+    function renderProductsTable() {
+      const tbody = document.getElementById('product-table-body');
+      tbody.innerHTML = productsList.map(p => {
+        let multiImgs = [];
+        try { multiImgs = JSON.parse(p.images_json || '[]'); } catch(e){}
+        return `
+          <tr class="hover:bg-surface-container/50">
+            <td class="p-3">
+              <div class="flex items-center gap-1">
+                <img src="${p.image_url}" class="w-10 h-10 object-cover border border-outline-variant" />
+                ${multiImgs.length > 1 ? `<span class="text-[10px] bg-secondary-container text-white px-1 font-bold">+${multiImgs.length - 1}圖</span>` : ''}
+              </div>
+            </td>
+            <td class="p-3 font-bold text-white">${p.name}</td>
+            <td class="p-3"><span class="text-primary-fixed">${p.category}</span> / ${p.material}</td>
+            <td class="p-3 text-primary-fixed font-bold">$${parseFloat(p.price).toFixed(2)}</td>
+            <td class="p-3 text-secondary-container font-bold">$${parseFloat(p.cost_price || 0).toFixed(2)}</td>
+            <td class="p-3 font-bold ${p.stock_qty < 10 ? 'text-error' : 'text-line-green'}">${p.stock_qty || 0} 件</td>
+            <td class="p-3 text-right">
+              <button onclick="editProduct('${p.id}')" class="text-primary-fixed hover:underline mr-2">編輯</button>
+              <button onclick="deleteProduct('${p.id}')" class="text-error hover:underline">下架</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openProductModal(p = null) {
+      document.getElementById('prod-edit-id').value = p ? p.id : '';
+      document.getElementById('prod-edit-name').value = p ? p.name : '';
+      document.getElementById('prod-edit-category').value = p ? p.category : '3d-print';
+      document.getElementById('prod-edit-material').value = p ? p.material : 'TPU_95A';
+      document.getElementById('prod-edit-price').value = p ? p.price : '45.00';
+      document.getElementById('prod-edit-cost').value = p ? (p.cost_price || 15.00) : '15.00';
+      document.getElementById('prod-edit-badge').value = p ? p.badge : '';
+      document.getElementById('prod-edit-image').value = p ? p.image_url : '';
+      
+      let multiImgsText = '';
+      try {
+        const arr = JSON.parse(p ? p.images_json : '[]');
+        multiImgsText = arr.join('\n');
+      } catch(e){}
+      document.getElementById('prod-edit-images-list').value = multiImgsText;
+      document.getElementById('prod-edit-desc').value = p ? p.description : '';
+
+      document.getElementById('modal-product').classList.remove('hidden');
+    }
+
+    function editProduct(id) {
+      const p = productsList.find(item => item.id === id);
+      if (p) openProductModal(p);
+    }
+
+    async function saveProductSubmit() {
+      const imagesRaw = document.getElementById('prod-edit-images-list').value.split('\n').map(s => s.trim()).filter(Boolean);
+      const payload = {
+        id: document.getElementById('prod-edit-id').value,
+        name: document.getElementById('prod-edit-name').value.trim(),
+        category: document.getElementById('prod-edit-category').value,
+        material: document.getElementById('prod-edit-material').value,
+        price: parseFloat(document.getElementById('prod-edit-price').value || 0),
+        cost_price: parseFloat(document.getElementById('prod-edit-cost').value || 0),
+        badge: document.getElementById('prod-edit-badge').value.trim(),
+        image_url: document.getElementById('prod-edit-image').value.trim() || (imagesRaw[0] || ''),
+        images: imagesRaw,
+        description: document.getElementById('prod-edit-desc').value.trim()
+      };
+
+      const res = await fetch('/api/admin/products', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('商品資料已儲存！');
+        closeModal('modal-product');
+        loadProducts();
+      } else { alert(json.message); }
+    }
+
+    async function deleteProduct(id) {
+      if (!confirm('確定要下架刪除此商品嗎？')) return;
+      const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.status === 'success') { loadProducts(); }
+    }
+
+    // Inventory Logs
+    async function loadInventoryLogs() {
+      try {
+        const res = await fetch('/api/admin/inventory');
+        const json = await res.json();
+        if (json.status === 'success') {
+          const tbody = document.getElementById('inventory-table-body');
+          tbody.innerHTML = json.data.map(l => `
+            <tr>
+              <td class="p-3 text-on-surface-variant">${l.purchase_date}</td>
+              <td class="p-3 font-bold text-white">${l.product_name}</td>
+              <td class="p-3 text-line-green font-bold">+${l.purchase_qty} 件</td>
+              <td class="p-3 text-secondary-container font-bold">$${parseFloat(l.purchase_cost).toFixed(2)}</td>
+              <td class="p-3">${l.supplier} / ${l.remark || '-'}</td>
+            </tr>
+          `).join('');
+        }
+      } catch(e){}
+    }
+
+    function updateInventorySelect() {
+      const select = document.getElementById('inv-product-select');
+      select.innerHTML = productsList.map(p => `<option value="${p.id}">${p.name} (庫存: ${p.stock_qty})</option>`).join('');
+    }
+
+    function openInventoryModal() {
+      updateInventorySelect();
+      document.getElementById('modal-inventory').classList.remove('hidden');
+    }
+
+    async function saveInventorySubmit() {
+      const prodId = document.getElementById('inv-product-select').value;
+      const prod = productsList.find(p => p.id === prodId);
+      const payload = {
+        product_id: prodId,
+        product_name: prod ? prod.name : '自訂進貨品項',
+        purchase_qty: parseInt(document.getElementById('inv-qty').value || 0),
+        purchase_cost: parseFloat(document.getElementById('inv-cost').value || 0),
+        supplier: document.getElementById('inv-supplier').value.trim(),
+        remark: document.getElementById('inv-remark').value.trim()
+      };
+
+      const res = await fetch('/api/admin/inventory', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('進貨紀錄已儲存！');
+        closeModal('modal-inventory');
+        loadProducts();
+        loadInventoryLogs();
+      } else { alert(json.message); }
+    }
+
+    // --- LINE Groups & Broadcast Logic ---
+    let groupsList = [];
+    async function loadLineGroups() {
+      try {
+        const res = await fetch('/api/admin/line-groups');
+        const json = await res.json();
+        if (json.status === 'success') {
+          groupsList = json.data;
+          renderLineGroups();
+        }
+      } catch(e){}
+    }
+
+    function renderLineGroups() {
+      const select = document.getElementById('send-group-select');
+      select.innerHTML = groupsList.map(g => `<option value="${g.id}">${g.name} (${g.id})</option>`).join('');
+
+      const container = document.getElementById('line-group-list');
+      container.innerHTML = groupsList.map(g => `
+        <div class="p-3 bg-surface-container border border-outline-variant/60 flex justify-between items-center">
+          <div>
+            <h4 class="font-bold text-white text-xs">${g.name}</h4>
+            <p class="text-[11px] text-line-green font-label-caps">ID: ${g.id}</p>
+          </div>
+          <button onclick="deleteLineGroup('${g.id}')" class="text-error text-xs hover:underline">刪除</button>
+        </div>
+      `).join('');
+    }
+
+    async function sendLineGroupBroadcast() {
+      const groupId = document.getElementById('send-group-select').value;
+      const message = document.getElementById('send-message-text').value.trim();
+      if (!message) return alert('請輸入推播訊息內容！');
+
+      const res = await fetch('/api/admin/line/broadcast', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ group_id: groupId, message })
+      });
+      const json = await res.json();
+      alert(`[LINE Push] ${json.message}`);
+      document.getElementById('send-message-text').value = '';
+    }
+
+    function openLineGroupModal() {
+      const gId = prompt('請輸入新群組 ID (例如: g_racer_club):');
+      if (!gId) return;
+      const gName = prompt('請輸入群組名稱:');
+      if (!gName) return;
+
+      fetch('/api/admin/line-groups', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: gId, name: gName, description: '管理員新增之通知群組' })
+      }).then(() => loadLineGroups());
+    }
+
+    async function deleteLineGroup(id) {
+      if (!confirm('確定刪除此群組設定嗎？')) return;
+      await fetch(`/api/admin/line-groups/${id}`, { method: 'DELETE' });
+      loadLineGroups();
+    }
+
+    // --- Bulletin Management Logic ---
+    let bulletinsList = [];
+    async function loadBulletins() {
+      try {
+        const res = await fetch('/api/bulletins');
+        const json = await res.json();
+        if (json.status === 'success') {
+          bulletinsList = json.data;
+          renderAdminBulletins();
+        }
+      } catch(e){}
+    }
+
+    function renderAdminBulletins() {
+      const container = document.getElementById('admin-bulletin-list');
+      container.innerHTML = bulletinsList.map(b => `
+        <div class="bg-surface-container-low border ${b.is_pinned ? 'border-secondary-container' : 'border-outline-variant'} p-4 flex justify-between items-start">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] bg-primary-fixed/20 text-primary-fixed border border-primary-fixed px-1.5 font-bold">[${b.tag}]</span>
+              ${b.is_pinned ? '<span class="text-[10px] bg-secondary-container text-white px-1.5 font-bold">置頂</span>' : ''}
+              <span class="text-xs font-bold text-white">${b.title}</span>
+            </div>
+            <p class="text-xs text-on-surface-variant">${b.summary}</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="editBulletin('${b.id}')" class="text-xs text-primary-fixed hover:underline">編輯</button>
+            <button onclick="deleteBulletin('${b.id}')" class="text-xs text-error hover:underline">刪除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function openBulletinModal(b = null) {
+      document.getElementById('bull-edit-id').value = b ? b.id : '';
+      document.getElementById('bull-edit-title').value = b ? b.title : '';
+      document.getElementById('bull-edit-tag').value = b ? b.tag : '最新公告';
+      document.getElementById('bull-edit-pinned').checked = b ? b.is_pinned : false;
+      document.getElementById('bull-edit-summary').value = b ? b.summary : '';
+      document.getElementById('bull-edit-content').value = b ? b.content : '';
+      document.getElementById('modal-bulletin').classList.remove('hidden');
+    }
+
+    function editBulletin(id) {
+      const b = bulletinsList.find(item => item.id === id);
+      if (b) openBulletinModal(b);
+    }
+
+    async function saveBulletinSubmit() {
+      const payload = {
+        id: document.getElementById('bull-edit-id').value,
+        title: document.getElementById('bull-edit-title').value.trim(),
+        tag: document.getElementById('bull-edit-tag').value.trim(),
+        is_pinned: document.getElementById('bull-edit-pinned').checked,
+        summary: document.getElementById('bull-edit-summary').value.trim(),
+        content: document.getElementById('bull-edit-content').value.trim(),
+        line_broadcasted: document.getElementById('bull-edit-broadcast').checked
+      };
+
+      const res = await fetch('/api/admin/bulletins', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('公告已儲存並同步處理 LINE 推播！');
+        closeModal('modal-bulletin');
+        loadBulletins();
+      } else { alert(json.message); }
+    }
+
+    async function deleteBulletin(id) {
+      if (!confirm('確定刪除此公告嗎？')) return;
+      await fetch(`/api/admin/bulletins/${id}`, { method: 'DELETE' });
+      loadBulletins();
+    }
+  </script>
+</body>
+</html>

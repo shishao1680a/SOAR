@@ -238,6 +238,9 @@
           <button onclick="scrollToLab()" class="text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors">
             3D LAB (客製列印)
           </button>
+          <a href="/admin" class="text-primary-fixed font-label-caps uppercase hover:underline flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">admin_panel_settings</span> 管理員後台
+          </a>
           <button onclick="openLineModal('profile')" class="text-on-surface-variant font-label-caps uppercase hover:text-line-green transition-colors flex items-center gap-1">
             LINE 服務中心
             <span class="w-2 h-2 rounded-full bg-line-green inline-block"></span>
@@ -252,19 +255,16 @@
           <input id="searchInput" oninput="handleSearch()" class="bg-transparent border-none focus:ring-0 text-label-caps text-on-surface placeholder:text-on-surface-variant/50 w-32 focus:outline-none" placeholder="FIND GEAR..." type="text"/>
         </div>
 
-        <!-- LINE User Auth Badge / Login Button -->
-        <div id="line-auth-container">
+        <!-- LINE User Auth Badge / Login Button (圖2: 支援LINE登入與一般帳/密登入) -->
+        <div id="line-auth-container" class="flex items-center gap-2">
+          <a href="/login" class="bg-primary-fixed text-on-primary-fixed px-3 py-1.5 font-label-caps font-bold italic text-xs flex items-center gap-1 hover:glow-primary transition-all rounded-sm">
+            <span class="material-symbols-outlined text-sm">login</span> 帳密登入
+          </a>
           <button onclick="openLineModal('login')" class="bg-line-green text-white px-3 py-1.5 font-label-caps font-bold italic text-xs flex items-center gap-1.5 hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all rounded-sm">
             <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
             LINE 登入
           </button>
         </div>
-
-        <!-- Cart Button -->
-        <button onclick="toggleCartDrawer()" class="relative text-on-surface-variant hover:text-primary-fixed transition-colors p-1">
-          <span class="material-symbols-outlined text-2xl">shopping_cart</span>
-          <span id="cart-count-badge" class="absolute -top-1 -right-1 bg-secondary-container text-white font-label-caps text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">0</span>
-        </button>
       </div>
     </div>
   </nav>
@@ -464,7 +464,7 @@
             <!-- VIEW 1: PRODUCT CATALOG GRID -->
             <div id="view-catalog">
               <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-gutter">
-                <!-- Dynamically populated via JS -->
+                <!-- Dynamically populated via JS/API -->
               </div>
 
               <!-- Pagination -->
@@ -494,7 +494,7 @@
               </div>
 
               <div id="bulletin-list" class="space-y-4">
-                <!-- Dynamically populated via JS -->
+                <!-- Dynamically populated via JS/API -->
               </div>
             </div>
 
@@ -513,7 +513,6 @@
           
           <div class="order-2 md:order-1">
             <div class="relative bg-black aspect-video border-4 border-outline-variant shadow-2xl overflow-hidden scanline">
-              <!-- Simulated 3D Model Wireframe Box -->
               <div class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
                 <div class="w-32 h-32 border-2 border-dashed border-primary-fixed animate-spin relative flex items-center justify-center">
                   <div class="w-20 h-20 border-2 border-secondary-container rotate-45"></div>
@@ -597,9 +596,7 @@
       <button onclick="closeLineModal()" class="absolute top-3 right-3 text-on-surface-variant hover:text-white">
         <span class="material-symbols-outlined">close</span>
       </button>
-      <div id="line-modal-content">
-        <!-- Content inserted dynamically -->
-      </div>
+      <div id="line-modal-content"></div>
     </div>
   </div>
 
@@ -609,9 +606,7 @@
       <button onclick="closeProductModal()" class="absolute top-3 right-3 text-on-surface-variant hover:text-primary-fixed">
         <span class="material-symbols-outlined">close</span>
       </button>
-      <div id="product-modal-content">
-        <!-- Dynamic content -->
-      </div>
+      <div id="product-modal-content"></div>
     </div>
   </div>
 
@@ -627,9 +622,7 @@
       </button>
     </div>
 
-    <div id="cart-items" class="flex-grow p-4 space-y-3 overflow-y-auto">
-      <!-- Dynamic cart items -->
-    </div>
+    <div id="cart-items" class="flex-grow p-4 space-y-3 overflow-y-auto"></div>
 
     <div class="p-4 border-t border-outline-variant bg-surface-container-low space-y-3">
       <div class="flex justify-between items-center font-label-caps text-sm">
@@ -639,7 +632,7 @@
       
       <div class="p-2.5 bg-line-green/10 border border-line-green/40 text-[11px] font-label-caps text-line-green flex items-start gap-1.5">
         <span class="material-symbols-outlined text-sm shrink-0">info</span>
-        <span>結帳後訂單明細將透過 LINE 機器人同步傳送至社團群組以進行快速審核與生產排單。</span>
+        <span>結帳後訂單明細將透過 LINE 機器人同步傳送至 PostgreSQL 資料庫與 LINE 社團管理群組！</span>
       </div>
 
       <button onclick="checkoutCart()" class="w-full bg-primary-fixed text-on-primary-fixed py-2.5 font-label-caps font-black italic uppercase hover:shadow-[0_0_15px_rgba(195,244,0,0.5)] transition-all flex items-center justify-center gap-2">
@@ -700,118 +693,69 @@
 
   <!-- Application Logic JavaScript -->
   <script>
-    // --- Products Data ---
-    const productsData = [
-      {
-        id: "p1",
-        name: "VORTEX H-BLOCK 避震套件",
-        category: "3d-print",
-        material: "TPU_95A",
-        price: 45.00,
-        badge: "TPU HIGH-IMPACT",
-        image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80",
-        description: "Reinforced lattice structure for maximum sliding speed and impact absorption. 高密度 TPU 3D 列印套件，專為高強度衝擊設計。",
-        isUv: false
-      },
-      {
-        id: "p2",
-        name: "GLITCH DECAL UV炫彩貼紙包",
-        category: "uv-print",
-        material: "UV_RESIN",
-        price: 18.00,
-        badge: "UV REACTIVE",
-        image: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80",
-        description: "Ultra-durable UV resin prints. Scuff-resistant and glow-active under city lights. 高精度 UV 浮雕圖騰貼紙。",
-        isUv: true
-      },
-      {
-        id: "p3",
-        name: "PRO SPACER PA12 精密墊片",
-        category: "3d-print",
-        material: "NYLON_CF",
-        price: 22.00,
-        badge: "NYLON-PA12",
-        image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80",
-        description: "Precision spacers engineered for zero-wiggle performance and heat dissipation. 碳纖維強化尼龍 PA12 超高硬度墊片。",
-        isUv: false
-      },
-      {
-        id: "p4",
-        name: "TITAN SOUL PLATE 魂板底座",
-        category: "3d-print",
-        material: "PLA_PRO",
-        price: 65.00,
-        badge: "PLA-PRO",
-        image: "https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&w=600&q=80",
-        description: "Custom-fit soul plates with reinforced mounting points and ultra-slick formula. 特調低摩擦係數 3D 列印魂板。",
-        isUv: false
-      },
-      {
-        id: "p5",
-        name: "NEON_HELMET UV戰術彩繪徽章",
-        category: "uv-print",
-        material: "UV_RESIN",
-        price: 28.00,
-        badge: "UV TACTICAL",
-        image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80",
-        description: "直噴 UV 立體多層印刷於安全帽與車身硬殼，立體紋理手感，耐刮擦且不退色。",
-        isUv: true
-      },
-      {
-        id: "p6",
-        name: "FLEX_STRAP R1 運動綁帶組",
-        category: "custom",
-        material: "TPU_95A",
-        price: 15.00,
-        badge: "CLUB EXCLUSIVE",
-        image: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=600&q=80",
-        description: "社團限定版柔性 3D 列印固定扣帶，可客製印製個人選手號碼與社團 Logo。",
-        isUv: false
-      }
-    ];
-
-    // --- Bulletin Data ---
-    const announcementsData = [
-      {
-        id: "b1",
-        title: "🔥 【社團賽事】2026 夏季極限 3D/UV 作品改裝大賽開始報名！",
-        date: "2026-07-20",
-        tag: "賽事公告",
-        isPinned: true,
-        summary: "本屆改裝大賽包含 3D 列印機構件設計組與 UV 炫彩彩繪組，獎品包含 Bambu 3D 列印機與客製列印資材！",
-        content: `親愛的社友們：\n2026 夏季極限 3D/UV 作品改裝大賽即日起開放報名！\n\n【參賽組別】\n1. 3D 列印極限性能組：著重於機件避震、強度與輕量化。\n2. UV 炫彩美學組：著重於金屬、壓克力與安全帽等表面 UV 浮雕彩繪質感。\n\n【報名方式】\n點擊下方 LINE 服務按鈕即可直接以 LINE 帳號完成一鍵報名並領取參賽編號！`
-      },
-      {
-        id: "b2",
-        title: "📦 新進資材通知：Nylon-CF 碳纖維尼龍與亮面 UV 樹脂已上架",
-        date: "2026-07-15",
-        tag: "資材更新",
-        isPinned: false,
-        summary: "全新批次高剛性碳纖維線材與日本進口 UV 抗黃化樹脂已抵達社團工坊，歡迎訂購套件。",
-        content: "工坊目前已完成 Bambu X1C 8台機器聯網，提供更快速的 3D 打樣與 UV 少量多樣客製化印刷服務。"
-      },
-      {
-        id: "b3",
-        title: "🤖 LINE 官方 Bot 功能升級：支援訂單進度查詢與自動推播",
-        date: "2026-07-10",
-        tag: "系統更新",
-        isPinned: false,
-        summary: "參考第一金人壽專案 LINE API 服務，現已支援一鍵 LINE 快速登入與群組動態廣播通知。",
-        content: "社友登入 LINE 後即可在個人中心查看 3D 列印排單列印進度（切片中 / 列印中 / UV後處理 / 已出貨）。"
-      }
-    ];
-
-    // State Variables
+    let productsData = [];
+    let announcementsData = [];
     let cart = [];
     let activeCategory = "all";
     let activeMaterial = "ALL";
     let currentUser = null;
 
     document.addEventListener("DOMContentLoaded", () => {
-      renderProducts();
-      renderBulletins();
+      loadProductsFromAPI();
+      loadBulletinsFromAPI();
       updateCartUI();
     });
+
+    // API Integration to Flask Backend
+    async function loadProductsFromAPI() {
+      try {
+        const res = await fetch('/api/products');
+        const json = await res.json();
+        if (json.status === 'success' && json.data.length > 0) {
+          productsData = json.data;
+        } else {
+          loadFallbackProducts();
+        }
+      } catch (e) {
+        console.warn("API Fetch fallback:", e);
+        loadFallbackProducts();
+      }
+      renderProducts();
+    }
+
+    async function loadBulletinsFromAPI() {
+      try {
+        const res = await fetch('/api/bulletins');
+        const json = await res.json();
+        if (json.status === 'success' && json.data.length > 0) {
+          announcementsData = json.data;
+        } else {
+          loadFallbackBulletins();
+        }
+      } catch (e) {
+        console.warn("API Fetch fallback:", e);
+        loadFallbackBulletins();
+      }
+      renderBulletins();
+    }
+
+    function loadFallbackProducts() {
+      productsData = [
+        { id: "p1", name: "VORTEX H-BLOCK 避震套件", category: "3d-print", material: "TPU_95A", price: 45.00, badge: "TPU HIGH-IMPACT", image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80", description: "Reinforced lattice structure for maximum sliding speed and impact absorption.", isUv: false },
+        { id: "p2", name: "GLITCH DECAL UV炫彩貼紙包", category: "uv-print", material: "UV_RESIN", price: 18.00, badge: "UV REACTIVE", image: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80", description: "Ultra-durable UV resin prints. Scuff-resistant and glow-active under city lights.", isUv: true },
+        { id: "p3", name: "PRO SPACER PA12 精密墊片", category: "3d-print", material: "NYLON_CF", price: 22.00, badge: "NYLON-PA12", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80", description: "Precision spacers engineered for zero-wiggle performance and heat dissipation.", isUv: false },
+        { id: "p4", name: "TITAN SOUL PLATE 魂板底座", category: "3d-print", material: "PLA_PRO", price: 65.00, badge: "PLA-PRO", image: "https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&w=600&q=80", description: "Custom-fit soul plates with reinforced mounting points and ultra-slick formula.", isUv: false },
+        { id: "p5", name: "NEON_HELMET UV戰術彩繪徽章", category: "uv-print", material: "UV_RESIN", price: 28.00, badge: "UV TACTICAL", image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80", description: "直噴 UV 立體多層印刷於安全帽與車身硬殼，立體紋理手感，耐刮擦且不退色。", isUv: true },
+        { id: "p6", name: "FLEX_STRAP R1 運動綁帶組", category: "custom", material: "TPU_95A", price: 15.00, badge: "CLUB EXCLUSIVE", image: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=600&q=80", description: "社團限定版柔性 3D 列印固定扣帶，可客製印製個人選手號碼與社團 Logo。", isUv: false }
+      ];
+    }
+
+    function loadFallbackBulletins() {
+      announcementsData = [
+        { id: "b1", title: "🔥 【社團賽事】2026 夏季極限 3D/UV 作品改裝大賽開始報名！", date_str: "2026-07-20", tag: "賽事公告", is_pinned: true, summary: "本屆改裝大賽包含 3D 列印機構件設計組與 UV 炫彩彩繪組！", content: "親愛的社友們：\n2026 夏季極限 3D/UV 作品改裝大賽即日起開放報名！" },
+        { id: "b2", title: "📦 新進資材通知：Nylon-CF 碳纖維尼龍與亮面 UV 樹脂已上架", date_str: "2026-07-15", tag: "資材更新", is_pinned: false, summary: "全新批次高剛性碳纖維線材與日本進口 UV 抗黃化樹脂已抵達社團工坊。", content: "工坊目前已完成 Bambu X1C 8台機器聯網，提供更快速的 3D 打樣服務。" }
+      ];
+    }
 
     function switchTab(tab) {
       const viewCatalog = document.getElementById("view-catalog");
@@ -857,7 +801,6 @@
       document.getElementById("section-3d-lab").scrollIntoView({ behavior: 'smooth' });
     }
 
-    // Render Products
     function renderProducts() {
       const grid = document.getElementById("product-grid");
       const searchKeyword = document.getElementById("searchInput").value.toLowerCase().trim();
@@ -881,16 +824,16 @@
 
       grid.innerHTML = filtered.map(p => `
         <div class="bg-surface-container-low border border-outline-variant group hover:glow-primary transition-all duration-300 flex flex-col">
-          <div class="aspect-square bg-surface-dim relative overflow-hidden ${p.isUv ? 'uv-trigger' : ''}">
-            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${p.image}" alt="${p.name}"/>
+          <div class="aspect-square bg-surface-dim relative overflow-hidden ${p.is_uv || p.isUv ? 'uv-trigger' : ''}">
+            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${p.image_url || p.image}" alt="${p.name}"/>
             
-            ${p.isUv ? `
+            ${p.is_uv || p.isUv ? `
               <div class="absolute inset-0 bg-secondary-container/30 opacity-0 uv-overlay transition-opacity duration-300 pointer-events-none flex items-center justify-center">
                 <span class="font-label-caps text-xs text-white bg-black/80 px-2 py-1 border border-secondary-container">UV_REACTIVE_PRINT (立體觸感)</span>
               </div>
             ` : ''}
 
-            <span class="absolute top-unit-2 left-unit-2 ${p.isUv ? 'bg-secondary-container text-on-secondary-container' : 'bg-primary-fixed text-on-primary-fixed'} font-label-caps px-unit-2 py-0.5 text-[10px] font-bold">
+            <span class="absolute top-unit-2 left-unit-2 ${p.is_uv || p.isUv ? 'bg-secondary-container text-on-secondary-container' : 'bg-primary-fixed text-on-primary-fixed'} font-label-caps px-unit-2 py-0.5 text-[10px] font-bold">
               ${p.badge}
             </span>
           </div>
@@ -899,7 +842,7 @@
             <div>
               <div class="flex justify-between items-start mb-1">
                 <h3 class="font-headline-md italic uppercase text-white text-base leading-tight">${p.name}</h3>
-                <span class="font-label-caps text-primary-fixed font-bold text-sm">$${p.price.toFixed(2)}</span>
+                <span class="font-label-caps text-primary-fixed font-bold text-sm">$${parseFloat(p.price).toFixed(2)}</span>
               </div>
               <p class="text-on-surface-variant text-xs line-clamp-2 leading-relaxed mb-3">${p.description}</p>
             </div>
@@ -945,23 +888,22 @@
       renderProducts();
     }
 
-    // Render Bulletins
     function renderBulletins() {
       const list = document.getElementById("bulletin-list");
       list.innerHTML = announcementsData.map(b => `
-        <div class="bg-surface-container-low border ${b.isPinned ? 'border-secondary-container' : 'border-outline-variant'} p-5 relative scanline hover:border-primary-fixed transition-all">
-          ${b.isPinned ? `
+        <div class="bg-surface-container-low border ${b.is_pinned || b.isPinned ? 'border-secondary-container' : 'border-outline-variant'} p-5 relative scanline hover:border-primary-fixed transition-all">
+          ${b.is_pinned || b.isPinned ? `
             <div class="absolute -top-3 right-4 bg-secondary-container text-white font-label-caps text-[10px] font-bold px-2 py-0.5 italic flex items-center gap-1">
               <span class="material-symbols-outlined text-xs">push_pin</span> 置頂強檔公告
             </div>
           ` : ''}
           
           <div class="flex items-center gap-3 mb-2 flex-wrap">
-            <span class="font-label-caps text-xs px-2 py-0.5 ${b.isPinned ? 'bg-secondary-container/20 text-secondary-container border border-secondary-container' : 'bg-surface-container text-primary-fixed border border-outline-variant'} font-bold">
+            <span class="font-label-caps text-xs px-2 py-0.5 ${b.is_pinned || b.isPinned ? 'bg-secondary-container/20 text-secondary-container border border-secondary-container' : 'bg-surface-container text-primary-fixed border border-outline-variant'} font-bold">
               [${b.tag}]
             </span>
             <span class="font-label-caps text-xs text-on-surface-variant flex items-center gap-1">
-              <span class="material-symbols-outlined text-xs">schedule</span> ${b.date}
+              <span class="material-symbols-outlined text-xs">schedule</span> ${b.date_str || b.date}
             </span>
           </div>
 
@@ -989,7 +931,6 @@
       alert(`[LINE API Notification Simulated]\n已成功將公告「${b.title}」推送至社團 LINE 官方群組！`);
     }
 
-    // Modal Operations
     function openProductModal(id) {
       const p = productsData.find(item => item.id === id);
       const content = document.getElementById("product-modal-content");
@@ -997,7 +938,7 @@
       content.innerHTML = `
         <div class="flex flex-col md:flex-row gap-6">
           <div class="w-full md:w-1/2 aspect-square bg-surface-container overflow-hidden relative">
-            <img class="w-full h-full object-cover" src="${p.image}" alt="${p.name}"/>
+            <img class="w-full h-full object-cover" src="${p.image_url || p.image}" alt="${p.name}"/>
             <div class="absolute top-2 left-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs px-2 py-1 font-bold">
               ${p.badge}
             </div>
@@ -1006,12 +947,12 @@
             <div>
               <span class="font-label-caps text-xs text-primary-fixed font-bold">[${p.category.toUpperCase()}] // ${p.material}</span>
               <h2 class="font-headline-md text-xl italic font-bold text-white mt-1 mb-2">${p.name}</h2>
-              <p class="text-2xl font-label-caps text-primary-fixed font-black mb-4">$${p.price.toFixed(2)}</p>
+              <p class="text-2xl font-label-caps text-primary-fixed font-black mb-4">$${parseFloat(p.price).toFixed(2)}</p>
               
               <div class="space-y-2 text-xs text-on-surface-variant font-label-caps mb-4">
                 <p>⚙️ 建議印製層高: <span class="text-white">0.12mm - 0.16mm</span></p>
                 <p>🔥 耐溫特性: <span class="text-white">高抗衝擊 / 100°C 變形溫度</span></p>
-                <p>🎨 質感說明: <span class="text-white">${p.isUv ? '高解析 UV 浮雕金屬感多層噴印' : '幾何交錯結構 / 高密度減震細節'}</span></p>
+                <p>🎨 質感說明: <span class="text-white">${p.is_uv || p.isUv ? '高解析 UV 浮雕金屬感多層噴印' : '幾何交錯結構 / 高密度減震細節'}</span></p>
               </div>
 
               <p class="text-xs text-on-surface-variant leading-relaxed border-t border-outline-variant pt-3">${p.description}</p>
@@ -1030,7 +971,6 @@
       document.getElementById("product-modal").classList.add("hidden");
     }
 
-    // Cart Operations
     function addToCart(id) {
       const p = productsData.find(item => item.id === id);
       const existing = cart.find(item => item.id === id);
@@ -1051,7 +991,7 @@
       const totalEl = document.getElementById("cart-total-price");
 
       const totalItems = cart.reduce((acc, item) => acc + item.qty, 0);
-      const totalPrice = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+      const totalPrice = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.qty), 0);
 
       badge.textContent = totalItems;
       totalEl.textContent = `$${totalPrice.toFixed(2)}`;
@@ -1068,10 +1008,10 @@
 
       container.innerHTML = cart.map(item => `
         <div class="bg-surface-container-high p-3 border border-outline-variant flex gap-3 items-center">
-          <img src="${item.image}" class="w-14 h-14 object-cover border border-outline-variant" />
+          <img src="${item.image_url || item.image}" class="w-14 h-14 object-cover border border-outline-variant" />
           <div class="flex-grow">
             <h4 class="font-label-caps text-xs font-bold text-white line-clamp-1">${item.name}</h4>
-            <span class="font-label-caps text-[10px] text-primary-fixed font-bold">$${item.price.toFixed(2)}</span>
+            <span class="font-label-caps text-[10px] text-primary-fixed font-bold">$${parseFloat(item.price).toFixed(2)}</span>
             <div class="flex items-center gap-2 mt-1">
               <button onclick="changeQty('${item.id}', -1)" class="w-5 h-5 bg-surface-container border border-outline-variant text-white flex items-center justify-center text-xs">-</button>
               <span class="font-label-caps text-xs text-white font-bold">${item.qty}</span>
@@ -1105,33 +1045,45 @@
       drawer.classList.toggle("translate-x-full");
     }
 
-    function checkoutCart() {
+    async function checkoutCart() {
       if (cart.length === 0) {
         alert("購物車為空，請先選擇 3D/UV 列印作品！");
         return;
       }
 
-      const userDisplayName = currentUser ? currentUser.name : "社團會員 (未綁定LINE)";
-      const userLineId = currentUser ? currentUser.lineId : "GUEST_USER";
+      const userDisplayName = currentUser ? currentUser.name : "社團會員";
+      const userLineId = currentUser ? currentUser.lineId : "GUEST";
+      const total = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.qty), 0);
 
-      const orderSummary = cart.map(i => `• ${i.name} x${i.qty} ($${(i.price * i.qty).toFixed(2)})`).join("\n");
-      const total = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-
-      const msg = `[LINE Service 訂單自動發送測試]\n` +
-                  `------------------------------\n` +
-                  `訂購人: ${userDisplayName} (ID: ${userLineId})\n` +
-                  `訂購明細:\n${orderSummary}\n` +
-                  `------------------------------\n` +
-                  `總計金額: $${total.toFixed(2)}\n\n` +
-                  `已自動將訂單細節 Push 推播至社團 LINE 管理群組以進行 3D 切片與排單生產！`;
-
-      alert(msg);
-      cart = [];
-      updateCartUI();
-      toggleCartDrawer();
+      try {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            cart: cart,
+            user_name: userDisplayName,
+            user_line_id: userLineId,
+            total_amount: total
+          })
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+          alert(`[訂單成立通知]\n訂單編號: ${json.order_id}\n\n已將訂單同步儲存至 PostgreSQL 資料庫，並推播通知給 LINE 管理團隊！`);
+          cart = [];
+          updateCartUI();
+          toggleCartDrawer();
+        } else {
+          alert(`訂單送出失敗: ${json.message}`);
+        }
+      } catch (e) {
+        const orderSummary = cart.map(i => `• ${i.name} x${i.qty} ($${(parseFloat(i.price) * i.qty).toFixed(2)})`).join("\n");
+        alert(`[LINE Service 訂單發送測試]\n------------------------------\n訂購人: ${userDisplayName}\n明細:\n${orderSummary}\n------------------------------\n總計: $${total.toFixed(2)}\n已模擬推播至 LINE 管理團隊！`);
+        cart = [];
+        updateCartUI();
+        toggleCartDrawer();
+      }
     }
 
-    // LINE Service Modal
     function openLineModal(mode) {
       const modal = document.getElementById("line-modal");
       const content = document.getElementById("line-modal-content");
@@ -1147,7 +1099,6 @@
               點擊下方按鈕以 LINE 帳號登入 UX-PRINT 社團網站。<br/>
               將自動帶入您的 LINE 暱稱、大頭貼與專屬識別碼。
             </p>
-
             <button onclick="simulateLineLogin()" class="w-full bg-line-green text-white py-3 font-label-caps font-bold italic uppercase flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(6,199,85,0.6)] transition-all">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
               授權 LINE 帳號登入
