@@ -1,7 +1,7 @@
 import os
 import requests
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import TextSendMessage, ImageSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, ImageSendMessage
 from linebot.exceptions import LineBotApiError, InvalidSignatureError
 
 class LineService:
@@ -22,17 +22,44 @@ class LineService:
 
         if self.channel_secret:
             self.handler = WebhookHandler(self.channel_secret)
+            self._register_webhook_handlers()
         else:
             self.handler = None
 
+    def _register_webhook_handlers(self):
+        """註冊事件處理器 (例如: 在群組內打 flbr 指令自動回覆 GID)"""
+        if not self.handler:
+            return
+
+        @self.handler.add(MessageEvent, message=TextMessage)
+        def handle_text_message(event):
+            text_content = event.message.text.strip().lower()
+            if text_content == 'flbr':
+                # 取得來源群組 ID (groupId) 或聊天室 ID
+                source_id = getattr(event.source, 'group_id', None) or getattr(event.source, 'room_id', None) or getattr(event.source, 'user_id', None)
+                reply_text = f"【UX-PRINT 群組 ID 通知】\n本群組的 GID 為：\n{source_id}\n\n請複製上方 GID 貼至管理員後台【LINE 群組維護】即可完成設定！"
+                
+                try:
+                    self.line_bot_api.reply_message(
+                        event.reply_token,
+                        TextSendMessage(text=reply_text)
+                    )
+                    print(f"Replied FLBR command with GID: {source_id}")
+                except Exception as e:
+                    print(f"Error replying FLBR command: {e}")
+
     def handle_webhook(self, body, signature):
-        """處理 LINE Webhook 簽章驗證"""
+        """處理 LINE Webhook 簽章驗證與事件派發"""
         if not self.handler:
             return False
         try:
             self.handler.handle(body, signature)
             return True
         except InvalidSignatureError:
+            print("LINE Webhook Invalid Signature Error")
+            return False
+        except Exception as e:
+            print(f"LINE Webhook Handler Error: {e}")
             return False
 
     def push_text_message(self, group_id, text_content):
