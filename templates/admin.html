@@ -327,6 +327,7 @@
                   <th class="p-3 text-line-green font-bold">項目名稱</th>
                   <th class="p-3">進貨數量</th>
                   <th class="p-3">進貨單價成本</th>
+                  <th class="p-3 text-primary-fixed font-bold">進貨人員</th>
                   <th class="p-3">供應商 / 備註</th>
                   <th class="p-3 text-right">操作</th>
                 </tr>
@@ -815,8 +816,12 @@
           </div>
         </div>
         <div>
+          <label class="block font-bold text-primary-fixed mb-1">進貨人員 (經辦人)</label>
+          <input type="text" id="inv-edit-operator" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-primary-fixed" placeholder="例如: 管理員 / 班長" />
+        </div>
+        <div>
           <label class="block font-bold text-gray-200 mb-1">供應商 / 廠商名稱</label>
-          <input type="text" id="inv-supplier-edit" id="inv-edit-supplier" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
+          <input type="text" id="inv-edit-supplier" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
         </div>
         <div>
           <label class="block font-bold text-gray-200 mb-1">備註說明</label>
@@ -1584,6 +1589,7 @@
           <td class="p-3 text-line-green font-bold">${l.item_name || '-'}</td>
           <td class="p-3 text-line-green font-bold">+${l.purchase_qty} 件</td>
           <td class="p-3 text-secondary-container font-bold">$${parseFloat(l.purchase_cost).toFixed(2)}</td>
+          <td class="p-3 text-primary-fixed font-bold">${l.operator_name || '管理員'}</td>
           <td class="p-3">${l.supplier} / ${l.remark || '-'}</td>
           <td class="p-3 text-right whitespace-nowrap">
             <button onclick="editInventoryLog(${l.id})" class="text-primary-fixed hover:underline mr-2 font-bold">修改</button>
@@ -1601,6 +1607,7 @@
       setVal('inv-edit-item-name', log.item_name || '-');
       setVal('inv-edit-qty', log.purchase_qty);
       setVal('inv-edit-cost', log.purchase_cost);
+      setVal('inv-edit-operator', log.operator_name || '管理員');
       setVal('inv-edit-supplier', log.supplier);
       setVal('inv-edit-remark', log.remark);
       const modal = document.getElementById('modal-inventory-log-edit');
@@ -1609,12 +1616,12 @@
 
     async function saveInventoryLogEditSubmit() {
       const logId = document.getElementById('inv-edit-log-id').value;
-      const supplierEl = document.getElementById('inv-edit-supplier') || document.getElementById('inv-supplier-edit');
       const payload = {
         item_name: document.getElementById('inv-edit-item-name').value.trim() || '-',
         purchase_qty: parseInt(document.getElementById('inv-edit-qty').value || 0),
         purchase_cost: parseFloat(document.getElementById('inv-edit-cost').value || 0),
-        supplier: supplierEl ? supplierEl.value.trim() : '',
+        operator_name: document.getElementById('inv-edit-operator').value.trim() || '管理員',
+        supplier: document.getElementById('inv-edit-supplier').value.trim(),
         remark: document.getElementById('inv-edit-remark').value.trim()
       };
 

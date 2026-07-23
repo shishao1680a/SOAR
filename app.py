@@ -318,7 +318,11 @@ def api_admin_inventory():
         remark = data.get('remark', '')
 
         item_name = data.get('item_name', '-').strip() or '-'
-        success = db_service.add_inventory_log(product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, remark)
+        session_user = session.get('user', {}) or {}
+        current_name = session_user.get('name') or session_user.get('username') or '管理員'
+        operator_name = data.get('operator_name', '').strip() or current_name
+
+        success = db_service.add_inventory_log(product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name)
         if success:
             return jsonify({"status": "success", "message": "進貨紀錄已儲存，商品庫存已更新！"})
         return jsonify({"status": "error", "message": "進貨失敗"}), 500
@@ -337,7 +341,11 @@ def api_admin_inventory_detail(log_id):
         supplier = data.get('supplier', '')
         remark = data.get('remark', '')
 
-        updated = db_service.update_inventory_log(log_id, item_name, purchase_qty, purchase_cost, supplier, remark)
+        session_user = session.get('user', {}) or {}
+        current_name = session_user.get('name') or session_user.get('username') or '管理員'
+        operator_name = data.get('operator_name', '').strip() or current_name
+
+        updated = db_service.update_inventory_log(log_id, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name)
         if updated:
             return jsonify({"status": "success", "message": "進貨紀錄已成功修改！"})
         return jsonify({"status": "error", "message": "修改進貨紀錄失敗"}), 500

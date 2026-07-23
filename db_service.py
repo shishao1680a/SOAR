@@ -232,10 +232,13 @@ class DBService:
                     inv_cols = [r[1] for r in cursor.fetchall()]
                     if 'item_name' not in inv_cols:
                         cursor.execute("ALTER TABLE inventory_logs ADD COLUMN item_name TEXT DEFAULT '-'")
+                    if 'operator_name' not in inv_cols:
+                        cursor.execute("ALTER TABLE inventory_logs ADD COLUMN operator_name TEXT DEFAULT '管理員'")
                 else:
                     cursor.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS uv_cost_price NUMERIC(10, 2) DEFAULT 0.00")
                     cursor.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS items_json TEXT DEFAULT '[]'")
                     cursor.execute("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS item_name VARCHAR(255) DEFAULT '-'")
+                    cursor.execute("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS operator_name VARCHAR(255) DEFAULT '管理員'")
             except Exception as mig_err:
                 print(f"Migration notice: {mig_err}")
 
@@ -567,25 +570,26 @@ class DBService:
         except Exception as e:
             return False
 
-    def add_inventory_log(self, product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, remark):
+    def add_inventory_log(self, product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name='管理員'):
         try:
             now_str = self._get_taiwan_now_str()
             item_name = item_name or '-'
+            operator_name = operator_name or '管理員'
             conn = self._get_connection()
             cursor = conn.cursor()
             if self.use_sqlite:
                 cursor.execute('''
-                    INSERT INTO inventory_logs (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, purchase_date, remark)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, now_str, remark))
+                    INSERT INTO inventory_logs (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, purchase_date, remark, operator_name)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, now_str, remark, operator_name))
                 cursor.execute('''
                     UPDATE products SET stock_qty = stock_qty + ?, cost_price = ? WHERE id = ?
                 ''', (purchase_qty, purchase_cost, product_id))
             else:
                 cursor.execute('''
-                    INSERT INTO inventory_logs (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, purchase_date, remark)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ''', (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, now_str, remark))
+                    INSERT INTO inventory_logs (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, purchase_date, remark, operator_name)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, now_str, remark, operator_name))
                 cursor.execute('''
                     UPDATE products SET stock_qty = stock_qty + %s, cost_price = %s WHERE id = %s
                 ''', (purchase_qty, purchase_cost, product_id))
@@ -614,22 +618,22 @@ class DBService:
         except Exception as e:
             return []
 
-    def update_inventory_log(self, log_id, item_name, purchase_qty, purchase_cost, supplier, remark):
+    def update_inventory_log(self, log_id, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name='管理員'):
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             if self.use_sqlite:
                 cursor.execute('''
                     UPDATE inventory_logs 
-                    SET item_name = ?, purchase_qty = ?, purchase_cost = ?, supplier = ?, remark = ?
+                    SET item_name = ?, purchase_qty = ?, purchase_cost = ?, supplier = ?, remark = ?, operator_name = ?
                     WHERE id = ?
-                ''', (item_name, purchase_qty, purchase_cost, supplier, remark, log_id))
+                ''', (item_name, purchase_qty, purchase_cost, supplier, remark, operator_name, log_id))
             else:
                 cursor.execute('''
                     UPDATE inventory_logs 
-                    SET item_name = %s, purchase_qty = %s, purchase_cost = %s, supplier = %s, remark = %s
+                    SET item_name = %s, purchase_qty = %s, purchase_cost = %s, supplier = %s, remark = %s, operator_name = %s
                     WHERE id = %s
-                ''', (item_name, purchase_qty, purchase_cost, supplier, remark, log_id))
+                ''', (item_name, purchase_qty, purchase_cost, supplier, remark, operator_name, log_id))
             conn.commit()
             conn.close()
             return True
