@@ -1139,22 +1139,32 @@
 
       const btn = document.getElementById('btn-batch-send-submit');
       btn.disabled = true;
-      btn.innerHTML = `<span class="animate-spin material-symbols-outlined">sync</span> 系統發送中，請稍候...`;
+      btn.innerHTML = `<span class="animate-spin material-symbols-outlined">sync</span> 圖片上傳與 LINE 推播中，請稍候...`;
 
       try {
-        let fileNote = selectedSendFiles.length > 0 ? `\n📎 附帶 ${selectedSendFiles.length} 個檔案附件 (${selectedSendFiles.map(f=>f.name).join(', ')})` : '';
-        for (let gid of selectedGroupIds) {
-          await fetch('/api/admin/line/broadcast', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ group_id: gid, message: messageText + fileNote })
-          });
+        const formData = new FormData();
+        selectedGroupIds.forEach(gid => formData.append('group_ids', gid));
+        formData.append('message', messageText);
+
+        selectedSendFiles.forEach(file => {
+          formData.append('files', file);
+        });
+
+        const res = await fetch('/api/admin/line/broadcast', {
+          method: 'POST',
+          body: formData
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+          alert(`🎉 ${json.message}`);
+          document.getElementById('batch-send-text').value = '';
+          selectedSendFiles = [];
+          handleSelectedFilesChange([]);
+        } else {
+          alert(json.message || '發送失敗');
         }
-        alert(`🎉 成功將訊息推播至 ${selectedGroupIds.length} 個 LINE 群組！`);
-        document.getElementById('batch-send-text').value = '';
-        selectedSendFiles = [];
-        handleSelectedFilesChange([]);
       } catch (err) {
+        console.error(err);
         alert('發送過程中發生連線錯誤');
       } finally {
         btn.disabled = false;

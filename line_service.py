@@ -59,7 +59,6 @@ class LineService:
         """處理 LINE Webhook 簽章驗證與事件派發，包含備援 JSON 解析"""
         print(f"[LINE Webhook] Received webhook payload: {body}")
         
-        # 1. 正常通過 SDK 處理
         if self.handler:
             try:
                 self.handler.handle(body, signature)
@@ -69,7 +68,6 @@ class LineService:
             except Exception as e:
                 print(f"❌ LINE Webhook Handler Error: {e}")
 
-        # 2. 備援手動解析 (防止簽章密鑰微調時無法處理 flbr 指令)
         try:
             payload = json.loads(body)
             events = payload.get('events', [])
@@ -99,7 +97,7 @@ class LineService:
         return True
 
     def push_text_message(self, group_id, text_content):
-        """發送單筆或批量文字訊息至 LINE 群組"""
+        """發送單筆文字訊息至 LINE 群組"""
         target_group = group_id or self.group_id
         if not self.line_bot_api or not target_group:
             print("LINE Bot API or Group ID not configured.")
@@ -111,6 +109,35 @@ class LineService:
             return True
         except LineBotApiError as e:
             print(f"LINE Bot Push Message Error: {e.status_code} - {e.error.message}")
+            return False
+
+    def push_messages_batch(self, group_id, text_content=None, image_urls=None):
+        """混合推送文字與直接在 LINE 聊天室顯示預覽的真實圖片訊息 (ImageSendMessage)"""
+        target_group = group_id or self.group_id
+        if not self.line_bot_api or not target_group:
+            print("LINE Bot API or Group ID not configured.")
+            return False
+
+        messages = []
+        if text_content:
+            messages.append(TextSendMessage(text=text_content))
+
+        if image_urls:
+            for url in image_urls[:4]:  # LINE 單次最大發送 5 則訊息，留 1 則給文字
+                messages.append(ImageSendMessage(original_content_url=url, preview_image_url=url))
+
+        if not messages:
+            return False
+
+        try:
+            self.line_bot_api.push_message(target_group, messages)
+            print(f"LINE Push batch messages ({len(messages)} items) to group {target_group} success.")
+            return True
+        except LineBotApiError as e:
+            print(f"LINE Bot Push Batch Error: {e.status_code} - {e.error.message}")
+            if e.error.details:
+                for detail in e.error.details:
+                    print(f"Detail: {detail.property} - {detail.message}")
             return False
 
     def get_login_url(self, state, redirect_uri=None):

@@ -2,7 +2,8 @@ import os
 import uuid
 import json
 from urllib.parse import quote
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory
+from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from db_service import DBService
 from line_service import LineService
@@ -12,6 +13,9 @@ load_dotenv(override=False)
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.secret_key = os.getenv("SECRET_KEY", "ux_print_club_secret_key_2026")
+
+UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db_service = DBService()
 line_service = LineService()
@@ -24,6 +28,11 @@ def admin_or_coach_required(f):
             return redirect(url_for('login_page', next=request.url))
         return f(*args, **kwargs)
     return decorated_function
+
+# --- Public Uploads Serving Route ---
+@app.route('/uploads/<path:filename>')
+def serve_uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 # --- Frontend & Auth Routes ---
 
@@ -49,7 +58,6 @@ def logout():
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
-    """使用者建立會員帳號 (預設身份角色為一般使用者 user)"""
     data = request.get_json() or {}
     name = data.get('name', '').strip()
     username = data.get('username', '').strip()
@@ -61,7 +69,6 @@ def api_register():
     if not name or not username or not password:
         return jsonify({"status": "error", "message": "姓名、帳號與密碼為必填欄位！"}), 400
 
-    # 預設註冊角色為一般使用者 'user'
     success, msg = db_service.register_user(username, password, name, phone, role='user', line_id=line_id, avatar_url=avatar_url)
     if success:
         return jsonify({"status": "success", "message": msg})
@@ -89,7 +96,6 @@ def api_login():
 
 @app.route('/api/line/bind-account', methods=['POST'])
 def api_line_bind_account():
-    """將現有註冊帳號與 LINE 帳號進行綁定"""
     data = request.get_json() or {}
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
@@ -123,7 +129,6 @@ def api_line_login_url():
 
 @app.route('/api/line/callback', methods=['GET'])
 def api_line_callback():
-    """LINE OAuth 2.1 授權點：已綁定則直接登入，尚未綁定跳至【帳號綁定】畫面"""
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
@@ -145,10 +150,8 @@ def api_line_callback():
     display_name = profile.get('displayName', 'LINE 使用者')
     picture_url = profile.get('pictureUrl', '')
 
-    # 1. 檢查此 LINE ID 是否已經連結過已註冊帳號
     existing_user = db_service.get_user_by_line_id(line_user_id)
     if existing_user:
-        # 已綁定：直接登入
         session['user'] = {
             "id": existing_user['id'],
             "username": existing_user['username'],
@@ -159,7 +162,6 @@ def api_line_callback():
         }
         return redirect(url_for('home'))
 
-    # 2. 尚未綁定帳號：跳轉至【帳號綁定】畫面 (若查無帳號可點擊進入建立會員帳號)
     redirect_target = f"/login?tab=bind&line_id={quote(line_user_id)}&name={quote(display_name)}&avatar={quote(picture_url)}"
     return redirect(redirect_target)
 
@@ -262,7 +264,7 @@ def api_admin_inventory():
         logs = db_service.get_inventory_logs()
         return jsonify({"status": "success", "data": logs})
 
-# --- LINE Group & Broadcast APIs ---
+# --- LINE Group & Broadcast APIs (支援真實圖片 ImageSendMessage) ---
 
 @app.route('/api/admin/line-groups', methods=['GET', 'POST'])
 @admin_or_coach_required
@@ -292,18 +294,52 @@ def api_admin_delete_line_group(group_id):
 @app.route('/api/admin/line/broadcast', methods=['POST'])
 @admin_or_coach_required
 def api_admin_line_broadcast():
-    data = request.get_json() or {}
-    group_id = data.get('group_id')
-    message_text = data.get('message')
+    """廣播推播：支援純文字或 FormData 圖片多檔真實推播 (ImageSendMessage)"""
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        group_ids = request.form.getlist('group_ids') or [request.form.get('group_id')]
+        message_text = request.form.get('message', '').strip()
+        uploaded_files = request.files.getlist('files')
 
-    if not message_text:
-        return jsonify({"status": "error", "message": "訊息內容不能為空"}), 400
+        image_urls = []
+        for file in uploaded_files:
+            if file and file.filename:
+                orig_filename = secure_filename(file.filename)
+                ext = os.path.splitext(orig_filename)[1].lower()
+                unique_name = f"{uuid.uuid4().hex[:12]}{ext}"
+                file_path = os.path.join(UPLOAD_FOLDER, unique_name)
+                file.save(file_path)
 
-    success = line_service.push_text_message(group_id, message_text)
-    return jsonify({
-        "status": "success" if success else "simulated",
-        "message": f"已推播訊息至 LINE 群組 [{group_id or '預設群組'}]"
-    })
+                # 如果是圖片檔 (.jpg, .png, .jpeg, .webp, .gif) 產生公開網址供 LINE 預覽
+                if ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
+                    public_url = f"{request.host_url.rstrip('/')}/uploads/{unique_name}"
+                    image_urls.append(public_url)
+                else:
+                    message_text += f"\n📎 檔案下載網址: {request.host_url.rstrip('/')}/uploads/{unique_name}"
+
+        success_count = 0
+        for gid in group_ids:
+            if gid:
+                ok = line_service.push_messages_batch(gid, text_content=message_text, image_urls=image_urls)
+                if ok:
+                    success_count += 1
+
+        return jsonify({
+            "status": "success",
+            "message": f"訊息與 {len(image_urls)} 張圖片已成功推送至 {success_count} 個 LINE 群組！"
+        })
+    else:
+        data = request.get_json() or {}
+        group_id = data.get('group_id')
+        message_text = data.get('message')
+
+        if not message_text:
+            return jsonify({"status": "error", "message": "訊息內容不能為空"}), 400
+
+        success = line_service.push_text_message(group_id, message_text)
+        return jsonify({
+            "status": "success" if success else "simulated",
+            "message": f"已推播訊息至 LINE 群組 [{group_id or '預設群組'}]"
+        })
 
 # --- Bulletin APIs ---
 
