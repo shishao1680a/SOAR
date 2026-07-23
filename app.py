@@ -45,26 +45,24 @@ def logout():
     session.clear()
     return redirect(url_for('home'))
 
-# --- Login, Registration & LINE OAuth APIs ---
+# --- Login, Registration, LINE Binding & OAuth APIs ---
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
+    """使用者建立會員帳號 (預設身份角色為一般使用者 user)"""
     data = request.get_json() or {}
     name = data.get('name', '').strip()
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
     phone = data.get('phone', '').strip()
-    role = data.get('role', 'user').strip()
     line_id = data.get('line_id', '').strip()
     avatar_url = data.get('avatar_url', '').strip()
 
     if not name or not username or not password:
         return jsonify({"status": "error", "message": "姓名、帳號與密碼為必填欄位！"}), 400
 
-    if role not in ['user', 'assistant_coach', 'admin']:
-        role = 'user'
-
-    success, msg = db_service.register_user(username, password, name, phone, role, line_id=line_id, avatar_url=avatar_url)
+    # 預設註冊角色為一般使用者 'user'
+    success, msg = db_service.register_user(username, password, name, phone, role='user', line_id=line_id, avatar_url=avatar_url)
     if success:
         return jsonify({"status": "success", "message": msg})
     return jsonify({"status": "error", "message": msg}), 400
@@ -89,6 +87,31 @@ def api_login():
     else:
         return jsonify({"status": "error", "message": "帳號或密碼錯誤！"}), 401
 
+@app.route('/api/line/bind-account', methods=['POST'])
+def api_line_bind_account():
+    """將現有註冊帳號與 LINE 帳號進行綁定"""
+    data = request.get_json() or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    line_id = data.get('line_id', '').strip()
+    avatar_url = data.get('avatar_url', '').strip()
+
+    if not username or not password or not line_id:
+        return jsonify({"status": "error", "message": "帳號、密碼與 LINE ID 不能為空"}), 400
+
+    success, msg, bound_user = db_service.bind_line_to_account(username, password, line_id, avatar_url)
+    if success and bound_user:
+        session['user'] = {
+            "id": bound_user['id'],
+            "username": bound_user['username'],
+            "name": bound_user['name'],
+            "line_id": bound_user['line_id'],
+            "avatar_url": bound_user['avatar_url'],
+            "role": bound_user['role']
+        }
+        return jsonify({"status": "success", "message": msg, "user": session['user']})
+    return jsonify({"status": "error", "message": msg}), 400
+
 @app.route('/api/line/login-url', methods=['GET'])
 def api_line_login_url():
     state = uuid.uuid4().hex
@@ -100,7 +123,7 @@ def api_line_login_url():
 
 @app.route('/api/line/callback', methods=['GET'])
 def api_line_callback():
-    """LINE OAuth 2.1 授權點，完成與 PostgreSQL 使用者帳號的自動連結"""
+    """LINE OAuth 2.1 授權點：已綁定則直接登入，尚未綁定跳至【帳號綁定】畫面"""
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
@@ -122,10 +145,10 @@ def api_line_callback():
     display_name = profile.get('displayName', 'LINE 使用者')
     picture_url = profile.get('pictureUrl', '')
 
-    # 1. 檢查此 LINE ID 是否已經連結過註冊帳號
+    # 1. 檢查此 LINE ID 是否已經連結過已註冊帳號
     existing_user = db_service.get_user_by_line_id(line_user_id)
     if existing_user:
-        # 已有帳號，直接進行登入
+        # 已綁定：直接登入
         session['user'] = {
             "id": existing_user['id'],
             "username": existing_user['username'],
@@ -136,8 +159,8 @@ def api_line_callback():
         }
         return redirect(url_for('home'))
 
-    # 2. 第一次登入且無帳號：跳轉至註冊畫面並帶入 LINE 資料
-    redirect_target = f"/login?tab=register&line_id={quote(line_user_id)}&name={quote(display_name)}&avatar={quote(picture_url)}"
+    # 2. 尚未綁定帳號：跳轉至【帳號綁定】畫面 (若查無帳號可點擊進入建立會員帳號)
+    redirect_target = f"/login?tab=bind&line_id={quote(line_user_id)}&name={quote(display_name)}&avatar={quote(picture_url)}"
     return redirect(redirect_target)
 
 @app.route('/api/user/current', methods=['GET'])

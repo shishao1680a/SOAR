@@ -284,8 +284,29 @@ class DBService:
             print(f"Error fetching user by LINE ID: {e}")
             return None
 
+    def bind_line_to_account(self, username, password, line_id, avatar_url=""):
+        """將 LINE ID 與已存在之會員帳號綁定"""
+        user = self.authenticate_user(username, password)
+        if not user:
+            return False, "查無此帳號或密碼錯誤，請確認輸入資料或前往【建立會員帳號】！", None
+
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            query = "UPDATE users SET line_id = %s, avatar_url = CASE WHEN %s <> '' THEN %s ELSE avatar_url END WHERE id = %s" if not self.use_sqlite else "UPDATE users SET line_id = ?, avatar_url = CASE WHEN ? <> '' THEN ? ELSE avatar_url END WHERE id = ?"
+            cursor.execute(query, (line_id, avatar_url, avatar_url, user['id']))
+            conn.commit()
+            conn.close()
+
+            user['line_id'] = line_id
+            if avatar_url:
+                user['avatar_url'] = avatar_url
+            return True, "LINE 帳號成功綁定！", user
+        except Exception as e:
+            return False, f"綁定失敗: {str(e)}", None
+
     def register_user(self, username, password, name, phone, role='user', line_id='', avatar_url=''):
-        """註冊新使用者 (支援綁定 LINE 帳號)"""
+        """註冊新使用者 (預設角色為 user)"""
         try:
             now_str = self._get_taiwan_now_str()
             user_id = f"u_{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -299,7 +320,7 @@ class DBService:
             row = cursor.fetchone()
             if row and row[0] > 0:
                 conn.close()
-                return False, "該電話/帳號已註冊過，請直接輸入密碼進行登入！"
+                return False, "該電話/帳號已註冊過，請直接進行帳號綁定或登入！"
 
             query_ins = '''
                 INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
@@ -472,7 +493,7 @@ class DBService:
                 ''', (product_id, product_name, purchase_qty, purchase_cost, supplier, now_str, remark))
                 cursor.execute('''
                     UPDATE products SET stock_qty = stock_qty + %s, cost_price = %s WHERE id = %s
-                ''', (purchase_qty, purchase_cost, product_id))
+                ''', (product_id, product_name, purchase_qty, purchase_cost, supplier, now_str, remark))
             conn.commit()
             conn.close()
             return True

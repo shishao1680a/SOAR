@@ -56,7 +56,7 @@
     </a>
   </header>
 
-  <!-- Login Card Container (對應圖2風格，清理預設值與測試提示) -->
+  <!-- Login Card Container -->
   <main class="flex-grow flex items-center justify-center p-4 my-8">
     <div class="w-full max-w-lg bg-white rounded-2xl p-8 md:p-10 shadow-2xl space-y-6 text-text-main border border-gray-100">
       
@@ -66,26 +66,28 @@
         <p id="auth-card-subtitle" class="text-sm text-gray-500 font-medium">直接輸入帳號或電話號碼進行登入</p>
       </div>
 
-      <!-- LINE Pre-fill Alert Banner (第一次LINE登入轉跳時顯示) -->
+      <!-- LINE Pre-fill Alert Banner -->
       <div id="line-bind-banner" class="hidden p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-1">
         <div class="font-bold flex items-center gap-1">
           <svg class="w-4 h-4 fill-line-green shrink-0" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
-          首次使用 LINE 登入，請建立帳號完成綁定！
+          已完成 LINE 登入授權！請綁定現有帳號或建立新會員。
         </div>
-        <div class="text-gray-600">已自動為您帶入 LINE 暱稱與頭像，請設定您的專屬帳號與密碼。</div>
       </div>
 
-      <!-- Mode Switcher Tabs (帳密登入 / 註冊帳號) -->
+      <!-- Mode Switcher Tabs (帳密登入 / 帳號綁定 / 建立會員帳號) -->
       <div class="flex bg-gray-100 p-1 rounded-xl text-sm font-bold">
         <button id="btn-tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2 rounded-lg bg-white shadow text-primary-green transition-all">
           帳密登入
         </button>
+        <button id="btn-tab-bind" onclick="switchAuthTab('bind')" class="hidden flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all">
+          帳號綁定
+        </button>
         <button id="btn-tab-register" onclick="switchAuthTab('register')" class="flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all">
-          註冊帳號
+          建立會員帳號
         </button>
       </div>
 
-      <!-- FORM 1: LOGIN (帳密登入 + LINE 帳號登入，清空預設值) -->
+      <!-- FORM 1: LOGIN (帳密登入) -->
       <div id="form-login" class="space-y-4 pt-2">
         <div>
           <label class="block text-xs font-bold text-gray-700 mb-1.5">通訊處電話 / 手機電話 / 帳號</label>
@@ -100,7 +102,7 @@
           <input type="password" id="login-password" placeholder="請輸入密碼" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
         </div>
 
-        <!-- Main Login Button (墨綠色大按鈕，對應圖2) -->
+        <!-- Main Login Button -->
         <button onclick="handleLoginSubmit()" class="w-full bg-primary-green hover:bg-primary-green-hover text-white py-3.5 rounded-xl font-bold text-base shadow-lg shadow-primary-green/20 hover:shadow-primary-green/40 active:scale-[0.99] transition-all">
           登入
         </button>
@@ -112,7 +114,7 @@
           <div class="flex-grow border-t border-gray-200"></div>
         </div>
 
-        <!-- LINE Login Button (圖2 綠色按鈕) -->
+        <!-- LINE Login Button -->
         <button onclick="handleLineLogin()" class="w-full bg-line-green hover:bg-line-green-hover text-white py-3.5 rounded-xl font-bold text-base shadow-lg shadow-line-green/20 flex items-center justify-center gap-2 active:scale-[0.99] transition-all">
           <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
           使用 LINE 帳號登入
@@ -120,12 +122,44 @@
 
         <div class="text-center pt-2">
           <button onclick="switchAuthTab('register')" class="text-xs text-gray-500 hover:text-primary-green font-bold hover:underline">
-            還沒有帳號？點此免費註冊新會員 ➔
+            還沒有帳號？點此前往【建立會員帳號】 ➔
           </button>
         </div>
       </div>
 
-      <!-- FORM 2: REGISTER (註冊表單，可自動綁定 LINE) -->
+      <!-- FORM 2: BIND ACCOUNT (LINE 帳號綁定畫面，對應需求 1) -->
+      <div id="form-bind" class="hidden space-y-4 pt-2">
+        <input type="hidden" id="bind-line-id" />
+        <input type="hidden" id="bind-avatar-url" />
+
+        <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800">
+          請輸入您先前已註冊的手機電話/帳號與密碼，完成與 LINE 帳號的連結綁定。
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1.5">已註冊的手機電話 / 帳號 *</label>
+          <input type="text" id="bind-username" placeholder="請輸入您原有的手機電話或帳號" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1.5">密碼 *</label>
+          <input type="password" id="bind-password" placeholder="請輸入密碼" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
+        </div>
+
+        <!-- Bind Submit Button -->
+        <button onclick="handleBindSubmit()" class="w-full bg-line-green hover:bg-line-green-hover text-white py-3.5 rounded-xl font-bold text-base shadow-lg shadow-line-green/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+          <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
+          確認綁定 LINE 帳號
+        </button>
+
+        <div class="text-center pt-2">
+          <button onclick="switchAuthTab('register')" class="text-xs text-secondary-container hover:underline font-bold">
+            若查無此帳號或尚未註冊？點此前往【建立會員帳號】 ➔
+          </button>
+        </div>
+      </div>
+
+      <!-- FORM 3: REGISTER (建立會員帳號 畫面，對應需求 2：拿掉申請身份角色欄位) -->
       <div id="form-register" class="hidden space-y-4 pt-2">
         <input type="hidden" id="reg-line-id" />
         <input type="hidden" id="reg-avatar-url" />
@@ -151,15 +185,6 @@
           </div>
         </div>
 
-        <div>
-          <label class="block text-xs font-bold text-gray-700 mb-1.5">選擇申請身份角色 (ROLE)</label>
-          <select id="reg-role" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all font-medium">
-            <option value="user">🏃 一般使用者 (一般會員作品瀏覽與購物)</option>
-            <option value="assistant_coach">🧢 助理教練 (公告發布與公佈欄維護)</option>
-            <option value="admin">👑 最高管理員 (全功能系統管理員權限)</option>
-          </select>
-        </div>
-
         <!-- Register Submit Button -->
         <button onclick="handleRegisterSubmit()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-bold text-base shadow-lg shadow-emerald-600/20 active:scale-[0.99] transition-all">
           確認註冊並完成登入
@@ -182,44 +207,71 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-      // 檢查 URL 是否帶有 LINE 回傳的註冊參數
       const urlParams = new URLSearchParams(window.location.search);
       const tab = urlParams.get('tab');
       const lineId = urlParams.get('line_id');
       const name = urlParams.get('name');
       const avatar = urlParams.get('avatar');
 
-      if (tab === 'register' || lineId) {
+      if (tab === 'bind' || (lineId && tab !== 'register')) {
+        switchAuthTab('bind');
+        document.getElementById('line-bind-banner').classList.remove('hidden');
+        if (lineId) {
+          document.getElementById('bind-line-id').value = lineId;
+          document.getElementById('reg-line-id').value = lineId;
+        }
+        if (avatar) {
+          document.getElementById('bind-avatar-url').value = avatar;
+          document.getElementById('reg-avatar-url').value = avatar;
+        }
+        if (name) {
+          document.getElementById('reg-name').value = name;
+        }
+      } else if (tab === 'register') {
         switchAuthTab('register');
         if (lineId) {
           document.getElementById('line-bind-banner').classList.remove('hidden');
           document.getElementById('reg-line-id').value = lineId;
-          if (name) document.getElementById('reg-name').value = name;
-          if (avatar) document.getElementById('reg-avatar-url').value = avatar;
         }
+        if (name) document.getElementById('reg-name').value = name;
+        if (avatar) document.getElementById('reg-avatar-url').value = avatar;
       }
     });
 
     function switchAuthTab(tab) {
       const btnLogin = document.getElementById('btn-tab-login');
+      const btnBind = document.getElementById('btn-tab-bind');
       const btnReg = document.getElementById('btn-tab-register');
+
       const formLogin = document.getElementById('form-login');
+      const formBind = document.getElementById('form-bind');
       const formReg = document.getElementById('form-register');
+
       const title = document.getElementById('auth-card-title');
       const subtitle = document.getElementById('auth-card-subtitle');
 
+      // Reset
+      btnLogin.className = "flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all";
+      btnBind.className = "hidden flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all";
+      btnReg.className = "flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all";
+
+      formLogin.classList.add('hidden');
+      formBind.classList.add('hidden');
+      formReg.classList.add('hidden');
+
       if (tab === 'login') {
         btnLogin.className = "flex-1 py-2 rounded-lg bg-white shadow text-primary-green font-bold transition-all";
-        btnReg.className = "flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all";
         formLogin.classList.remove('hidden');
-        formReg.classList.add('hidden');
         title.textContent = "會員登入";
         subtitle.textContent = "直接輸入帳號或電話號碼進行登入";
+      } else if (tab === 'bind') {
+        btnBind.className = "flex-1 py-2 rounded-lg bg-white shadow text-line-green font-bold transition-all";
+        formBind.classList.remove('hidden');
+        title.textContent = "LINE 帳號綁定";
+        subtitle.textContent = "輸入您已註冊之手機電話/帳號完成 LINE 帳號連結";
       } else {
         btnReg.className = "flex-1 py-2 rounded-lg bg-white shadow text-primary-green font-bold transition-all";
-        btnLogin.className = "flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all";
         formReg.classList.remove('hidden');
-        formLogin.classList.add('hidden');
         title.textContent = "建立會員帳號";
         subtitle.textContent = "請填寫以下資訊完成新使用者註冊";
       }
@@ -259,12 +311,45 @@
       }
     }
 
+    async function handleBindSubmit() {
+      const username = document.getElementById('bind-username').value.trim();
+      const password = document.getElementById('bind-password').value.trim();
+      const lineId = document.getElementById('bind-line-id').value;
+      const avatarUrl = document.getElementById('bind-avatar-url').value;
+
+      if (!username || !password) {
+        alert('請輸入您原有的手機電話/帳號與密碼進行綁定！');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/line/bind-account', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ username, password, line_id: lineId, avatar_url: avatarUrl })
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+          alert('🎉 LINE 帳號綁定成功！即刻為您自動進行登入。');
+          window.location.href = '/';
+        } else {
+          alert(json.message || '綁定失敗！');
+          // 若查詢不到該帳號，引導切換至【建立會員帳號】畫面
+          if (confirm('查無此帳號或密碼錯誤，是否要前往【建立會員帳號】？')) {
+            switchAuthTab('register');
+          }
+        }
+      } catch (e) {
+        console.error(e);
+        alert('連線失敗');
+      }
+    }
+
     async function handleRegisterSubmit() {
       const name = document.getElementById('reg-name').value.trim();
       const username = document.getElementById('reg-username').value.trim();
       const password = document.getElementById('reg-password').value.trim();
       const confirmPassword = document.getElementById('reg-confirm-password').value.trim();
-      const role = document.getElementById('reg-role').value;
       const lineId = document.getElementById('reg-line-id').value;
       const avatarUrl = document.getElementById('reg-avatar-url').value;
 
@@ -287,7 +372,6 @@
             username, 
             password, 
             phone: username, 
-            role, 
             line_id: lineId, 
             avatar_url: avatarUrl 
           })
