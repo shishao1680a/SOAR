@@ -7,11 +7,14 @@ from linebot.exceptions import LineBotApiError, InvalidSignatureError
 class LineService:
     def __init__(self):
         self.access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
-        self.channel_id = os.getenv('LINE_LOGIN_CHANNEL_ID')
         self.channel_secret = os.getenv('LINE_CHANNEL_SECRET')
-        self.redirect_uri = os.getenv('LINE_LOGIN_REDIRECT_URI')
         self.group_id = os.getenv('LINE_GROUP_ID')
-        
+
+        # LINE Login Credentials
+        self.login_channel_id = os.getenv('LINE_LOGIN_CHANNEL_ID') or os.getenv('LINE_CHANNEL_ID')
+        self.login_channel_secret = os.getenv('LINE_LOGIN_CHANNEL_SECRET') or os.getenv('LINE_CHANNEL_SECRET')
+        self.redirect_uri = os.getenv('LINE_LOGIN_REDIRECT_URI', 'https://soar-staging.up.railway.app/api/line/callback')
+
         if self.access_token:
             self.line_bot_api = LineBotApi(self.access_token)
         else:
@@ -23,6 +26,7 @@ class LineService:
             self.handler = None
 
     def handle_webhook(self, body, signature):
+        """處理 LINE Webhook 簽章驗證"""
         if not self.handler:
             return False
         try:
@@ -31,29 +35,30 @@ class LineService:
         except InvalidSignatureError:
             return False
 
-    def push_text_message(self, target_id, text):
-        """傳送文字訊息至 LINE 群組或個人"""
-        if not self.line_bot_api:
-            print("LINE Bot API not configured.")
+    def push_text_message(self, group_id, text_content):
+        """發送單筆或批量文字訊息至 LINE 群組"""
+        target_group = group_id or self.group_id
+        if not self.line_bot_api or not target_group:
+            print("LINE Bot API or Group ID not configured.")
             return False
         try:
-            to_id = target_id or self.group_id
-            if not to_id:
-                print("No LINE Target ID configured.")
-                return False
-            self.line_bot_api.push_message(to_id, TextSendMessage(text=text))
+            message = TextSendMessage(text=text_content)
+            self.line_bot_api.push_message(target_group, message)
+            print(f"LINE Push message to group {target_group} success.")
             return True
         except LineBotApiError as e:
-            print(f"LINE Push Error: {e.status_code} - {e.error.message}")
+            print(f"LINE Bot Push Message Error: {e.status_code} - {e.error.message}")
             return False
 
     def get_login_url(self, state, redirect_uri=None):
-        """產生 LINE Login 授權連結 (OAuth 2.1)"""
+        """產生真正的 LINE Login OAuth 2.1 授權網址"""
         r_uri = redirect_uri or self.redirect_uri
+        if not self.login_channel_id:
+            return None
         url = "https://access.line.me/oauth2/v2.1/authorize"
         params = {
             "response_type": "code",
-            "client_id": self.channel_id,
+            "client_id": self.login_channel_id,
             "redirect_uri": r_uri,
             "state": state,
             "scope": "profile openid email"
@@ -61,8 +66,8 @@ class LineService:
         query_string = "&".join([f"{k}={v}" for k, v in params.items()])
         return f"{url}?{query_string}"
 
-    def get_user_profile(self, code, redirect_uri=None):
-        """以 Authorization Code 換取 Access Token 與 User Profile"""
+    def exchange_code_for_token(self, code, redirect_uri=None):
+        """以 authorization_code 向 LINE 換取 access_token"""
         r_uri = redirect_uri or self.redirect_uri
         token_url = "https://api.line.me/oauth2/v2.1/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -70,21 +75,31 @@ class LineService:
             "grant_type": "authorization_code",
             "code": code,
             "redirect_uri": r_uri,
-            "client_id": self.channel_id,
-            "client_secret": os.getenv('LINE_LOGIN_CHANNEL_SECRET')
+            "client_id": self.login_channel_id,
+            "client_secret": self.login_channel_secret
         }
-        
-        response = requests.post(token_url, headers=headers, data=data)
-        if response.status_code == 200:
-            token_data = response.json()
-            access_token = token_data.get("access_token")
-            if access_token:
-                profile_url = "https://api.line.me/v2/profile"
-                p_headers = {"Authorization": f"Bearer {access_token}"}
-                p_res = requests.get(profile_url, headers=p_headers)
-                if p_res.status_code == 200:
-                    return p_res.json()
-            return token_data
-        else:
-            print(f"LINE Token Exchange Error: {response.text}")
+        try:
+            res = requests.post(token_url, headers=headers, data=data)
+            if res.status_code == 200:
+                return res.json()
+            else:
+                print(f"LINE Token Exchange Error: {res.text}")
+                return None
+        except Exception as e:
+            print(f"Failed to exchange LINE code: {e}")
+            return None
+
+    def get_line_user_profile(self, access_token):
+        """使用 access_token 取得使用者的 LINE Profile (userId, displayName, pictureUrl)"""
+        profile_url = "https://api.line.me/v2/profile"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        try:
+            res = requests.get(profile_url, headers=headers)
+            if res.status_code == 200:
+                return res.json()
+            else:
+                print(f"LINE Profile Error: {res.text}")
+                return None
+        except Exception as e:
+            print(f"Failed to get LINE user profile: {e}")
             return None

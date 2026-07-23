@@ -15,7 +15,7 @@ app.secret_key = os.getenv("SECRET_KEY", "ux_print_club_secret_key_2026")
 db_service = DBService()
 line_service = LineService()
 
-# 權限驗證 Decorator (允許 管理員 admin 與 助理教練 assistant_coach 造訪後台)
+# 權限驗證 Decorator
 def admin_or_coach_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -45,17 +45,16 @@ def logout():
     session.clear()
     return redirect(url_for('home'))
 
-# --- Login & Registration APIs ---
+# --- Login, Registration & LINE OAuth APIs ---
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
-    """使用者註冊 API (支援姓名、帳號、密碼、電話、角色選擇)"""
     data = request.get_json() or {}
     name = data.get('name', '').strip()
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
     phone = data.get('phone', '').strip()
-    role = data.get('role', 'user').strip() # 'user' | 'assistant_coach' | 'admin'
+    role = data.get('role', 'user').strip()
 
     if not name or not username or not password:
         return jsonify({"status": "error", "message": "姓名、帳號與密碼為必填欄位！"}), 400
@@ -70,7 +69,6 @@ def api_register():
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
-    """一般帳/密 登入 API"""
     data = request.get_json() or {}
     username = data.get('username')
     password = data.get('password')
@@ -91,9 +89,62 @@ def api_login():
 
 @app.route('/api/line/login-url', methods=['GET'])
 def api_line_login_url():
+    """取得真實 LINE Login OAuth 授權網址"""
     state = uuid.uuid4().hex
-    url = line_service.get_login_url(state)
-    return jsonify({"status": "success", "url": url})
+    # 優先從環境變數取得 Callback 網址
+    redirect_uri = os.getenv('LINE_LOGIN_REDIRECT_URI', f"{request.host_url.rstrip('/')}/api/line/callback")
+    url = line_service.get_login_url(state, redirect_uri=redirect_uri)
+    if url:
+        return jsonify({"status": "success", "url": url})
+    return jsonify({"status": "error", "message": "LINE_LOGIN_CHANNEL_ID 尚未設定！"}), 400
+
+@app.route('/api/line/callback', methods=['GET'])
+def api_line_callback():
+    """LINE OAuth 2.1 授權完成轉跳驗證點"""
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
+
+    if error or not code:
+        return f"LINE Login 取消授權或失敗: {error}", 400
+
+    redirect_uri = os.getenv('LINE_LOGIN_REDIRECT_URI', f"{request.host_url.rstrip('/')}/api/line/callback")
+    token_data = line_service.exchange_code_for_token(code, redirect_uri=redirect_uri)
+    if not token_data or 'access_token' not in token_data:
+        return "LINE 金鑰交換失敗，請確認 LINE_LOGIN_CHANNEL_SECRET 與 REDIRECT_URI 設定！", 400
+
+    access_token = token_data['access_token']
+    profile = line_service.get_line_user_profile(access_token)
+    if not profile:
+        return "無法取得 LINE 個人檔案！", 400
+
+    line_user_id = profile.get('userId')
+    display_name = profile.get('displayName', 'LINE 使用者')
+    picture_url = profile.get('pictureUrl', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80')
+
+    # 自動將 LINE 使用者同步儲存至 PostgreSQL
+    db_service.save_or_update_user(
+        user_id=f"line_{line_user_id}",
+        username=f"line_{line_user_id[:8]}",
+        password="",
+        name=display_name,
+        line_id=line_user_id,
+        avatar_url=picture_url,
+        phone="",
+        role="user"
+    )
+
+    # 設置登入 Session
+    session['user'] = {
+        "id": f"line_{line_user_id}",
+        "username": f"line_{line_user_id[:8]}",
+        "name": display_name,
+        "line_id": line_user_id,
+        "avatar_url": picture_url,
+        "role": "user"
+    }
+
+    return redirect(url_for('home'))
 
 @app.route('/api/user/current', methods=['GET'])
 def api_current_user():
