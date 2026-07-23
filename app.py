@@ -342,8 +342,7 @@ def api_admin_inventory_detail(log_id):
         remark = data.get('remark', '')
 
         session_user = session.get('user', {}) or {}
-        current_name = session_user.get('name') or session_user.get('username') or '管理員'
-        operator_name = data.get('operator_name', '').strip() or current_name
+        operator_name = session_user.get('name') or session_user.get('username') or '管理員'
 
         updated = db_service.update_inventory_log(log_id, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name)
         if updated:
