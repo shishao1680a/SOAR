@@ -689,33 +689,37 @@
           <input type="text" id="item-edit-name" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2.5 rounded outline-none focus:border-line-green" placeholder="例如: 黑色-HELLO純棉款" />
         </div>
 
-        <div class="grid grid-cols-4 gap-2">
+        <div class="grid grid-cols-3 gap-2">
           <div>
             <label class="block font-bold text-primary-fixed mb-1">銷售價格 ($)</label>
             <input type="number" step="0.01" id="item-edit-price" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
           </div>
           <div>
-            <label class="block font-bold text-secondary-container mb-1">3D成本 ($)</label>
+            <label class="block font-bold text-secondary-container mb-1">3D列印成本 ($)</label>
             <input type="number" step="0.01" id="item-edit-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
           </div>
           <div>
-            <label class="block font-bold text-amber-400 mb-1">UV成本 ($)</label>
+            <label class="block font-bold text-amber-400 mb-1">UV列印成本 ($)</label>
             <input type="number" step="0.01" id="item-edit-uv-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
-          </div>
-          <div>
-            <label class="block font-bold text-line-green mb-1">項目庫存 (件)</label>
-            <input type="number" id="item-edit-stock" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" placeholder="50" />
           </div>
         </div>
 
         <div>
           <label class="block font-bold text-gray-200 mb-1">項目圖片 (網址與檔案上傳)</label>
           <div class="flex gap-2 items-center">
-            <input type="text" id="item-edit-image" class="flex-1 bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded truncate outline-none focus:border-line-green" placeholder="https://..." />
+            <input type="text" id="item-edit-image" oninput="updateSubItemImagePreview()" onchange="updateSubItemImagePreview()" class="flex-1 bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded truncate outline-none focus:border-line-green" placeholder="https://..." />
             <label class="bg-line-green/20 hover:bg-line-green text-line-green hover:text-white px-3 py-2 text-xs font-bold rounded cursor-pointer transition-all border border-line-green/40 whitespace-nowrap flex items-center gap-1">
               <span class="material-symbols-outlined text-sm">upload</span> 上傳圖片
               <input type="file" accept="image/*" class="hidden" onchange="uploadSubItemImage(this)" />
             </label>
+          </div>
+          <!-- 圖片上傳/網址即時縮圖預覽 -->
+          <div id="item-edit-preview-box" class="mt-2.5 flex items-center gap-3 bg-surface-container-low p-2 rounded border border-outline-variant/60 hidden">
+            <img id="item-edit-img-preview" src="" class="w-12 h-12 object-cover rounded border border-outline-variant shadow" />
+            <div>
+              <span class="block text-[11px] font-bold text-line-green">📷 項目圖片預覽</span>
+              <span id="item-edit-img-status" class="block text-[10px] text-gray-400">已載入縮圖</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1038,6 +1042,26 @@
       } else { alert(json.message); }
     }
 
+    let inventoryLogsList = [];
+
+    function calcCalculatedStock(prodId, itemName) {
+      if (!inventoryLogsList || inventoryLogsList.length === 0) return 0;
+      let purchased = 0;
+      inventoryLogsList.forEach(log => {
+        if (log.product_id === prodId) {
+          if (!itemName || itemName === '-') {
+            purchased += parseInt(log.purchase_qty || 0);
+          } else {
+            if (log.item_name === itemName || log.item_name === '-' || log.item_name === '-- 全品項預設/主商品 --') {
+              purchased += parseInt(log.purchase_qty || 0);
+            }
+          }
+        }
+      });
+      let sold = 0;
+      return Math.max(0, purchased - sold);
+    }
+
     function renderProductsTable() {
       const tbody = document.getElementById('product-table-body');
       tbody.innerHTML = productsList.map(p => {
@@ -1087,17 +1111,17 @@
             `).join('')
           : `<span class="text-amber-400 font-bold font-mono">$${parseFloat(p.uv_cost_price || 0).toFixed(2)}</span>`;
 
-        // 目前庫存 HTML (依項目個別顯示)
+        // 目前庫存 HTML (依 商品進貨服務 進貨數量 減去 銷售數量 計算)
         const itemsStockHtml = hasItems
           ? itemsArr.map(item => {
-              const qty = item.stock_qty !== undefined ? item.stock_qty : (p.stock_qty || 0);
+              const qty = calcCalculatedStock(p.id, item.name);
               return `
                 <div class="py-1 font-bold font-mono text-[11px] mb-1 ${qty < 10 ? 'text-error' : 'text-line-green'}">
                   ${qty} 件
                 </div>
               `;
             }).join('')
-          : `<span class="font-bold ${p.stock_qty < 10 ? 'text-error' : 'text-line-green'}">${p.stock_qty || 0} 件</span>`;
+          : `<span class="font-bold ${calcCalculatedStock(p.id, '-') < 10 ? 'text-error' : 'text-line-green'}">${calcCalculatedStock(p.id, '-')} 件</span>`;
 
         return `
           <tr class="hover:bg-surface-container/50">
@@ -1130,6 +1154,18 @@
       }).join('');
     }
 
+    function updateSubItemImagePreview() {
+      const url = document.getElementById('item-edit-image').value.trim();
+      const previewBox = document.getElementById('item-edit-preview-box');
+      const previewImg = document.getElementById('item-edit-img-preview');
+      if (url) {
+        previewImg.src = url;
+        previewBox.classList.remove('hidden');
+      } else {
+        previewBox.classList.add('hidden');
+      }
+    }
+
     function renderProductItemsList() {
       const container = document.getElementById('product-items-list-container');
       if (!container) return;
@@ -1154,8 +1190,7 @@
               <div class="text-[11px] text-gray-300 font-mono mt-0.5">
                 售價: <span class="text-primary-fixed font-bold">$${parseFloat(item.price !== undefined ? item.price : 0).toFixed(2)}</span> | 
                 3D成本: <span class="text-secondary-container">$${parseFloat(item.cost_price !== undefined ? item.cost_price : 0).toFixed(2)}</span> | 
-                UV成本: <span class="text-amber-400">$${parseFloat(item.uv_cost_price !== undefined ? item.uv_cost_price : 0).toFixed(2)}</span> | 
-                庫存: <span class="text-line-green font-bold">${item.stock_qty !== undefined ? item.stock_qty : 50} 件</span>
+                UV成本: <span class="text-amber-400">$${parseFloat(item.uv_cost_price !== undefined ? item.uv_cost_price : 0).toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -1185,7 +1220,6 @@
         setVal('item-edit-price', document.getElementById('prod-edit-price').value || '45.00');
         setVal('item-edit-cost', document.getElementById('prod-edit-cost').value || '18.00');
         setVal('item-edit-uv-cost', document.getElementById('prod-edit-uv-cost').value || '5.00');
-        setVal('item-edit-stock', '50');
         setVal('item-edit-image', document.getElementById('prod-edit-image').value || '');
       } else {
         const item = currentProductItems[index];
@@ -1194,9 +1228,10 @@
         setVal('item-edit-price', item ? item.price : 0);
         setVal('item-edit-cost', item ? item.cost_price : 0);
         setVal('item-edit-uv-cost', item ? item.uv_cost_price : 0);
-        setVal('item-edit-stock', item ? (item.stock_qty !== undefined ? item.stock_qty : 50) : 50);
         setVal('item-edit-image', item ? item.image_url : '');
       }
+
+      updateSubItemImagePreview();
 
       const subModal = document.getElementById('modal-product-item');
       if (subModal) subModal.classList.remove('hidden');
@@ -1208,7 +1243,6 @@
       const price = parseFloat(document.getElementById('item-edit-price').value || 0);
       const cost_price = parseFloat(document.getElementById('item-edit-cost').value || 0);
       const uv_cost_price = parseFloat(document.getElementById('item-edit-uv-cost').value || 0);
-      const stock_qty = parseInt(document.getElementById('item-edit-stock').value || 50);
       const image_url = document.getElementById('item-edit-image').value.trim();
 
       if (!name) {
@@ -1222,7 +1256,6 @@
         price: price,
         cost_price: cost_price,
         uv_cost_price: uv_cost_price,
-        stock_qty: stock_qty,
         image_url: image_url
       };
 
@@ -1371,6 +1404,7 @@
         const json = await res.json();
         if (json.status === 'success' && json.url) {
           document.getElementById('item-edit-image').value = json.url;
+          updateSubItemImagePreview();
           alert('項目規格圖片上傳成功！');
         } else {
           alert(json.message || '圖片上傳失敗');
