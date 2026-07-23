@@ -331,52 +331,108 @@
         </div>
       </div>
 
-      <!-- SECTION 4: LINE GROUPS (群組維護與訊息發送) -->
+      <!-- SECTION 4: LINE GROUPS (群組維護與訊息發送 - 對齊圖1結構) -->
       <div id="sec-line-groups" class="hidden space-y-6">
         <div>
-          <h2 class="font-display-lg text-2xl italic font-black text-white">LINE 群組維護與批量發送</h2>
-          <p class="font-label-caps text-xs text-on-surface-variant">管理社團 LINE 群組 ID，並可推播文字或圖片訊息至指定的 LINE 群組</p>
+          <h2 class="font-display-lg text-2xl italic font-black text-white">LINE 群組維護</h2>
+          <p class="font-label-caps text-xs text-on-surface-variant">管理用於接收群組訊息通知與 PDF 檔案傳送的 LINE 群組 ID。</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Send Message Card -->
-          <div class="bg-surface-container-low p-5 border border-line-green/40 space-y-4">
-            <h3 class="font-headline-md text-base italic font-bold text-line-green flex items-center gap-1">
-              <span class="material-symbols-outlined">send</span> 發送群組訊息 (文字/圖片)
-            </h3>
-            
+        <!-- 雙卡片雙欄結構 (對齊圖1) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          <!-- 左側卡片：新增 / 修改 LINE 群組 (佔 5 欄) -->
+          <div class="lg:col-span-5 bg-surface-container-low p-6 border border-outline-variant hover:border-line-green/60 transition-all space-y-4">
+            <div class="flex items-center gap-2 border-b border-outline-variant/60 pb-3">
+              <span class="material-symbols-outlined text-line-green text-xl">add_box</span>
+              <h3 id="group-form-title" class="font-headline-md text-base italic font-bold text-white">新增 LINE 群組</h3>
+            </div>
+
+            <input type="hidden" id="group-edit-id" />
+
             <div>
-              <label class="block text-xs font-label-caps text-on-surface-variant mb-1">選擇目標 LINE 群組</label>
-              <select id="send-group-select" class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-2">
+              <label class="block text-xs font-bold text-gray-200 mb-1.5">群組名稱</label>
+              <input type="text" id="group-input-name" placeholder="例如：北區業務群組" class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-3 outline-none focus:border-line-green transition-all" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-200 mb-1.5">群組 GID</label>
+              <input type="text" id="group-input-gid" placeholder="Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-3 outline-none focus:border-line-green font-mono transition-all" />
+            </div>
+
+            <!-- 快速取得說明盒 (對齊圖1說明) -->
+            <div class="p-3.5 bg-surface-container border border-line-green/30 text-xs text-on-surface-variant space-y-1.5">
+              <div class="font-bold text-line-green flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">info</span> 快速取得說明：
+              </div>
+              <ol class="list-decimal list-inside space-y-1 text-[11px] text-gray-300 leading-relaxed">
+                <li>將 Line 機器人邀請入該群組。</li>
+                <li>在群組內打指令「<span class="font-bold text-white font-mono">FLBR</span>」(不限大小寫)。</li>
+                <li>機器人將自動回覆該群組的 GID，複製貼上至此即可。</li>
+              </ol>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+              <button id="btn-save-group" onclick="saveLineGroupForm()" class="flex-1 py-3 bg-primary-green hover:bg-primary-green-hover text-white font-label-caps font-bold italic text-xs shadow-lg shadow-primary-green/20 transition-all">
+                確認新增
+              </button>
+              <button id="btn-cancel-group" onclick="resetLineGroupForm()" class="hidden py-3 px-4 bg-surface-container text-gray-400 hover:text-white font-label-caps text-xs">
+                取消修改
+              </button>
+            </div>
+          </div>
+
+          <!-- 右側卡片：現有群組列表表格 (佔 7 欄，對齊圖1表格) -->
+          <div class="lg:col-span-7 bg-surface-container-low p-6 border border-outline-variant space-y-4">
+            <div class="flex justify-between items-center border-b border-outline-variant/60 pb-3">
+              <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-2">
+                <span class="material-symbols-outlined text-line-green text-xl">table_view</span> 現有群組列表
+              </h3>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-surface-container text-on-surface-variant font-label-caps border-b border-outline-variant">
+                    <th class="p-3">建立日期</th>
+                    <th class="p-3">群組名稱</th>
+                    <th class="p-3">群組 GID</th>
+                    <th class="p-3 text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="line-group-table-body" class="divide-y divide-outline-variant/40 font-body-md text-gray-200">
+                  <!-- Dynamically rendered -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 下方廣播訊息卡片 -->
+        <div class="bg-surface-container-low p-6 border border-line-green/40 space-y-4">
+          <div class="flex items-center gap-2 border-b border-outline-variant/60 pb-3">
+            <span class="material-symbols-outlined text-line-green text-xl">send</span>
+            <h3 class="font-headline-md text-base italic font-bold text-white">發送群組訊息 (文字/圖片)</h3>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-label-caps text-on-surface-variant mb-1.5">選擇目標 LINE 群組</label>
+              <select id="send-group-select" class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-3 outline-none focus:border-line-green">
                 <!-- Dynamic group options -->
               </select>
             </div>
 
-            <div>
-              <label class="block text-xs font-label-caps text-on-surface-variant mb-1">推播訊息內容</label>
-              <textarea id="send-message-text" rows="4" placeholder="請輸入欲廣播發送給社團成員的訊息內容..." class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-2 outline-none"></textarea>
-            </div>
-
-            <button onclick="sendLineGroupBroadcast()" class="w-full py-2 bg-line-green text-white font-label-caps font-bold italic text-xs hover:shadow-[0_0_15px_rgba(6,199,85,0.5)] transition-all">
-              立即發送至 LINE 群組
-            </button>
-          </div>
-
-          <!-- Group List Management Card -->
-          <div class="bg-surface-container-low p-5 border border-outline-variant space-y-4">
-            <div class="flex justify-between items-center">
-              <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-1">
-                <span class="material-symbols-outlined">settings_suggest</span> 群組清單維護
-              </h3>
-              <button onclick="openLineGroupModal()" class="px-2.5 py-1 bg-surface-container border border-line-green text-line-green font-label-caps text-xs hover:bg-line-green hover:text-white transition-all">
-                + 新增群組 ID
-              </button>
-            </div>
-
-            <div id="line-group-list" class="space-y-3">
-              <!-- Dynamically rendered -->
+            <div class="md:col-span-2">
+              <label class="block text-xs font-label-caps text-on-surface-variant mb-1.5">推播訊息內容</label>
+              <textarea id="send-message-text" rows="2" placeholder="請輸入欲廣播發送給社團成員的訊息內容..." class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-3 outline-none focus:border-line-green"></textarea>
             </div>
           </div>
+
+          <button onclick="sendLineGroupBroadcast()" class="w-full py-3 bg-line-green hover:bg-line-green-hover text-white font-label-caps font-bold italic text-xs shadow-lg shadow-line-green/20 transition-all">
+            立即發送至 LINE 群組
+          </button>
         </div>
       </div>
 
@@ -891,16 +947,71 @@
       const select = document.getElementById('send-group-select');
       select.innerHTML = groupsList.map(g => `<option value="${g.id}">${g.name} (${g.id})</option>`).join('');
 
-      const container = document.getElementById('line-group-list');
-      container.innerHTML = groupsList.map(g => `
-        <div class="p-3 bg-surface-container border border-outline-variant/60 flex justify-between items-center">
-          <div>
-            <h4 class="font-bold text-white text-xs">${g.name}</h4>
-            <p class="text-[11px] text-line-green font-label-caps">ID: ${g.id}</p>
-          </div>
-          <button onclick="deleteLineGroup('${g.id}')" class="text-error text-xs hover:underline">刪除</button>
-        </div>
-      `).join('');
+      const tbody = document.getElementById('line-group-table-body');
+      if (!groupsList || groupsList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-500 italic">目前尚未建立任何 LINE 群組</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = groupsList.map(g => {
+        const createdDate = g.created_at ? g.created_at.substring(0, 10) : '2026-06-19';
+        return `
+          <tr class="hover:bg-surface-container/60 transition-colors">
+            <td class="p-3 font-mono text-gray-400">${createdDate}</td>
+            <td class="p-3 font-bold text-line-green">${g.name}</td>
+            <td class="p-3 font-mono text-gray-300">${g.id}</td>
+            <td class="p-3 text-right">
+              <button onclick="editLineGroup('${g.id}')" class="text-primary-fixed hover:underline mr-3 font-bold">修改</button>
+              <button onclick="deleteLineGroup('${g.id}')" class="text-error hover:underline font-bold">刪除</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function saveLineGroupForm() {
+      const gId = document.getElementById('group-input-gid').value.trim();
+      const gName = document.getElementById('group-input-name').value.trim();
+
+      if (!gName || !gId) {
+        alert('請填寫群組名稱與群組 GID！');
+        return;
+      }
+
+      const res = await fetch('/api/admin/line-groups', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: gId, name: gName, description: '管理員維護之通知群組' })
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('LINE 群組設定儲存成功！');
+        resetLineGroupForm();
+        loadLineGroups();
+      } else { alert(json.message || '儲存失敗'); }
+    }
+
+    function editLineGroup(id) {
+      const g = groupsList.find(item => item.id === id);
+      if (g) {
+        document.getElementById('group-edit-id').value = g.id;
+        document.getElementById('group-input-name').value = g.name;
+        document.getElementById('group-input-gid').value = g.id;
+
+        document.getElementById('group-form-title').textContent = "修改 LINE 群組";
+        document.getElementById('btn-save-group').textContent = "儲存變更";
+        document.getElementById('btn-cancel-group').classList.remove('hidden');
+      }
+    }
+
+    function resetLineGroupForm() {
+      document.getElementById('group-edit-id').value = "";
+      document.getElementById('group-input-name').value = "";
+      document.getElementById('group-input-gid').value = "";
+
+      document.getElementById('group-form-title').textContent = "新增 LINE 群組";
+      document.getElementById('btn-save-group').textContent = "確認新增";
+      document.getElementById('btn-cancel-group').classList.add('hidden');
     }
 
     async function sendLineGroupBroadcast() {
@@ -916,19 +1027,6 @@
       const json = await res.json();
       alert(`[LINE Push] ${json.message}`);
       document.getElementById('send-message-text').value = '';
-    }
-
-    function openLineGroupModal() {
-      const gId = prompt('請輸入新群組 ID (例如: g_racer_club):');
-      if (!gId) return;
-      const gName = prompt('請輸入群組名稱:');
-      if (!gName) return;
-
-      fetch('/api/admin/line-groups', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ id: gId, name: gName, description: '管理員新增之通知群組' })
-      }).then(() => loadLineGroups());
     }
 
     async function deleteLineGroup(id) {
