@@ -697,10 +697,41 @@
     let currentUser = null;
 
     document.addEventListener("DOMContentLoaded", () => {
+      checkUserLoginState();
       loadProductsFromAPI();
       loadBulletinsFromAPI();
       updateCartUI();
     });
+
+    async function checkUserLoginState() {
+      try {
+        const res = await fetch('/api/user/current');
+        const json = await res.json();
+        if (json.status === 'success' && json.user) {
+          currentUser = json.user;
+          const container = document.getElementById("line-auth-container");
+          const roleMap = { admin: '👑 管理員', assistant_coach: '🧢 助理教練', user: '🏃 一般使用者' };
+          
+          container.innerHTML = `
+            <div class="flex items-center gap-3 font-label-caps text-xs">
+              <span class="text-white font-bold flex items-center gap-1.5 bg-surface-container px-3 py-1.5 rounded border border-outline-variant">
+                <span class="material-symbols-outlined text-primary-fixed text-sm">account_circle</span>
+                ${currentUser.name}
+                <span class="text-primary-fixed text-[10px] font-normal">(${roleMap[currentUser.role] || currentUser.role})</span>
+              </span>
+              ${(currentUser.role === 'admin' || currentUser.role === 'assistant_coach') ? `
+                <a href="/admin" class="text-primary-fixed hover:underline flex items-center gap-0.5 font-bold">
+                  <span class="material-symbols-outlined text-sm">admin_panel_settings</span> 後台
+                </a>
+              ` : ''}
+              <a href="/logout" class="bg-surface-container-high text-error border border-error/40 px-3 py-1.5 rounded hover:bg-error hover:text-white transition-all font-bold italic">
+                登出 (LOGOUT)
+              </a>
+            </div>
+          `;
+        }
+      } catch(e){}
+    }
 
     // API Integration to Flask Backend
     async function loadProductsFromAPI() {

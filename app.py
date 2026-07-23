@@ -1,6 +1,7 @@
 import os
 import uuid
 import json
+from urllib.parse import quote
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from dotenv import load_dotenv
 from db_service import DBService
@@ -15,7 +16,6 @@ app.secret_key = os.getenv("SECRET_KEY", "ux_print_club_secret_key_2026")
 db_service = DBService()
 line_service = LineService()
 
-# 權限驗證 Decorator
 def admin_or_coach_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -55,6 +55,8 @@ def api_register():
     password = data.get('password', '').strip()
     phone = data.get('phone', '').strip()
     role = data.get('role', 'user').strip()
+    line_id = data.get('line_id', '').strip()
+    avatar_url = data.get('avatar_url', '').strip()
 
     if not name or not username or not password:
         return jsonify({"status": "error", "message": "姓名、帳號與密碼為必填欄位！"}), 400
@@ -62,7 +64,7 @@ def api_register():
     if role not in ['user', 'assistant_coach', 'admin']:
         role = 'user'
 
-    success, msg = db_service.register_user(username, password, name, phone, role)
+    success, msg = db_service.register_user(username, password, name, phone, role, line_id=line_id, avatar_url=avatar_url)
     if success:
         return jsonify({"status": "success", "message": msg})
     return jsonify({"status": "error", "message": msg}), 400
@@ -89,9 +91,7 @@ def api_login():
 
 @app.route('/api/line/login-url', methods=['GET'])
 def api_line_login_url():
-    """取得真實 LINE Login OAuth 授權網址"""
     state = uuid.uuid4().hex
-    # 優先從環境變數取得 Callback 網址
     redirect_uri = os.getenv('LINE_LOGIN_REDIRECT_URI', f"{request.host_url.rstrip('/')}/api/line/callback")
     url = line_service.get_login_url(state, redirect_uri=redirect_uri)
     if url:
@@ -100,7 +100,7 @@ def api_line_login_url():
 
 @app.route('/api/line/callback', methods=['GET'])
 def api_line_callback():
-    """LINE OAuth 2.1 授權完成轉跳驗證點"""
+    """LINE OAuth 2.1 授權點，完成與 PostgreSQL 使用者帳號的自動連結"""
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
@@ -120,31 +120,25 @@ def api_line_callback():
 
     line_user_id = profile.get('userId')
     display_name = profile.get('displayName', 'LINE 使用者')
-    picture_url = profile.get('pictureUrl', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80')
+    picture_url = profile.get('pictureUrl', '')
 
-    # 自動將 LINE 使用者同步儲存至 PostgreSQL
-    db_service.save_or_update_user(
-        user_id=f"line_{line_user_id}",
-        username=f"line_{line_user_id[:8]}",
-        password="",
-        name=display_name,
-        line_id=line_user_id,
-        avatar_url=picture_url,
-        phone="",
-        role="user"
-    )
+    # 1. 檢查此 LINE ID 是否已經連結過註冊帳號
+    existing_user = db_service.get_user_by_line_id(line_user_id)
+    if existing_user:
+        # 已有帳號，直接進行登入
+        session['user'] = {
+            "id": existing_user['id'],
+            "username": existing_user['username'],
+            "name": existing_user['name'],
+            "line_id": existing_user['line_id'],
+            "avatar_url": existing_user['avatar_url'] or picture_url,
+            "role": existing_user['role']
+        }
+        return redirect(url_for('home'))
 
-    # 設置登入 Session
-    session['user'] = {
-        "id": f"line_{line_user_id}",
-        "username": f"line_{line_user_id[:8]}",
-        "name": display_name,
-        "line_id": line_user_id,
-        "avatar_url": picture_url,
-        "role": "user"
-    }
-
-    return redirect(url_for('home'))
+    # 2. 第一次登入且無帳號：跳轉至註冊畫面並帶入 LINE 資料
+    redirect_target = f"/login?tab=register&line_id={quote(line_user_id)}&name={quote(display_name)}&avatar={quote(picture_url)}"
+    return redirect(redirect_target)
 
 @app.route('/api/user/current', methods=['GET'])
 def api_current_user():

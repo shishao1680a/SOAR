@@ -255,7 +255,7 @@
           <input id="searchInput" oninput="handleSearch()" class="bg-transparent border-none focus:ring-0 text-label-caps text-on-surface placeholder:text-on-surface-variant/50 w-32 focus:outline-none" placeholder="FIND GEAR..." type="text"/>
         </div>
 
-        <!-- User Auth Badge / Login & Register Button (圖2: 支援帳密登入與註冊) -->
+        <!-- User Auth Container (未登入顯示【帳密登入/註冊】，已登入顯示【姓名】與【登出】) -->
         <div id="line-auth-container" class="flex items-center gap-2">
           <a href="/login" class="bg-primary-fixed text-on-primary-fixed px-4 py-2 font-label-caps font-bold italic text-xs flex items-center gap-1.5 hover:glow-primary transition-all rounded">
             <span class="material-symbols-outlined text-sm">login</span> 帳密登入 / 註冊
@@ -703,10 +703,41 @@
     let currentUser = null;
 
     document.addEventListener("DOMContentLoaded", () => {
+      checkUserLoginState();
       loadProductsFromAPI();
       loadBulletinsFromAPI();
       updateCartUI();
     });
+
+    async function checkUserLoginState() {
+      try {
+        const res = await fetch('/api/user/current');
+        const json = await res.json();
+        if (json.status === 'success' && json.user) {
+          currentUser = json.user;
+          const container = document.getElementById("line-auth-container");
+          const roleMap = { admin: '👑 管理員', assistant_coach: '🧢 助理教練', user: '🏃 一般使用者' };
+          
+          container.innerHTML = `
+            <div class="flex items-center gap-3 font-label-caps text-xs">
+              <span class="text-white font-bold flex items-center gap-1.5 bg-surface-container px-3 py-1.5 rounded border border-outline-variant">
+                <span class="material-symbols-outlined text-primary-fixed text-sm">account_circle</span>
+                ${currentUser.name}
+                <span class="text-primary-fixed text-[10px] font-normal">(${roleMap[currentUser.role] || currentUser.role})</span>
+              </span>
+              ${(currentUser.role === 'admin' || currentUser.role === 'assistant_coach') ? `
+                <a href="/admin" class="text-primary-fixed hover:underline flex items-center gap-0.5 font-bold">
+                  <span class="material-symbols-outlined text-sm">admin_panel_settings</span> 後台
+                </a>
+              ` : ''}
+              <a href="/logout" class="bg-surface-container-high text-error border border-error/40 px-3 py-1.5 rounded hover:bg-error hover:text-white transition-all font-bold italic">
+                登出 (LOGOUT)
+              </a>
+            </div>
+          `;
+        }
+      } catch(e){}
+    }
 
     // API Integration to Flask Backend
     async function loadProductsFromAPI() {

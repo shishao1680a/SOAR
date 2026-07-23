@@ -7,7 +7,6 @@ from datetime import datetime, timezone, timedelta
 
 class DBService:
     def __init__(self, db_url=None):
-        # 尋求所有可能的 Railway / Heroku PostgreSQL 環境變數名稱
         url = (db_url or 
                os.getenv("DATABASE_URL") or 
                os.getenv("DATABASE_PRIVATE_URL") or 
@@ -263,12 +262,34 @@ class DBService:
         except Exception as e:
             print(f"ERROR: Initial seed failed: {e}")
 
-    def register_user(self, username, password, name, phone, role='user'):
-        """註冊新使用者"""
+    def get_user_by_line_id(self, line_id):
+        """根據 LINE User ID 尋找已綁定之使用者"""
+        if not line_id:
+            return None
+        try:
+            conn = self._get_connection()
+            if self.use_sqlite:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM users WHERE line_id = ?", (line_id,))
+                row = cursor.fetchone()
+                conn.close()
+                return dict(row) if row else None
+            else:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("SELECT * FROM users WHERE line_id = %s", (line_id,))
+                user = cursor.fetchone()
+                conn.close()
+                return dict(user) if user else None
+        except Exception as e:
+            print(f"Error fetching user by LINE ID: {e}")
+            return None
+
+    def register_user(self, username, password, name, phone, role='user', line_id='', avatar_url=''):
+        """註冊新使用者 (支援綁定 LINE 帳號)"""
         try:
             now_str = self._get_taiwan_now_str()
             user_id = f"u_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            avatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
+            avatar = avatar_url or "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
             
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -287,7 +308,7 @@ class DBService:
                 INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             '''
-            cursor.execute(query_ins, (user_id, username, password, name, '', avatar, phone, role, now_str))
+            cursor.execute(query_ins, (user_id, username, password, name, line_id, avatar, phone, role, now_str))
             conn.commit()
             conn.close()
             return True, "註冊成功！"
