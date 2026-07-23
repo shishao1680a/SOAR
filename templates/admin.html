@@ -300,8 +300,8 @@
               <tr>
                 <th class="p-3">商品圖片 (主圖/多圖)</th>
                 <th class="p-3">商品名稱</th>
-                <th class="p-3 text-line-green font-bold">項目名稱</th>
                 <th class="p-3">分類 / 材質/小分類</th>
+                <th class="p-3 text-line-green font-bold">項目名稱</th>
                 <th class="p-3">銷售價 (PRICE)</th>
                 <th class="p-3">3D列印成本</th>
                 <th class="p-3">UV列印成本</th>
@@ -689,18 +689,22 @@
           <input type="text" id="item-edit-name" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2.5 rounded outline-none focus:border-line-green" placeholder="例如: 黑色-HELLO純棉款" />
         </div>
 
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-4 gap-2">
           <div>
             <label class="block font-bold text-primary-fixed mb-1">銷售價格 ($)</label>
             <input type="number" step="0.01" id="item-edit-price" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
           </div>
           <div>
-            <label class="block font-bold text-secondary-container mb-1">3D列印成本 ($)</label>
+            <label class="block font-bold text-secondary-container mb-1">3D成本 ($)</label>
             <input type="number" step="0.01" id="item-edit-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
           </div>
           <div>
-            <label class="block font-bold text-amber-400 mb-1">UV列印成本 ($)</label>
+            <label class="block font-bold text-amber-400 mb-1">UV成本 ($)</label>
             <input type="number" step="0.01" id="item-edit-uv-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
+          </div>
+          <div>
+            <label class="block font-bold text-line-green mb-1">項目庫存 (件)</label>
+            <input type="number" id="item-edit-stock" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" placeholder="50" />
           </div>
         </div>
 
@@ -1083,6 +1087,18 @@
             `).join('')
           : `<span class="text-amber-400 font-bold font-mono">$${parseFloat(p.uv_cost_price || 0).toFixed(2)}</span>`;
 
+        // 目前庫存 HTML (依項目個別顯示)
+        const itemsStockHtml = hasItems
+          ? itemsArr.map(item => {
+              const qty = item.stock_qty !== undefined ? item.stock_qty : (p.stock_qty || 0);
+              return `
+                <div class="py-1 font-bold font-mono text-[11px] mb-1 ${qty < 10 ? 'text-error' : 'text-line-green'}">
+                  ${qty} 件
+                </div>
+              `;
+            }).join('')
+          : `<span class="font-bold ${p.stock_qty < 10 ? 'text-error' : 'text-line-green'}">${p.stock_qty || 0} 件</span>`;
+
         return `
           <tr class="hover:bg-surface-container/50">
             <td class="p-3">
@@ -1095,16 +1111,16 @@
               ${p.name}
               ${hasItems ? `<span class="block text-[10px] text-gray-400 font-normal">(${itemsArr.length} 個項目)</span>` : ''}
             </td>
+            <td class="p-3"><span class="text-primary-fixed">${p.category}</span> / ${p.material}</td>
             <td class="p-3">
               <div class="max-w-[200px] space-y-1">
                 ${itemsNameHtml}
               </div>
             </td>
-            <td class="p-3"><span class="text-primary-fixed">${p.category}</span> / ${p.material}</td>
             <td class="p-3">${itemsPriceHtml}</td>
             <td class="p-3">${items3DCostHtml}</td>
             <td class="p-3">${itemsUVCostHtml}</td>
-            <td class="p-3 font-bold ${p.stock_qty < 10 ? 'text-error' : 'text-line-green'}">${p.stock_qty || 0} 件</td>
+            <td class="p-3">${itemsStockHtml}</td>
             <td class="p-3 text-right whitespace-nowrap">
               <button onclick="editProduct('${p.id}')" class="text-primary-fixed hover:underline mr-2 font-bold">編輯</button>
               <button onclick="deleteProduct('${p.id}')" class="text-error hover:underline font-bold">下架</button>
@@ -1112,6 +1128,112 @@
           </tr>
         `;
       }).join('');
+    }
+
+    function renderProductItemsList() {
+      const container = document.getElementById('product-items-list-container');
+      if (!container) return;
+
+      if (currentProductItems.length === 0) {
+        container.innerHTML = `
+          <div class="text-center p-4 text-xs text-gray-400 italic bg-surface-container/40 rounded-lg border border-dashed border-outline-variant/60">
+            目前尚無項目規格。點擊右上角【+ 新增項目】跳出視窗即可新增不同款式 (例: 黑色-HELLO純棉款)。
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = currentProductItems.map((item, index) => `
+        <div class="flex items-center justify-between p-3 bg-surface-container border border-outline-variant rounded-lg hover:border-line-green/60 transition-all gap-2">
+          <div class="flex items-center gap-3 overflow-hidden">
+            <img src="${item.image_url || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=150&q=80'}" class="w-10 h-10 object-cover rounded border border-outline-variant shrink-0" />
+            <div class="truncate">
+              <div class="font-bold text-white text-xs truncate flex items-center gap-1">
+                <span class="text-line-green font-mono text-[11px]">#${index + 1}</span> ${item.name || '未命名項目'}
+              </div>
+              <div class="text-[11px] text-gray-300 font-mono mt-0.5">
+                售價: <span class="text-primary-fixed font-bold">$${parseFloat(item.price !== undefined ? item.price : 0).toFixed(2)}</span> | 
+                3D成本: <span class="text-secondary-container">$${parseFloat(item.cost_price !== undefined ? item.cost_price : 0).toFixed(2)}</span> | 
+                UV成本: <span class="text-amber-400">$${parseFloat(item.uv_cost_price !== undefined ? item.uv_cost_price : 0).toFixed(2)}</span> | 
+                庫存: <span class="text-line-green font-bold">${item.stock_qty !== undefined ? item.stock_qty : 50} 件</span>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-1.5 shrink-0">
+            <button type="button" onclick="openProductItemModal(${index})" class="px-2.5 py-1 bg-primary-fixed/20 text-primary-fixed hover:bg-primary-fixed hover:text-black font-bold text-xs rounded transition-all border border-primary-fixed/30 flex items-center gap-1">
+              <span class="material-symbols-outlined text-xs">edit</span> 編輯
+            </button>
+            <button type="button" onclick="removeProductItem(${index})" class="px-2 py-1 bg-error/20 text-error hover:bg-error hover:text-white font-bold text-xs rounded transition-all flex items-center gap-0.5">
+              ✕ 刪除
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function addProductItem() {
+      openProductItemModal(-1);
+    }
+
+    function openProductItemModal(index = -1) {
+      const titleEl = document.getElementById('item-modal-title');
+      document.getElementById('item-edit-index').value = index;
+
+      if (index === -1) {
+        if (titleEl) titleEl.innerHTML = `<span class="material-symbols-outlined text-line-green text-lg">add_circle</span> 新增項目規格`;
+        setVal('item-edit-name', `款式 #${currentProductItems.length + 1}`);
+        setVal('item-edit-price', document.getElementById('prod-edit-price').value || '45.00');
+        setVal('item-edit-cost', document.getElementById('prod-edit-cost').value || '18.00');
+        setVal('item-edit-uv-cost', document.getElementById('prod-edit-uv-cost').value || '5.00');
+        setVal('item-edit-stock', '50');
+        setVal('item-edit-image', document.getElementById('prod-edit-image').value || '');
+      } else {
+        const item = currentProductItems[index];
+        if (titleEl) titleEl.innerHTML = `<span class="material-symbols-outlined text-line-green text-lg">edit_note</span> 編輯項目規格 #${index + 1}`;
+        setVal('item-edit-name', item ? item.name : '');
+        setVal('item-edit-price', item ? item.price : 0);
+        setVal('item-edit-cost', item ? item.cost_price : 0);
+        setVal('item-edit-uv-cost', item ? item.uv_cost_price : 0);
+        setVal('item-edit-stock', item ? (item.stock_qty !== undefined ? item.stock_qty : 50) : 50);
+        setVal('item-edit-image', item ? item.image_url : '');
+      }
+
+      const subModal = document.getElementById('modal-product-item');
+      if (subModal) subModal.classList.remove('hidden');
+    }
+
+    function saveProductItemSubmit() {
+      const index = parseInt(document.getElementById('item-edit-index').value);
+      const name = document.getElementById('item-edit-name').value.trim();
+      const price = parseFloat(document.getElementById('item-edit-price').value || 0);
+      const cost_price = parseFloat(document.getElementById('item-edit-cost').value || 0);
+      const uv_cost_price = parseFloat(document.getElementById('item-edit-uv-cost').value || 0);
+      const stock_qty = parseInt(document.getElementById('item-edit-stock').value || 50);
+      const image_url = document.getElementById('item-edit-image').value.trim();
+
+      if (!name) {
+        alert('請輸入項目名稱 (例如: 黑色-HELLO純棉款)');
+        return;
+      }
+
+      const itemObj = {
+        id: index >= 0 && currentProductItems[index] ? currentProductItems[index].id : ('v_' + Date.now() + '_' + Math.floor(Math.random()*1000)),
+        name: name,
+        price: price,
+        cost_price: cost_price,
+        uv_cost_price: uv_cost_price,
+        stock_qty: stock_qty,
+        image_url: image_url
+      };
+
+      if (index === -1) {
+        currentProductItems.push(itemObj);
+      } else {
+        currentProductItems[index] = itemObj;
+      }
+
+      closeModal('modal-product-item');
+      renderProductItemsList();
     }
 
     function renderProductItemsList() {
