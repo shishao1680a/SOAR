@@ -328,6 +328,7 @@
                   <th class="p-3">進貨數量</th>
                   <th class="p-3">進貨單價成本</th>
                   <th class="p-3">供應商 / 備註</th>
+                  <th class="p-3 text-right">操作</th>
                 </tr>
               </thead>
               <tbody id="inventory-table-body" class="divide-y divide-outline-variant/40">
@@ -784,6 +785,55 @@
     </div>
   </div>
 
+  <!-- Modal: Edit Inventory Log (修改進貨紀錄對話框) -->
+  <div id="modal-inventory-log-edit" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
+    <div class="bg-surface-container border-2 border-secondary-container max-w-md w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col">
+      <div class="px-5 py-3.5 bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
+        <h4 class="font-headline-md italic text-base font-bold text-white flex items-center gap-2">
+          <span class="material-symbols-outlined text-secondary-container text-lg">edit_note</span> 修改進貨紀錄
+        </h4>
+        <button type="button" onclick="closeModal('modal-inventory-log-edit')" class="text-gray-400 hover:text-white font-bold text-base">✕</button>
+      </div>
+      <div class="p-5 space-y-4 text-xs">
+        <input type="hidden" id="inv-edit-log-id" />
+        <div>
+          <label class="block font-bold text-gray-200 mb-1">商品名稱</label>
+          <input type="text" id="inv-edit-product-name" class="w-full bg-surface-container-high border border-outline-variant text-gray-400 p-2.5 rounded outline-none cursor-not-allowed" readonly />
+        </div>
+        <div>
+          <label class="block font-bold text-line-green mb-1">項目名稱 (規格/款式)</label>
+          <input type="text" id="inv-edit-item-name" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-line-green" />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-gray-200 mb-1">進貨數量 (件)</label>
+            <input type="number" id="inv-edit-qty" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-secondary-container" />
+          </div>
+          <div>
+            <label class="block font-bold text-gray-200 mb-1">進貨單價成本 ($)</label>
+            <input type="number" step="0.01" id="inv-edit-cost" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-secondary-container" />
+          </div>
+        </div>
+        <div>
+          <label class="block font-bold text-gray-200 mb-1">供應商 / 廠商名稱</label>
+          <input type="text" id="inv-supplier-edit" id="inv-edit-supplier" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
+        </div>
+        <div>
+          <label class="block font-bold text-gray-200 mb-1">備註說明</label>
+          <input type="text" id="inv-edit-remark" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
+        </div>
+      </div>
+      <div class="px-5 py-3 bg-surface-container-high border-t border-outline-variant flex gap-2">
+        <button type="button" onclick="closeModal('modal-inventory-log-edit')" class="py-2 px-4 bg-surface-container border border-outline-variant text-on-surface-variant font-label-caps text-xs font-bold rounded hover:bg-surface-container-lowest">
+          取消
+        </button>
+        <button type="button" onclick="saveInventoryLogEditSubmit()" class="flex-1 py-2 bg-secondary-container hover:bg-secondary-container/80 text-white font-label-caps text-xs font-bold italic rounded transition-all shadow flex items-center justify-center gap-1">
+          💾 儲存修改紀錄
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Bulletin Modal (發布/編輯公告) -->
   <div id="modal-bulletin" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
     <div class="bg-surface-container border-2 border-line-green max-w-md w-full p-6 space-y-4">
@@ -969,6 +1019,7 @@
         const json = await res.json();
         if (json.status === 'success') {
           productsList = json.data;
+          await loadInventoryLogs();
           renderProductsTable();
           updateInventorySelect();
         }
@@ -1046,13 +1097,25 @@
 
     function calcCalculatedStock(prodId, itemName) {
       if (!inventoryLogsList || inventoryLogsList.length === 0) return 0;
+      const prod = productsList.find(p => String(p.id).trim() === String(prodId).trim());
+      const prodName = prod ? prod.name.trim() : '';
       let purchased = 0;
+
       inventoryLogsList.forEach(log => {
-        if (log.product_id === prodId) {
-          if (!itemName || itemName === '-') {
+        const logProdId = log.product_id ? String(log.product_id).trim() : '';
+        const logProdName = log.product_name ? String(log.product_name).trim() : '';
+
+        const matchesProduct = (logProdId && logProdId === String(prodId).trim()) ||
+                               (logProdName && prodName && logProdName === prodName);
+
+        if (matchesProduct) {
+          const logItem = (log.item_name || '-').trim();
+          const targetItem = (itemName || '-').trim();
+          
+          if (targetItem === '-') {
             purchased += parseInt(log.purchase_qty || 0);
           } else {
-            if (log.item_name === itemName || log.item_name === '-' || log.item_name === '-- 全品項預設/主商品 --') {
+            if (logItem === targetItem || logItem === '-' || logItem === '-- 全品項預設/主商品 --') {
               purchased += parseInt(log.purchase_qty || 0);
             }
           }
@@ -1504,19 +1567,78 @@
         const res = await fetch('/api/admin/inventory');
         const json = await res.json();
         if (json.status === 'success') {
-          const tbody = document.getElementById('inventory-table-body');
-          tbody.innerHTML = json.data.map(l => `
-            <tr class="hover:bg-surface-container/50">
-              <td class="p-3 text-on-surface-variant">${l.purchase_date}</td>
-              <td class="p-3 font-bold text-white">${l.product_name}</td>
-              <td class="p-3 text-line-green font-bold">${l.item_name || '-'}</td>
-              <td class="p-3 text-line-green font-bold">+${l.purchase_qty} 件</td>
-              <td class="p-3 text-secondary-container font-bold">$${parseFloat(l.purchase_cost).toFixed(2)}</td>
-              <td class="p-3">${l.supplier} / ${l.remark || '-'}</td>
-            </tr>
-          `).join('');
+          inventoryLogsList = json.data || [];
+          renderInventoryLogsTable();
+          renderProductsTable(); // Refresh calculated stock column!
         }
       } catch(e){}
+    }
+
+    function renderInventoryLogsTable() {
+      const tbody = document.getElementById('inventory-table-body');
+      if (!tbody) return;
+      tbody.innerHTML = inventoryLogsList.map(l => `
+        <tr class="hover:bg-surface-container/50">
+          <td class="p-3 text-on-surface-variant">${l.purchase_date}</td>
+          <td class="p-3 font-bold text-white">${l.product_name}</td>
+          <td class="p-3 text-line-green font-bold">${l.item_name || '-'}</td>
+          <td class="p-3 text-line-green font-bold">+${l.purchase_qty} 件</td>
+          <td class="p-3 text-secondary-container font-bold">$${parseFloat(l.purchase_cost).toFixed(2)}</td>
+          <td class="p-3">${l.supplier} / ${l.remark || '-'}</td>
+          <td class="p-3 text-right whitespace-nowrap">
+            <button onclick="editInventoryLog(${l.id})" class="text-primary-fixed hover:underline mr-2 font-bold">修改</button>
+            <button onclick="deleteInventoryLog(${l.id})" class="text-error hover:underline font-bold">刪除</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function editInventoryLog(logId) {
+      const log = inventoryLogsList.find(l => String(l.id) === String(logId));
+      if (!log) return;
+      setVal('inv-edit-log-id', log.id);
+      setVal('inv-edit-product-name', log.product_name);
+      setVal('inv-edit-item-name', log.item_name || '-');
+      setVal('inv-edit-qty', log.purchase_qty);
+      setVal('inv-edit-cost', log.purchase_cost);
+      setVal('inv-edit-supplier', log.supplier);
+      setVal('inv-edit-remark', log.remark);
+      const modal = document.getElementById('modal-inventory-log-edit');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    async function saveInventoryLogEditSubmit() {
+      const logId = document.getElementById('inv-edit-log-id').value;
+      const supplierEl = document.getElementById('inv-edit-supplier') || document.getElementById('inv-supplier-edit');
+      const payload = {
+        item_name: document.getElementById('inv-edit-item-name').value.trim() || '-',
+        purchase_qty: parseInt(document.getElementById('inv-edit-qty').value || 0),
+        purchase_cost: parseFloat(document.getElementById('inv-edit-cost').value || 0),
+        supplier: supplierEl ? supplierEl.value.trim() : '',
+        remark: document.getElementById('inv-edit-remark').value.trim()
+      };
+
+      const res = await fetch(`/api/admin/inventory/${logId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('進貨紀錄已成功修改！');
+        closeModal('modal-inventory-log-edit');
+        loadInventoryLogs();
+      } else { alert(json.message); }
+    }
+
+    async function deleteInventoryLog(logId) {
+      if (!confirm('確定要刪除此筆進貨紀錄嗎？刪除後將重新計算目前庫存數值。')) return;
+      const res = await fetch(`/api/admin/inventory/${logId}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('進貨紀錄已成功刪除！');
+        loadInventoryLogs();
+      } else { alert(json.message); }
     }
 
     function updateInventorySelect() {

@@ -614,6 +614,44 @@ class DBService:
         except Exception as e:
             return []
 
+    def update_inventory_log(self, log_id, item_name, purchase_qty, purchase_cost, supplier, remark):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            if self.use_sqlite:
+                cursor.execute('''
+                    UPDATE inventory_logs 
+                    SET item_name = ?, purchase_qty = ?, purchase_cost = ?, supplier = ?, remark = ?
+                    WHERE id = ?
+                ''', (item_name, purchase_qty, purchase_cost, supplier, remark, log_id))
+            else:
+                cursor.execute('''
+                    UPDATE inventory_logs 
+                    SET item_name = %s, purchase_qty = %s, purchase_cost = %s, supplier = %s, remark = %s
+                    WHERE id = %s
+                ''', (item_name, purchase_qty, purchase_cost, supplier, remark, log_id))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error updating inventory log {log_id}: {e}")
+            return False
+
+    def delete_inventory_log(self, log_id):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            if self.use_sqlite:
+                cursor.execute("DELETE FROM inventory_logs WHERE id = ?", (int(log_id),))
+            else:
+                cursor.execute("DELETE FROM inventory_logs WHERE id = %s", (int(log_id),))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error deleting inventory log {log_id}: {e}")
+            return False
+
     # --- LINE Groups & Bulletins ---
     def get_line_groups(self):
         try:

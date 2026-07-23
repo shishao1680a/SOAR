@@ -326,6 +326,27 @@ def api_admin_inventory():
         logs = db_service.get_inventory_logs()
         return jsonify({"status": "success", "data": logs})
 
+@app.route('/api/admin/inventory/<int:log_id>', methods=['PUT', 'DELETE'])
+@admin_or_coach_required
+def api_admin_inventory_detail(log_id):
+    if request.method == 'PUT':
+        data = request.get_json() or {}
+        item_name = data.get('item_name', '-').strip() or '-'
+        purchase_qty = int(data.get('purchase_qty', 0))
+        purchase_cost = float(data.get('purchase_cost', 0))
+        supplier = data.get('supplier', '')
+        remark = data.get('remark', '')
+
+        updated = db_service.update_inventory_log(log_id, item_name, purchase_qty, purchase_cost, supplier, remark)
+        if updated:
+            return jsonify({"status": "success", "message": "進貨紀錄已成功修改！"})
+        return jsonify({"status": "error", "message": "修改進貨紀錄失敗"}), 500
+    else:
+        deleted = db_service.delete_inventory_log(log_id)
+        if deleted:
+            return jsonify({"status": "success", "message": "進貨紀錄已成功刪除！"})
+        return jsonify({"status": "error", "message": "刪除失敗"}), 500
+
 # --- LINE Group & Broadcast APIs (PDF 自動轉圖 + 每 5 張圖片一則訊息分批推播) ---
 
 @app.route('/api/admin/line-groups', methods=['GET', 'POST'])
