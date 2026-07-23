@@ -113,7 +113,11 @@
         </button>
 
         <button onclick="switchAdminSection('line-groups')" id="side-line-groups" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
-          <span class="material-symbols-outlined text-sm">forum</span> 群組與 LINE 發送
+          <span class="material-symbols-outlined text-sm">settings_suggest</span> LINE 群組維護
+        </button>
+
+        <button onclick="switchAdminSection('line-send')" id="side-line-send" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+          <span class="material-symbols-outlined text-sm">send</span> 發送群組訊息
         </button>
 
         <button onclick="switchAdminSection('bulletins')" id="side-bulletins" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
@@ -125,14 +129,14 @@
     <!-- Main Admin Workspace -->
     <main class="flex-grow p-4 md:p-8 space-y-8 overflow-x-hidden">
 
-      <!-- SECTION 1: DASHBOARD (儀表板首頁，對應圖1之卡片佈局) -->
+      <!-- SECTION 1: DASHBOARD (儀表板首頁) -->
       <div id="sec-dashboard" class="space-y-6">
         <div>
           <h1 class="font-display-lg text-2xl md:text-3xl italic font-black text-white">管理員後台</h1>
           <p class="font-label-caps text-xs text-on-surface-variant">歡迎回來，管理員。請點擊下方卡片進入各項系統管理模組。</p>
         </div>
 
-        <!-- Top Modules Cards (圖1上方卡片) -->
+        <!-- Top Modules Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           <!-- Card 1: 成員清單管理 -->
@@ -185,7 +189,7 @@
 
         </div>
 
-        <!-- LINE與各項群組功能區塊 (圖1下半部區塊) -->
+        <!-- LINE與各項群組功能區塊 -->
         <div class="pt-6 border-t border-outline-variant">
           <div class="flex items-center gap-2 mb-4">
             <span class="material-symbols-outlined text-line-green text-2xl">forum</span>
@@ -194,31 +198,31 @@
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            <!-- 1. 群組維護 -->
+            <!-- 1. LINE 群組維護 (圖1) -->
             <div class="bg-surface-container-low p-5 border border-line-green/40 flex flex-col justify-between">
               <div class="space-y-2">
                 <div class="w-10 h-10 bg-line-green/20 text-line-green rounded flex items-center justify-center">
                   <span class="material-symbols-outlined text-xl">settings_suggest</span>
                 </div>
-                <h4 class="font-bold text-white text-base">群組維護</h4>
+                <h4 class="font-bold text-white text-base">LINE 群組維護</h4>
                 <p class="text-xs text-on-surface-variant">管理通知發送群組 ID、群組說明與權限設定。</p>
               </div>
-              <button onclick="switchAdminSection('line-groups')" class="mt-4 py-1.5 bg-surface-container border border-line-green text-line-green font-label-caps text-xs hover:bg-line-green hover:text-white transition-all">
-                管理群組
+              <button onclick="switchAdminSection('line-groups')" class="mt-4 py-2 bg-surface-container border border-line-green text-line-green font-label-caps text-xs font-bold hover:bg-line-green hover:text-white transition-all">
+                維護群組 ID
               </button>
             </div>
 
-            <!-- 2. 發送群組訊息 -->
+            <!-- 2. 發送群組訊息 (圖2) -->
             <div class="bg-surface-container-low p-5 border border-line-green/40 flex flex-col justify-between">
               <div class="space-y-2">
                 <div class="w-10 h-10 bg-line-green/20 text-line-green rounded flex items-center justify-center">
                   <span class="material-symbols-outlined text-xl">send</span>
                 </div>
-                <h4 class="font-bold text-white text-base">發送群組訊息</h4>
-                <p class="text-xs text-on-surface-variant">批量發送文字、圖片或檔案至指定 LINE 群組。</p>
+                <h4 class="font-bold text-white text-base">發送群組訊息 (文字/圖片)</h4>
+                <p class="text-xs text-on-surface-variant">批量傳送文字公告或圖片/檔案至指定的 LINE 群組。</p>
               </div>
-              <button onclick="switchAdminSection('line-groups')" class="mt-4 py-1.5 bg-line-green text-white font-label-caps text-xs font-bold hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all">
-                發送訊息
+              <button onclick="switchAdminSection('line-send')" class="mt-4 py-2 bg-line-green text-white font-label-caps text-xs font-bold hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all">
+                開啟群發訊息
               </button>
             </div>
 
@@ -331,7 +335,7 @@
         </div>
       </div>
 
-      <!-- SECTION 4: LINE GROUPS (群組維護與訊息發送 - 對齊圖1結構) -->
+      <!-- SECTION 4: LINE GROUPS (LINE 群組維護 - 對齊圖1雙欄獨立卡片) -->
       <div id="sec-line-groups" class="hidden space-y-6">
         <div>
           <h2 class="font-display-lg text-2xl italic font-black text-white">LINE 群組維護</h2>
@@ -408,31 +412,77 @@
           </div>
 
         </div>
+      </div>
 
-        <!-- 下方廣播訊息卡片 -->
-        <div class="bg-surface-container-low p-6 border border-line-green/40 space-y-4">
-          <div class="flex items-center gap-2 border-b border-outline-variant/60 pb-3">
-            <span class="material-symbols-outlined text-line-green text-xl">send</span>
-            <h3 class="font-headline-md text-base italic font-bold text-white">發送群組訊息 (文字/圖片)</h3>
+      <!-- SECTION 5: LINE SEND (發送群組訊息 - 完全獨立頁面對齊圖 2) -->
+      <div id="sec-line-send" class="hidden space-y-6">
+        <div class="max-w-4xl mx-auto bg-surface-container-low p-6 md:p-8 border border-outline-variant rounded-2xl shadow-2xl space-y-6">
+          
+          <div class="text-center space-y-2 pb-4 border-b border-outline-variant/60">
+            <h1 class="font-display-lg text-3xl font-black text-white italic tracking-tight flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-line-green text-3xl">send</span> 發送群組訊息
+            </h1>
+            <p class="text-xs text-on-surface-variant">批量傳送文字公告或圖片/檔案至指定的 LINE 群組。</p>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <form id="line-batch-send-form" onsubmit="handleLineBatchSendSubmit(event)" class="space-y-6">
+            
+            <!-- 1. 選擇發送群組 (可複選，對齊圖2) -->
             <div>
-              <label class="block text-xs font-label-caps text-on-surface-variant mb-1.5">選擇目標 LINE 群組</label>
-              <select id="send-group-select" class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-3 outline-none focus:border-line-green">
-                <!-- Dynamic group options -->
-              </select>
+              <div class="flex justify-between items-center mb-2">
+                <label class="block text-sm font-bold text-white flex items-center gap-1.5">
+                  1. 選擇發送群組 (可複選)
+                </label>
+                <button type="button" onclick="toggleSelectAllGroups()" class="text-xs text-line-green hover:underline font-bold">
+                  全選 / 取消全選
+                </button>
+              </div>
+              <div id="send-groups-cards-container" class="grid grid-cols-2 sm:grid-cols-3 gap-3 my-2">
+                <!-- Dynamically rendered group cards with checkboxes -->
+              </div>
             </div>
 
-            <div class="md:col-span-2">
-              <label class="block text-xs font-label-caps text-on-surface-variant mb-1.5">推播訊息內容</label>
-              <textarea id="send-message-text" rows="2" placeholder="請輸入欲廣播發送給社團成員的訊息內容..." class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-3 outline-none focus:border-line-green"></textarea>
+            <!-- 2. 文字訊息內容 (對齊圖2) -->
+            <div>
+              <label class="block text-sm font-bold text-white mb-2">
+                2. 文字訊息內容
+              </label>
+              <textarea id="batch-send-text" rows="5" class="w-full bg-surface-container border border-outline-variant text-white font-body-md text-sm p-4 rounded-xl outline-none focus:border-line-green focus:ring-2 focus:ring-line-green/20 transition-all placeholder:text-gray-500" placeholder="請輸入要群發的文字公告內容..."></textarea>
             </div>
-          </div>
 
-          <button onclick="sendLineGroupBroadcast()" class="w-full py-3 bg-line-green hover:bg-line-green-hover text-white font-label-caps font-bold italic text-xs shadow-lg shadow-line-green/20 transition-all">
-            立即發送至 LINE 群組
-          </button>
+            <!-- 3. 附件檔案 (支援多檔，選填，對齊圖2拖拽上傳區) -->
+            <div>
+              <label class="block text-sm font-bold text-white mb-2">
+                3. 附件檔案 (支援多檔，選填)
+              </label>
+              <div id="file-drop-zone" onclick="document.getElementById('batch-files-input').click()" class="border-2 border-dashed border-outline-variant hover:border-line-green rounded-xl p-8 text-center cursor-pointer transition-all bg-surface-container hover:bg-surface-container-high flex flex-col items-center justify-center min-h-[160px]">
+                <span class="material-symbols-outlined text-4xl text-line-green mb-2">upload_file</span>
+                <p id="file-count-label" class="text-sm font-bold text-white">點擊或拖曳檔案至此</p>
+                <p class="text-xs text-on-surface-variant mt-1">支援圖片 (.png, .jpg...) 或 PDF、文件等檔案</p>
+                <input type="file" id="batch-files-input" multiple class="hidden" onchange="handleSelectedFilesChange(this.files)"/>
+              </div>
+              <!-- Selected Files Container -->
+              <div id="selected-files-list" class="flex flex-wrap gap-2 mt-3"></div>
+            </div>
+
+            <!-- 說明提示盒 (對齊圖2說明) -->
+            <div class="bg-surface-container p-4 rounded-xl border border-line-green/30 text-xs text-on-surface-variant space-y-1.5 leading-relaxed">
+              <p class="font-bold text-line-green flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">info</span> 發送提示說明：
+              </p>
+              <ul class="list-disc pl-5 space-y-1 text-gray-300">
+                <li>Line 訊息上，上傳圖片檔 (.jpg, .png...) 將直接顯示預覽，其他檔案將傳送「下載連結」。</li>
+                <li>若同時選擇多個 LINE 群組，系統將會同步推進各群組發送廣播。</li>
+                <li>檔案上傳至雲端需要時間，傳送完成前請勿關閉網頁。</li>
+              </ul>
+            </div>
+
+            <!-- 送出按鈕 (對齊圖2綠色按鈕) -->
+            <button type="submit" id="btn-batch-send-submit" class="w-full bg-line-green hover:bg-line-green-hover text-white py-4 rounded-xl text-base font-bold transition-all shadow-lg shadow-line-green/20 flex items-center justify-center gap-2 active:scale-[0.99]">
+              <span class="material-symbols-outlined">send</span> 確認發送群組訊息
+            </button>
+          </form>
+
         </div>
       </div>
 
@@ -661,7 +711,7 @@
     });
 
     function switchAdminSection(secId) {
-      ['dashboard', 'users', 'products', 'line-groups', 'bulletins'].forEach(s => {
+      ['dashboard', 'users', 'products', 'line-groups', 'line-send', 'bulletins'].forEach(s => {
         document.getElementById(`sec-${s}`).classList.add('hidden');
         const sideBtn = document.getElementById(`side-${s}`);
         if (sideBtn) {
@@ -673,6 +723,10 @@
       const activeBtn = document.getElementById(`side-${secId}`);
       if (activeBtn) {
         activeBtn.className = "w-full text-left p-3 rounded font-bold italic flex items-center gap-2 bg-primary-fixed text-on-primary-fixed";
+      }
+
+      if (secId === 'line-send') {
+        renderLineSendGroupCards();
       }
     }
 
@@ -944,29 +998,168 @@
     }
 
     function renderLineGroups() {
-      const select = document.getElementById('send-group-select');
-      select.innerHTML = groupsList.map(g => `<option value="${g.id}">${g.name} (${g.id})</option>`).join('');
-
       const tbody = document.getElementById('line-group-table-body');
       if (!groupsList || groupsList.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-500 italic">目前尚未建立任何 LINE 群組</td></tr>`;
+      } else {
+        tbody.innerHTML = groupsList.map(g => {
+          const createdDate = g.created_at ? g.created_at.substring(0, 10) : '2026-06-19';
+          return `
+            <tr class="hover:bg-surface-container/60 transition-colors">
+              <td class="p-3 font-mono text-gray-400">${createdDate}</td>
+              <td class="p-3 font-bold text-line-green">${g.name}</td>
+              <td class="p-3 font-mono text-gray-300">${g.id}</td>
+              <td class="p-3 text-right">
+                <button onclick="editLineGroup('${g.id}')" class="text-primary-fixed hover:underline mr-3 font-bold">修改</button>
+                <button onclick="deleteLineGroup('${g.id}')" class="text-error hover:underline font-bold">刪除</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      renderLineSendGroupCards();
+    }
+
+    // --- 圖2: 發送群組訊息 (文字/圖片/檔案多選卡片) JS 邏輯 ---
+    let selectedSendFiles = [];
+    let isAllGroupsSelected = false;
+
+    function renderLineSendGroupCards() {
+      const container = document.getElementById('send-groups-cards-container');
+      if (!container) return;
+
+      if (!groupsList || groupsList.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full bg-surface-container border border-dashed border-outline-variant p-6 rounded-xl text-center text-on-surface-variant text-xs">
+            目前尚無可發送的 LINE 群組，請至【LINE 群組維護】新增群組。
+          </div>
+        `;
         return;
       }
 
-      tbody.innerHTML = groupsList.map(g => {
-        const createdDate = g.created_at ? g.created_at.substring(0, 10) : '2026-06-19';
-        return `
-          <tr class="hover:bg-surface-container/60 transition-colors">
-            <td class="p-3 font-mono text-gray-400">${createdDate}</td>
-            <td class="p-3 font-bold text-line-green">${g.name}</td>
-            <td class="p-3 font-mono text-gray-300">${g.id}</td>
-            <td class="p-3 text-right">
-              <button onclick="editLineGroup('${g.id}')" class="text-primary-fixed hover:underline mr-3 font-bold">修改</button>
-              <button onclick="deleteLineGroup('${g.id}')" class="text-error hover:underline font-bold">刪除</button>
-            </td>
-          </tr>
-        `;
-      }).join('');
+      container.innerHTML = groupsList.map((g) => `
+        <label class="relative cursor-pointer select-none">
+          <input type="checkbox" name="send_group_ids" value="${g.id}" class="sr-only send-group-checkbox" onchange="updateGroupCardStyle(this)" />
+          <div class="send-group-card border border-outline-variant hover:border-line-green rounded-xl p-3.5 flex items-center justify-between transition-all bg-surface-container">
+            <div class="truncate">
+              <span class="text-xs font-bold text-white block truncate">${g.name}</span>
+              <span class="text-[10px] text-gray-400 font-mono block truncate">${g.id}</span>
+            </div>
+            <span class="material-symbols-outlined text-lg text-line-green hidden check-icon">check_circle</span>
+          </div>
+        </label>
+      `).join('');
+    }
+
+    function updateGroupCardStyle(checkbox) {
+      const card = checkbox.nextElementSibling;
+      const icon = card.querySelector('.check-icon');
+      if (checkbox.checked) {
+        card.classList.add('border-line-green', 'bg-line-green/10', 'text-line-green', 'shadow-md');
+        icon.classList.remove('hidden');
+      } else {
+        card.classList.remove('border-line-green', 'bg-line-green/10', 'text-line-green', 'shadow-md');
+        icon.classList.add('hidden');
+      }
+    }
+
+    function toggleSelectAllGroups() {
+      const checkboxes = document.querySelectorAll('.send-group-checkbox');
+      isAllGroupsSelected = !isAllGroupsSelected;
+      checkboxes.forEach(cb => {
+        cb.checked = isAllGroupsSelected;
+        updateGroupCardStyle(cb);
+      });
+    }
+
+    function handleSelectedFilesChange(files) {
+      selectedSendFiles = Array.from(files);
+      const container = document.getElementById('selected-files-list');
+      const label = document.getElementById('file-count-label');
+
+      if (!container || !label) return;
+
+      container.innerHTML = '';
+      if (selectedSendFiles.length > 0) {
+        label.textContent = `已選擇 ${selectedSendFiles.length} 個檔案`;
+        selectedSendFiles.forEach((file, index) => {
+          const tag = document.createElement('div');
+          tag.className = 'bg-surface-container border border-line-green/40 px-3 py-1.5 rounded-lg text-xs text-white flex items-center gap-2 font-mono';
+          tag.innerHTML = `
+            <span class="material-symbols-outlined text-line-green text-sm">attach_file</span>
+            <span class="truncate max-w-[200px]">${file.name} (${(file.size/1024).toFixed(1)} KB)</span>
+            <button type="button" onclick="removeSelectedFile(${index})" class="text-gray-400 hover:text-error text-xs font-bold ml-1">✕</button>
+          `;
+          container.appendChild(tag);
+        });
+      } else {
+        label.textContent = '點擊或拖曳檔案至此';
+      }
+    }
+
+    function removeSelectedFile(index) {
+      selectedSendFiles.splice(index, 1);
+      const container = document.getElementById('selected-files-list');
+      const label = document.getElementById('file-count-label');
+
+      container.innerHTML = '';
+      if (selectedSendFiles.length > 0) {
+        label.textContent = `已選擇 ${selectedSendFiles.length} 個檔案`;
+        selectedSendFiles.forEach((file, idx) => {
+          const tag = document.createElement('div');
+          tag.className = 'bg-surface-container border border-line-green/40 px-3 py-1.5 rounded-lg text-xs text-white flex items-center gap-2 font-mono';
+          tag.innerHTML = `
+            <span class="material-symbols-outlined text-line-green text-sm">attach_file</span>
+            <span class="truncate max-w-[200px]">${file.name} (${(file.size/1024).toFixed(1)} KB)</span>
+            <button type="button" onclick="removeSelectedFile(${idx})" class="text-gray-400 hover:text-error text-xs font-bold ml-1">✕</button>
+          `;
+          container.appendChild(tag);
+        });
+      } else {
+        label.textContent = '點擊或拖曳檔案至此';
+      }
+    }
+
+    async function handleLineBatchSendSubmit(e) {
+      e.preventDefault();
+      const checkedCbs = document.querySelectorAll('.send-group-checkbox:checked');
+      const selectedGroupIds = Array.from(checkedCbs).map(cb => cb.value);
+      const messageText = document.getElementById('batch-send-text').value.trim();
+
+      if (selectedGroupIds.length === 0) {
+        alert('請至少選擇一個發送群組 (可複選)！');
+        return;
+      }
+
+      if (!messageText && selectedSendFiles.length === 0) {
+        alert('請輸入文字訊息內容或選擇附件檔案！');
+        return;
+      }
+
+      const btn = document.getElementById('btn-batch-send-submit');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin material-symbols-outlined">sync</span> 系統發送中，請稍候...`;
+
+      try {
+        let fileNote = selectedSendFiles.length > 0 ? `\n📎 附帶 ${selectedSendFiles.length} 個檔案附件 (${selectedSendFiles.map(f=>f.name).join(', ')})` : '';
+        for (let gid of selectedGroupIds) {
+          await fetch('/api/admin/line/broadcast', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ group_id: gid, message: messageText + fileNote })
+          });
+        }
+        alert(`🎉 成功將訊息推播至 ${selectedGroupIds.length} 個 LINE 群組！`);
+        document.getElementById('batch-send-text').value = '';
+        selectedSendFiles = [];
+        handleSelectedFilesChange([]);
+      } catch (err) {
+        alert('發送過程中發生連線錯誤');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<span class="material-symbols-outlined">send</span> 確認發送群組訊息`;
+      }
     }
 
     async function saveLineGroupForm() {
