@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html class="dark" lang="zh-TW">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>UX-PRINT // Aggressive Inline Additive Manufacturing & UV Printing</title>
+  
+  <!-- Tailwind CSS with Forms & Container Queries plugins -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,400;0,700;0,800;0,900;1,400;1,700;1,800;1,900&family=Hanken+Grotesk:wght@400;700&family=JetBrains+Mono:wght@700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+  <!-- Tailwind Theme Configuration -->
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-error": "#690005",
+            "on-secondary-container": "#572000",
+            "on-tertiary-container": "#006f7f",
+            "surface-dim": "#131313",
+            "tertiary": "#ffffff",
+            "outline": "#8e9379",
+            "error": "#ffb4ab",
+            "secondary-fixed": "#ffdbcc",
+            "on-secondary": "#561f00",
+            "surface-container-lowest": "#0e0e0e",
+            "on-primary-fixed-variant": "#3c4d00",
+            "on-tertiary-fixed": "#001f25",
+            "inverse-surface": "#e5e2e1",
+            "on-surface-variant": "#c4c9ac",
+            "surface-container": "#201f1f",
+            "tertiary-fixed": "#a5eeff",
+            "background": "#131313",
+            "surface-bright": "#393939",
+            "on-primary-container": "#556d00",
+            "surface-container-high": "#2a2a2a",
+            "tertiary-fixed-dim": "#00daf8",
+            "error-container": "#93000a",
+            "tertiary-container": "#a5eeff",
+            "on-primary": "#283500",
+            "primary-fixed": "#c3f400",
+            "primary-fixed-dim": "#abd600",
+            "secondary-container": "#fe6b00",
+            "on-secondary-fixed": "#351000",
+            "surface-tint": "#abd600",
+            "on-primary-fixed": "#161e00",
+            "on-error-container": "#ffdad6",
+            "on-tertiary-fixed-variant": "#004e5a",
+            "surface-variant": "#353534",
+            "inverse-on-surface": "#313030",
+            "inverse-primary": "#506600",
+            "primary-container": "#c3f400",
+            "on-background": "#e5e2e1",
+            "secondary": "#ffb693",
+            "surface": "#131313",
+            "on-surface": "#e5e2e1",
+            "on-secondary-fixed-variant": "#7a3000",
+            "on-tertiary": "#00363f",
+            "surface-container-highest": "#353534",
+            "surface-container-low": "#1c1b1b",
+            "secondary-fixed-dim": "#ffb693",
+            "primary": "#ffffff",
+            "outline-variant": "#444933",
+            "line-green": "#06C755"
+          },
+          spacing: {
+            "unit-4": "16px",
+            "unit-2": "8px",
+            "margin-desktop": "48px",
+            "unit-1": "4px",
+            "unit-16": "64px",
+            "gutter": "24px",
+            "unit-8": "32px",
+            "unit-12": "48px",
+            "unit-6": "24px",
+            "base": "4px",
+            "margin-mobile": "16px"
+          },
+          fontFamily: {
+            "body-md": ["Hanken Grotesk", "Noto Sans TC", "sans-serif"],
+            "body-lg": ["Hanken Grotesk", "Noto Sans TC", "sans-serif"],
+            "label-caps": ["JetBrains Mono", "monospace"],
+            "display-lg": ["Anybody", "Noto Sans TC", "sans-serif"],
+            "headline-md": ["Anybody", "Noto Sans TC", "sans-serif"],
+            "headline-lg": ["Anybody", "Noto Sans TC", "sans-serif"]
+          },
+          fontSize: {
+            "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+            "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700"}],
+            "display-lg": ["72px", {"lineHeight": "72px", "letterSpacing": "-0.04em", "fontWeight": "800"}],
+            "headline-md": ["24px", {"lineHeight": "28px", "fontWeight": "700"}],
+            "headline-lg": ["48px", {"lineHeight": "52px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+            "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #131313;
+      background-image: radial-gradient(#2a2a2a 1px, transparent 1px);
+      background-size: 32px 32px;
+      color: #e5e2e1;
+      overflow-x: hidden;
+    }
+    .skew-section {
+      clip-path: polygon(0 5%, 100% 0, 100% 95%, 0 100%);
+    }
+    .speed-line {
+      height: 2px;
+      background: linear-gradient(90deg, #c3f400 0%, transparent 100%);
+      position: relative;
+    }
+    .speed-line::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: -4px;
+      border-left: 10px solid #c3f400;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+    }
+    .glow-primary {
+      box-shadow: 0px 0px 15px rgba(195, 244, 0, 0.3);
+    }
+    .uv-overlay {
+      mix-blend-mode: color-dodge;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .uv-trigger:hover .uv-overlay, .uv-reveal:hover .uv-overlay {
+      opacity: 1;
+    }
+    .tech-border {
+      border-bottom: 2px solid #353534;
+      position: relative;
+      overflow: hidden;
+    }
+    .tech-border::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: -100%;
+      width: 100%;
+      height: 2px;
+      background: #c3f400;
+      transition: left 0.5s ease;
+    }
+    .tech-input:focus + .tech-border::after {
+      left: 0;
+    }
+    .diagonal-line {
+      height: 2px;
+      background: #c3f400;
+      width: 100%;
+      position: relative;
+    }
+    .diagonal-line::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      top: -5px;
+      width: 12px;
+      height: 12px;
+      background: #c3f400;
+      clip-path: polygon(100% 0, 0 100%, 100% 100%);
+    }
+    .scanline {
+      position: relative;
+      overflow: hidden;
+    }
+    .scanline::after {
+      content: "";
+      position: absolute;
+      top: -100%;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, transparent, rgba(195, 244, 0, 0.15), transparent);
+      animation: scan 3s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes scan {
+      0% { top: -100%; }
+      100% { top: 100%; }
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #131313;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #444933;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #c3f400;
+    }
+  </style>
+</head>
+<body class="font-body-md selection:bg-primary-fixed selection:text-on-primary-fixed min-h-screen flex flex-col antialiased">
+  
+  <!-- Top Live Marquee Bar -->
+  <div class="bg-secondary-container text-on-secondary-container font-label-caps text-xs py-1.5 px-4 overflow-hidden relative z-50 flex items-center border-b border-secondary">
+    <div class="flex items-center gap-2 px-2 py-0.5 bg-black/40 text-primary-fixed font-bold tracking-widest shrink-0 uppercase italic text-[11px]">
+      <span class="inline-block w-2 h-2 rounded-full bg-primary-fixed animate-ping"></span>
+      LIVE BROADCAST
+    </div>
+    <marquee class="font-bold tracking-wide italic uppercase text-white/90">
+      🔥 3D列印高強度 TPU 避震套件正式發售！ | 🎨 UV 浮雕炫彩貼紙支援社團客製圖騰標章 | 💬 LINE 登入獨享社團專屬折扣與訂單即時追蹤！
+    </marquee>
+  </div>
+
+  <!-- Top Navigation Bar -->
+  <nav class="w-full top-0 sticky border-b-2 border-outline-variant bg-background/90 backdrop-blur-md shadow-[0px_0px_15px_rgba(195,244,0,0.1)] z-50">
+    <div class="flex justify-between items-center px-4 md:px-margin-desktop py-unit-4 max-w-full">
+      <div class="flex items-center gap-unit-6 md:gap-unit-8">
+        <a href="#" onclick="switchTab('catalog')" class="font-display-lg text-2xl md:text-headline-md italic font-black text-primary-fixed border-b-4 border-secondary-container">
+          UX-PRINT <span class="text-xs text-white not-italic font-label-caps bg-surface-container px-1.5 py-0.5 border border-outline-variant">3D & UV</span>
+        </a>
+        <div class="hidden md:flex gap-unit-6">
+          <button onclick="switchTab('catalog')" id="nav-catalog" class="text-primary-fixed border-b-2 border-primary-fixed pb-1 font-label-caps uppercase transition-colors">
+            SHOP (商品大廳)
+          </button>
+          <button onclick="switchTab('bulletin')" id="nav-bulletin" class="text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors flex items-center gap-1">
+            BULLETIN (公佈欄)
+            <span class="bg-secondary-container text-white text-[10px] px-1.5 rounded-full not-italic">NEW</span>
+          </button>
+          <button onclick="scrollToLab()" class="text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors">
+            3D LAB (客製列印)
+          </button>
+          <button onclick="openLineModal('profile')" class="text-on-surface-variant font-label-caps uppercase hover:text-line-green transition-colors flex items-center gap-1">
+            LINE 服務中心
+            <span class="w-2 h-2 rounded-full bg-line-green inline-block"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 md:gap-unit-4">
+        <!-- Search Input -->
+        <div class="hidden lg:flex items-center bg-surface-container px-unit-4 py-unit-1 rounded-full border border-outline-variant">
+          <span class="material-symbols-outlined text-on-surface-variant scale-75">search</span>
+          <input id="searchInput" oninput="handleSearch()" class="bg-transparent border-none focus:ring-0 text-label-caps text-on-surface placeholder:text-on-surface-variant/50 w-32 focus:outline-none" placeholder="FIND GEAR..." type="text"/>
+        </div>
+
+        <!-- LINE User Auth Badge / Login Button -->
+        <div id="line-auth-container">
+          <button onclick="openLineModal('login')" class="bg-line-green text-white px-3 py-1.5 font-label-caps font-bold italic text-xs flex items-center gap-1.5 hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all rounded-sm">
+            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
+            LINE 登入
+          </button>
+        </div>
+
+        <!-- Cart Button -->
+        <button onclick="toggleCartDrawer()" class="relative text-on-surface-variant hover:text-primary-fixed transition-colors p-1">
+          <span class="material-symbols-outlined text-2xl">shopping_cart</span>
+          <span id="cart-count-badge" class="absolute -top-1 -right-1 bg-secondary-container text-white font-label-caps text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">0</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Mobile Bottom Tab Navigation -->
+  <div class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-container-high/95 backdrop-blur-md border-t border-outline-variant flex justify-around py-2 px-4">
+    <button onclick="switchTab('catalog')" class="flex flex-col items-center text-primary-fixed font-label-caps text-[10px]">
+      <span class="material-symbols-outlined text-xl">store</span>
+      商品大廳
+    </button>
+    <button onclick="switchTab('bulletin')" class="flex flex-col items-center text-on-surface-variant font-label-caps text-[10px]">
+      <span class="material-symbols-outlined text-xl">campaign</span>
+      社團公佈欄
+    </button>
+    <button onclick="openLineModal('profile')" class="flex flex-col items-center text-line-green font-label-caps text-[10px]">
+      <span class="material-symbols-outlined text-xl">chat</span>
+      LINE 功能
+    </button>
+    <button onclick="toggleCartDrawer()" class="flex flex-col items-center text-on-surface-variant font-label-caps text-[10px]">
+      <span class="material-symbols-outlined text-xl">shopping_bag</span>
+      購物車
+    </button>
+  </div>
+
+  <main class="flex-grow">
+    
+    <!-- Hero Section (首頁運動化主視覺) -->
+    <section class="relative min-h-[85vh] flex items-center overflow-hidden bg-surface-container-lowest border-b-2 border-outline-variant">
+      <div class="absolute inset-0 z-0 opacity-40 dot-grid pointer-events-none"></div>
+      
+      <div class="container mx-auto px-4 md:px-margin-desktop py-12 grid grid-cols-1 md:grid-cols-12 gap-gutter items-center relative z-10">
+        <div class="md:col-span-7 flex flex-col gap-unit-6">
+          <div class="flex items-center gap-unit-4">
+            <span class="font-label-caps bg-secondary-container text-on-secondary-container px-unit-2 py-unit-1 font-bold text-xs">NEW DROP // VER. 4.2</span>
+            <div class="speed-line flex-grow"></div>
+          </div>
+          
+          <h1 class="font-display-lg text-4xl sm:text-6xl md:text-display-lg text-primary-fixed italic uppercase leading-none font-black tracking-tight">
+            ENGINEERED <br/> <span class="text-white">TO GRIND.</span>
+          </h1>
+          
+          <p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl leading-relaxed">
+            Performance-grade 3D printed h-blocks, souls, and custom UV decals designed for the aggressive inline community. Precise layering for maximum durability.
+            <br/><span class="text-primary-fixed text-sm font-label-caps">⚡ 專為極限運動愛好者與運動競賽打造的高精度 3D 套件與 UV 炫彩作品。</span>
+          </p>
+          
+          <div class="flex flex-wrap gap-unit-4 mt-unit-4">
+            <button onclick="switchTab('catalog'); scrollToProducts();" class="bg-primary-fixed text-on-primary-fixed px-6 md:px-unit-8 py-3 md:py-unit-4 font-label-caps text-base md:text-headline-md italic font-black shadow-[4px_4px_0px_#fe6b00] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all flex items-center gap-2">
+              <span class="material-symbols-outlined">shopping_cart</span> BUILD YOUR CUSTOM SETUP
+            </button>
+            <button onclick="scrollToLab()" class="border-2 border-primary-fixed text-primary-fixed px-6 md:px-unit-8 py-3 md:py-unit-4 font-label-caps text-base md:text-headline-md italic font-black hover:bg-primary-fixed/10 transition-colors flex items-center gap-2">
+              <span class="material-symbols-outlined">precision_manufacturing</span> VIEW MATERIALS
+            </button>
+          </div>
+        </div>
+
+        <div class="md:col-span-5 relative group mt-8 md:mt-0">
+          <div class="absolute -inset-4 bg-secondary-container/20 blur-3xl rounded-full"></div>
+          <div class="relative aspect-square bg-surface-container rounded-xl border-2 border-outline-variant overflow-hidden uv-trigger shadow-2xl">
+            <img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" src="https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80" alt="Aggressive Skate UV Print Component"/>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+            
+            <!-- UV Overlay Effect Simulation -->
+            <div class="absolute inset-0 uv-overlay flex items-center justify-center pointer-events-none bg-secondary-container/20">
+              <span class="text-primary-fixed font-display-lg italic opacity-40 rotate-12 scale-150 font-black">UV PRINT ACTIVE</span>
+            </div>
+            
+            <div class="absolute bottom-unit-4 left-unit-4 right-unit-4">
+              <div class="bg-background/90 backdrop-blur-md p-unit-4 border-l-4 border-primary-fixed shadow-lg">
+                <span class="font-label-caps text-primary-fixed block text-xs font-bold">FEATURED GEAR</span>
+                <span class="font-headline-md italic uppercase text-white font-bold text-lg">ONYX-CORE SOUL PLATES (UV RESIN)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Dynamic Section (Catalog / Bulletin) -->
+    <section id="main-content-section" class="py-unit-12 relative z-10 px-4 md:px-margin-desktop">
+      <div class="container mx-auto">
+        
+        <!-- Sidebar & Content Layout -->
+        <div class="flex flex-col md:flex-row gap-gutter">
+          
+          <!-- Sidebar Filter & Tech Specs -->
+          <aside class="w-full md:w-64 flex-shrink-0">
+            <div class="sticky top-24 space-y-6">
+              
+              <div class="flex items-center gap-unit-2">
+                <span class="material-symbols-outlined text-primary-fixed" style="font-variation-settings: 'FILL' 1;">tune</span>
+                <h2 class="font-headline-md text-headline-md italic uppercase tracking-tighter text-white">SYSTEM_FILTERS</h2>
+              </div>
+              <div class="diagonal-line"></div>
+
+              <!-- Product Categories -->
+              <div>
+                <h3 class="font-label-caps text-xs text-primary-fixed mb-3 tracking-widest flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 bg-primary-fixed"></span> CATEGORIES
+                </h3>
+                <ul class="space-y-2 font-label-caps text-xs">
+                  <li>
+                    <label class="flex items-center gap-2 cursor-pointer group p-1.5 rounded hover:bg-surface-container">
+                      <input type="radio" name="category" value="all" checked onchange="filterProducts()" class="form-radio bg-surface-container border-outline-variant text-secondary-container focus:ring-primary-fixed"/>
+                      <span class="text-on-surface-variant group-hover:text-primary-fixed transition-colors">ALL_HARDWARE (全部作品)</span>
+                    </label>
+                  </li>
+                  <li>
+                    <label class="flex items-center gap-2 cursor-pointer group p-1.5 rounded hover:bg-surface-container">
+                      <input type="radio" name="category" value="3d-print" onchange="filterProducts()" class="form-radio bg-surface-container border-outline-variant text-secondary-container focus:ring-primary-fixed"/>
+                      <span class="text-on-surface-variant group-hover:text-primary-fixed transition-colors">3D_PRINT (3D列印套件)</span>
+                    </label>
+                  </li>
+                  <li>
+                    <label class="flex items-center gap-2 cursor-pointer group p-1.5 rounded hover:bg-surface-container">
+                      <input type="radio" name="category" value="uv-print" onchange="filterProducts()" class="form-radio bg-surface-container border-outline-variant text-secondary-container focus:ring-primary-fixed"/>
+                      <span class="text-on-surface-variant group-hover:text-primary-fixed transition-colors">UV_PRINT (UV炫彩作品)</span>
+                    </label>
+                  </li>
+                  <li>
+                    <label class="flex items-center gap-2 cursor-pointer group p-1.5 rounded hover:bg-surface-container">
+                      <input type="radio" name="category" value="custom" onchange="filterProducts()" class="form-radio bg-surface-container border-outline-variant text-secondary-container focus:ring-primary-fixed"/>
+                      <span class="text-on-surface-variant group-hover:text-primary-fixed transition-colors">CUSTOM_CLUB (社團限定)</span>
+                    </label>
+                  </li>
+                </ul>
+              </div>
+
+              <!-- Material Filter Badges -->
+              <div>
+                <h3 class="font-label-caps text-xs text-primary-fixed mb-3 tracking-widest flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 bg-primary-fixed"></span> MATERIAL_GRADE
+                </h3>
+                <div class="flex flex-wrap gap-1.5" id="material-badges">
+                  <span onclick="toggleMaterialFilter('ALL')" class="mat-btn px-2 py-1 bg-primary-container text-on-primary-container font-label-caps text-[10px] rounded hover:glow-primary cursor-pointer transition-all border border-transparent font-bold">ALL</span>
+                  <span onclick="toggleMaterialFilter('TPU_95A')" class="mat-btn px-2 py-1 bg-surface-container-high text-on-surface-variant border border-outline-variant font-label-caps text-[10px] rounded hover:border-primary-fixed cursor-pointer transition-all">TPU_95A</span>
+                  <span onclick="toggleMaterialFilter('PLA_PRO')" class="mat-btn px-2 py-1 bg-surface-container-high text-on-surface-variant border border-outline-variant font-label-caps text-[10px] rounded hover:border-primary-fixed cursor-pointer transition-all">PLA_PRO</span>
+                  <span onclick="toggleMaterialFilter('NYLON_CF')" class="mat-btn px-2 py-1 bg-surface-container-high text-on-surface-variant border border-outline-variant font-label-caps text-[10px] rounded hover:border-primary-fixed cursor-pointer transition-all">NYLON_CF</span>
+                  <span onclick="toggleMaterialFilter('UV_RESIN')" class="mat-btn px-2 py-1 bg-surface-container-high text-on-surface-variant border border-outline-variant font-label-caps text-[10px] rounded hover:border-primary-fixed cursor-pointer transition-all">UV_RESIN</span>
+                </div>
+              </div>
+
+              <!-- LINE Fast Actions Widget -->
+              <div class="p-4 bg-surface-container-low border border-line-green/40 relative overflow-hidden">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-line-green animate-pulse"></span>
+                  <h4 class="font-label-caps text-xs text-line-green font-bold uppercase tracking-wider">LINE QUICK SERVICES</h4>
+                </div>
+                <p class="text-xs text-on-surface-variant mb-3 leading-relaxed">
+                  連結社團 LINE 官方 Bot，享受快速客服諮詢、訂單即時狀態與公佈欄通知！
+                </p>
+                <div class="space-y-2">
+                  <button onclick="openLineModal('notify')" class="w-full py-1.5 px-2 bg-line-green/20 border border-line-green text-line-green font-label-caps text-[11px] font-bold italic hover:bg-line-green hover:text-white transition-all flex items-center justify-center gap-1">
+                    <span class="material-symbols-outlined text-sm">notifications_active</span> 訂閱公佈欄即時推播
+                  </button>
+                  <button onclick="openLineModal('group')" class="w-full py-1.5 px-2 bg-surface-container border border-outline-variant text-on-surface-variant font-label-caps text-[11px] hover:border-primary-fixed hover:text-primary-fixed transition-all flex items-center justify-center gap-1">
+                    <span class="material-symbols-outlined text-sm">groups</span> 加入社團交流群組
+                  </button>
+                </div>
+              </div>
+
+              <!-- Tech Specs Status Box -->
+              <div class="p-4 bg-surface-container-low border border-outline-variant scanline">
+                <p class="font-label-caps text-[10px] text-on-surface-variant leading-relaxed">
+                  SYSTEM_STATUS: <span class="text-primary-fixed font-bold">ONLINE // OPTIMIZED</span><br/>
+                  PRINTER_FARM: <span class="text-primary-fixed">BAMBU_X1C x 8 UNIT</span><br/>
+                  UV_PRINT_BED: <span class="text-primary-fixed">MIMAKI_UV_6090</span><br/>
+                  LINE_BOT_WEBHOOK: <span class="text-line-green">CONNECTED</span>
+                </p>
+              </div>
+
+            </div>
+          </aside>
+
+          <!-- Main Dynamic View Area -->
+          <div class="flex-grow">
+            
+            <!-- Section Header -->
+            <div class="flex flex-col mb-6">
+              <div class="flex justify-between items-end flex-wrap gap-2">
+                <div>
+                  <h2 id="page-title" class="font-display-lg text-2xl md:text-headline-lg italic uppercase text-white flex items-center gap-2">
+                    CATALOG_01 // <span class="text-primary-fixed">COMPONENTS</span>
+                  </h2>
+                  <p id="page-subtitle" class="font-label-caps text-xs text-on-surface-variant">/ 專為運動愛好者與極限玩家打造的專業列印作品</p>
+                </div>
+                
+                <div class="flex items-center gap-2 font-label-caps text-xs">
+                  <span class="text-on-surface-variant">VIEW:</span>
+                  <button onclick="switchTab('catalog')" id="tab-btn-catalog" class="px-2 py-1 bg-primary-fixed text-on-primary-fixed font-bold italic uppercase">商品大廳</button>
+                  <button onclick="switchTab('bulletin')" id="tab-btn-bulletin" class="px-2 py-1 bg-surface-container text-on-surface-variant hover:text-white italic uppercase border border-outline-variant">公佈欄</button>
+                </div>
+              </div>
+              <div class="speed-line w-full mt-4"></div>
+            </div>
+
+            <!-- VIEW 1: PRODUCT CATALOG GRID -->
+            <div id="view-catalog">
+              <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-gutter">
+                <!-- Dynamically populated via JS/API -->
+              </div>
+
+              <!-- Pagination -->
+              <div class="mt-12 flex justify-center items-center gap-unit-4">
+                <button class="p-2 border border-outline-variant text-on-surface-variant hover:border-primary-fixed hover:text-primary-fixed transition-all">
+                  <span class="material-symbols-outlined text-sm">chevron_left</span>
+                </button>
+                <span class="font-label-caps text-xs text-primary-fixed">PAGE 01 / 01</span>
+                <button class="p-2 border border-outline-variant text-on-surface-variant hover:border-primary-fixed hover:text-primary-fixed transition-all">
+                  <span class="material-symbols-outlined text-sm">chevron_right</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- VIEW 2: CLUB BULLETIN BOARD (公佈欄) -->
+            <div id="view-bulletin" class="hidden space-y-4">
+              <div class="bg-surface-container-low p-4 border border-outline-variant flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                  <span class="material-symbols-outlined text-secondary-container">campaign</span>
+                  <span class="font-headline-md italic font-bold text-lg text-white">社團最新公告與賽事動態</span>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                  <button onclick="openLineModal('notify')" class="px-3 py-1.5 bg-line-green text-white font-label-caps text-xs font-bold italic flex items-center gap-1 hover:shadow-[0_0_10px_rgba(6,199,85,0.4)] transition-all">
+                    <span class="material-symbols-outlined text-sm">mark_chat_read</span> LINE 同步訂閱
+                  </button>
+                </div>
+              </div>
+
+              <div id="bulletin-list" class="space-y-4">
+                <!-- Dynamically populated via JS/API -->
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 3D Lab Teaser (Asymmetric Layout) -->
+    <section id="section-3d-lab" class="py-unit-16 relative bg-surface-container-low overflow-hidden my-12">
+      <div class="skew-section bg-surface-container-high absolute inset-0 transform -skew-y-2 translate-y-12"></div>
+      <div class="container mx-auto px-4 md:px-margin-desktop relative z-10">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-unit-16 items-center">
+          
+          <div class="order-2 md:order-1">
+            <div class="relative bg-black aspect-video border-4 border-outline-variant shadow-2xl overflow-hidden scanline">
+              <div class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+                <div class="w-32 h-32 border-2 border-dashed border-primary-fixed animate-spin relative flex items-center justify-center">
+                  <div class="w-20 h-20 border-2 border-secondary-container rotate-45"></div>
+                </div>
+                <span class="font-label-caps text-xs text-primary-fixed mt-4">[3D MESH MODEL PREVIEW - ACTIVE]</span>
+                <span class="font-label-caps text-[10px] text-on-surface-variant">STL / OBJ / 3MF DIRECT PRINT FARM</span>
+              </div>
+
+              <div class="absolute top-unit-4 left-unit-4 bg-primary-fixed/90 p-unit-2">
+                <span class="font-label-caps text-on-primary-fixed text-[10px] font-bold">WIRE FRAME VIEW // ENABLED</span>
+              </div>
+              <div class="absolute bottom-unit-4 right-unit-4 flex gap-unit-2">
+                <button class="p-unit-2 bg-surface-container hover:bg-primary-fixed hover:text-on-primary-fixed transition-colors">
+                  <span class="material-symbols-outlined scale-75">rotate_right</span>
+                </button>
+                <button class="p-unit-2 bg-surface-container hover:bg-primary-fixed hover:text-on-primary-fixed transition-colors">
+                  <span class="material-symbols-outlined scale-75">zoom_in</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="order-1 md:order-2 flex flex-col gap-unit-6">
+            <span class="font-label-caps text-secondary-container font-bold tracking-widest text-xs">THE 3D LAB // 客製列印工坊</span>
+            <h2 class="font-display-lg text-3xl md:text-headline-lg italic uppercase text-white leading-tight font-black">
+              UPLOAD YOUR <br/> <span class="text-primary-fixed">MESH FILES</span>
+            </h2>
+            <p class="text-body-lg text-on-surface-variant leading-relaxed">
+              Have a custom design? Upload your .STL or .OBJ files directly to our printer farm. We use industrial-grade FDM and SLA tech to bring your skating innovations to life.
+              <br/><span class="text-xs text-primary-fixed font-label-caps">提供客製化 3D 切片、抗衝擊測試與高解析 UV 浮雕圖騰直噴服務。</span>
+            </p>
+
+            <ul class="flex flex-col gap-unit-2">
+              <li class="flex items-center gap-unit-2 text-label-caps text-white text-xs">
+                <span class="material-symbols-outlined text-primary-fixed text-sm">check_circle</span> 24H PRINT-TO-SHIP (急速接單與切片生產)
+              </li>
+              <li class="flex items-center gap-unit-2 text-label-caps text-white text-xs">
+                <span class="material-symbols-outlined text-primary-fixed text-sm">check_circle</span> MULTI-MATERIAL CAPABILITIES (TPU / PA-CF / UV Resin)
+              </li>
+              <li class="flex items-center gap-unit-2 text-label-caps text-white text-xs">
+                <span class="material-symbols-outlined text-primary-fixed text-sm">check_circle</span> STRESS-TESTED DURABILITY (強化結構與耐磨耗係數)
+              </li>
+            </ul>
+
+            <div>
+              <button onclick="openLineModal('notify')" class="bg-primary-fixed text-on-primary-fixed px-unit-8 py-unit-4 font-label-caps italic font-black hover:glow-primary transition-all uppercase text-sm">
+                START CUSTOM PRINT (上傳檔案與專人估價)
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Newsletter / Club CTA Section -->
+    <section class="py-unit-16 px-4 md:px-margin-desktop">
+      <div class="container mx-auto bg-primary-fixed p-8 md:p-unit-12 flex flex-col md:flex-row justify-between items-center gap-unit-8 shadow-2xl">
+        <div class="flex flex-col gap-unit-2 text-on-primary-fixed">
+          <h2 class="font-display-lg text-3xl md:text-headline-lg italic uppercase leading-none font-black">JOIN THE <br/> PRINT CREW</h2>
+          <p class="font-body-lg max-w-sm text-sm font-bold">Early access to material drops, community 3D files, and exclusive skater-designed UV kits.</p>
+        </div>
+        
+        <div class="w-full md:w-auto flex flex-col gap-unit-4 flex-grow max-w-md">
+          <div class="relative">
+            <input class="tech-input w-full bg-on-primary-fixed/10 border-none border-b-2 border-on-primary-fixed/30 text-on-primary-fixed placeholder:text-on-primary-fixed/50 font-label-caps p-unit-4 focus:ring-0 outline-none text-xs" placeholder="YOUR_EMAIL@PROVIDER.COM" type="email"/>
+            <div class="tech-border w-full"></div>
+          </div>
+          <button onclick="alert('感謝訂閱！您已加入 UX-PRINT 社團電子報與資材通知清單。')" class="w-full bg-on-primary-fixed text-primary-fixed py-unit-4 font-label-caps italic font-black uppercase hover:opacity-90 transition-opacity text-xs tracking-wider">
+            SUBSCRIBE TO FEED (訂閱社團最新資材動態)
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- LINE Service & Login Modal -->
+  <div id="line-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-surface-container border-2 border-line-green max-w-md w-full p-6 relative scanline shadow-[0_0_30px_rgba(6,199,85,0.2)]">
+      <button onclick="closeLineModal()" class="absolute top-3 right-3 text-on-surface-variant hover:text-white">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+      <div id="line-modal-content"></div>
+    </div>
+  </div>
+
+  <!-- Product Detail & Customization Modal -->
+  <div id="product-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-surface-container border-2 border-primary-fixed max-w-2xl w-full p-6 relative scanline max-h-[90vh] overflow-y-auto shadow-[0_0_30px_rgba(195,244,0,0.2)]">
+      <button onclick="closeProductModal()" class="absolute top-3 right-3 text-on-surface-variant hover:text-primary-fixed">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+      <div id="product-modal-content"></div>
+    </div>
+  </div>
+
+  <!-- Cart Drawer (Side Modal) -->
+  <div id="cart-drawer" class="fixed inset-y-0 right-0 z-50 w-full sm:w-96 bg-surface-container border-l-2 border-primary-fixed transform translate-x-full transition-transform duration-300 shadow-2xl flex flex-col">
+    <div class="p-4 border-b border-outline-variant bg-surface-container-high flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary-fixed">shopping_bag</span>
+        <h3 class="font-headline-md italic font-bold text-lg uppercase text-white">STORAGE_CART (購物車)</h3>
+      </div>
+      <button onclick="toggleCartDrawer()" class="text-on-surface-variant hover:text-white">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div id="cart-items" class="flex-grow p-4 space-y-3 overflow-y-auto"></div>
+
+    <div class="p-4 border-t border-outline-variant bg-surface-container-low space-y-3">
+      <div class="flex justify-between items-center font-label-caps text-sm">
+        <span class="text-on-surface-variant">TOTAL AMOUNT:</span>
+        <span id="cart-total-price" class="text-xl font-bold text-primary-fixed">$0.00</span>
+      </div>
+      
+      <div class="p-2.5 bg-line-green/10 border border-line-green/40 text-[11px] font-label-caps text-line-green flex items-start gap-1.5">
+        <span class="material-symbols-outlined text-sm shrink-0">info</span>
+        <span>結帳後訂單明細將透過 LINE 機器人同步傳送至 PostgreSQL 資料庫與 LINE 社團管理群組！</span>
+      </div>
+
+      <button onclick="checkoutCart()" class="w-full bg-primary-fixed text-on-primary-fixed py-2.5 font-label-caps font-black italic uppercase hover:shadow-[0_0_15px_rgba(195,244,0,0.5)] transition-all flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-lg">rocket_launch</span> 發送訂單至 LINE 進行結帳
+      </button>
+    </div>
+  </div>
+
+  <!-- Floating Action Button (FAB) -->
+  <button onclick="scrollToLab()" class="fixed bottom-8 right-8 w-14 h-14 md:w-16 md:h-16 bg-secondary-container text-on-secondary-container rounded-full shadow-2xl flex items-center justify-center group z-40 hover:scale-110 active:scale-95 transition-transform" title="3D 客製列印工坊">
+    <span class="material-symbols-outlined text-3xl md:text-4xl group-hover:rotate-12 transition-transform">print</span>
+  </button>
+
+  <!-- Footer -->
+  <footer class="w-full py-unit-12 border-t-4 border-primary-fixed skew-y-1 bg-surface-container-lowest overflow-hidden">
+    <div class="-skew-y-1 px-4 md:px-margin-desktop">
+      <div class="flex flex-col md:flex-row justify-between items-start gap-unit-12 mb-unit-12">
+        <div class="flex flex-col gap-unit-4">
+          <span class="text-primary-fixed font-headline-md italic uppercase font-black text-2xl">UX-PRINT</span>
+          <p class="max-w-xs text-label-caps text-on-surface-variant leading-relaxed text-xs">
+            ADDICTIVE MANUFACTURING FOR THE AGGRESSIVE INLINE COMMUNITY. BUILT BY SKATERS, FOR SKATERS.
+            <br/>© 2026 UX-PRINT // 專為極限運動與競賽愛好者打造的 3D 與 UV 列印作品平台。
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-unit-12">
+          <div class="flex flex-col gap-unit-4 text-xs font-label-caps">
+            <span class="text-white font-label-caps underline decoration-primary-fixed underline-offset-4 font-bold">NAVIGATE</span>
+            <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#" onclick="switchTab('catalog')">3D/UV SHOP</a>
+            <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#" onclick="switchTab('bulletin')">BULLETIN BOARD</a>
+            <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#" onclick="scrollToLab()">3D PRINT LAB</a>
+          </div>
+          <div class="flex flex-col gap-unit-4 text-xs font-label-caps">
+            <span class="text-white font-label-caps underline decoration-primary-fixed underline-offset-4 font-bold">LINE SERVICES</span>
+            <a class="text-on-surface-variant hover:text-line-green transition-colors" href="#" onclick="openLineModal('login')">LINE LOGIN</a>
+            <a class="text-on-surface-variant hover:text-line-green transition-colors" href="#" onclick="openLineModal('notify')">LINE NOTIFICATIONS</a>
+            <a class="text-on-surface-variant hover:text-line-green transition-colors" href="#" onclick="openLineModal('group')">LINE COMMUNITY</a>
+          </div>
+          <div class="flex flex-col gap-unit-4 text-xs font-label-caps">
+            <span class="text-white font-label-caps underline decoration-primary-fixed underline-offset-4 font-bold">CONNECT</span>
+            <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#">INSTAGRAM</a>
+            <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#">DISCORD</a>
+            <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#">YOUTUBE</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col md:flex-row justify-between items-center pt-unit-8 border-t border-outline-variant gap-unit-4">
+        <span class="text-on-surface-variant font-label-caps text-[10px]">© 2026 UX-PRINT // ALL SYSTEMS GO.</span>
+        <div class="flex gap-unit-6">
+          <a class="text-on-surface-variant hover:text-primary-fixed font-label-caps text-[10px]" href="#">PRIVACY</a>
+          <a class="text-on-surface-variant hover:text-primary-fixed font-label-caps text-[10px]" href="#">TERMS</a>
+          <a class="text-on-surface-variant hover:text-primary-fixed font-label-caps text-[10px]" href="#">SITEMAP</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Logic JavaScript -->
+  <script>
+    let productsData = [];
+    let announcementsData = [];
+    let cart = [];
+    let activeCategory = "all";
+    let activeMaterial = "ALL";
+    let currentUser = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      loadProductsFromAPI();
+      loadBulletinsFromAPI();
+      updateCartUI();
+    });
+
+    // API Integration to Flask Backend
+    async function loadProductsFromAPI() {
+      try {
+        const res = await fetch('/api/products');
+        const json = await res.json();
+        if (json.status === 'success' && json.data.length > 0) {
+          productsData = json.data;
+        } else {
+          loadFallbackProducts();
+        }
+      } catch (e) {
+        console.warn("API Fetch fallback:", e);
+        loadFallbackProducts();
+      }
+      renderProducts();
+    }
+
+    async function loadBulletinsFromAPI() {
+      try {
+        const res = await fetch('/api/bulletins');
+        const json = await res.json();
+        if (json.status === 'success' && json.data.length > 0) {
+          announcementsData = json.data;
+        } else {
+          loadFallbackBulletins();
+        }
+      } catch (e) {
+        console.warn("API Fetch fallback:", e);
+        loadFallbackBulletins();
+      }
+      renderBulletins();
+    }
+
+    function loadFallbackProducts() {
+      productsData = [
+        { id: "p1", name: "VORTEX H-BLOCK 避震套件", category: "3d-print", material: "TPU_95A", price: 45.00, badge: "TPU HIGH-IMPACT", image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80", description: "Reinforced lattice structure for maximum sliding speed and impact absorption.", isUv: false },
+        { id: "p2", name: "GLITCH DECAL UV炫彩貼紙包", category: "uv-print", material: "UV_RESIN", price: 18.00, badge: "UV REACTIVE", image: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80", description: "Ultra-durable UV resin prints. Scuff-resistant and glow-active under city lights.", isUv: true },
+        { id: "p3", name: "PRO SPACER PA12 精密墊片", category: "3d-print", material: "NYLON_CF", price: 22.00, badge: "NYLON-PA12", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80", description: "Precision spacers engineered for zero-wiggle performance and heat dissipation.", isUv: false },
+        { id: "p4", name: "TITAN SOUL PLATE 魂板底座", category: "3d-print", material: "PLA_PRO", price: 65.00, badge: "PLA-PRO", image: "https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&w=600&q=80", description: "Custom-fit soul plates with reinforced mounting points and ultra-slick formula.", isUv: false },
+        { id: "p5", name: "NEON_HELMET UV戰術彩繪徽章", category: "uv-print", material: "UV_RESIN", price: 28.00, badge: "UV TACTICAL", image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80", description: "直噴 UV 立體多層印刷於安全帽與車身硬殼，立體紋理手感，耐刮擦且不退色。", isUv: true },
+        { id: "p6", name: "FLEX_STRAP R1 運動綁帶組", category: "custom", material: "TPU_95A", price: 15.00, badge: "CLUB EXCLUSIVE", image: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=600&q=80", description: "社團限定版柔性 3D 列印固定扣帶，可客製印製個人選手號碼與社團 Logo。", isUv: false }
+      ];
+    }
+
+    function loadFallbackBulletins() {
+      announcementsData = [
+        { id: "b1", title: "🔥 【社團賽事】2026 夏季極限 3D/UV 作品改裝大賽開始報名！", date_str: "2026-07-20", tag: "賽事公告", is_pinned: true, summary: "本屆改裝大賽包含 3D 列印機構件設計組與 UV 炫彩彩繪組！", content: "親愛的社友們：\n2026 夏季極限 3D/UV 作品改裝大賽即日起開放報名！" },
+        { id: "b2", title: "📦 新進資材通知：Nylon-CF 碳纖維尼龍與亮面 UV 樹脂已上架", date_str: "2026-07-15", tag: "資材更新", is_pinned: false, summary: "全新批次高剛性碳纖維線材與日本進口 UV 抗黃化樹脂已抵達社團工坊。", content: "工坊目前已完成 Bambu X1C 8台機器聯網，提供更快速的 3D 打樣服務。" }
+      ];
+    }
+
+    function switchTab(tab) {
+      const viewCatalog = document.getElementById("view-catalog");
+      const viewBulletin = document.getElementById("view-bulletin");
+      const pageTitle = document.getElementById("page-title");
+      const pageSubtitle = document.getElementById("page-subtitle");
+
+      const navCatalog = document.getElementById("nav-catalog");
+      const navBulletin = document.getElementById("nav-bulletin");
+      const btnCatalog = document.getElementById("tab-btn-catalog");
+      const btnBulletin = document.getElementById("tab-btn-bulletin");
+
+      if (tab === "catalog") {
+        viewCatalog.classList.remove("hidden");
+        viewBulletin.classList.add("hidden");
+        pageTitle.innerHTML = `CATALOG_01 // <span class="text-primary-fixed">COMPONENTS</span>`;
+        pageSubtitle.textContent = "/ 專為運動愛好者與極限玩家打造的專業列印作品";
+
+        navCatalog.className = "text-primary-fixed border-b-2 border-primary-fixed pb-1 font-label-caps uppercase transition-colors";
+        navBulletin.className = "text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors flex items-center gap-1";
+        
+        btnCatalog.className = "px-2 py-1 bg-primary-fixed text-on-primary-fixed font-bold italic uppercase";
+        btnBulletin.className = "px-2 py-1 bg-surface-container text-on-surface-variant hover:text-white italic uppercase border border-outline-variant";
+      } else {
+        viewCatalog.classList.add("hidden");
+        viewBulletin.classList.remove("hidden");
+        pageTitle.innerHTML = `CLUB_BULLETIN // <span class="text-secondary-container">ANNOUNCEMENTS</span>`;
+        pageSubtitle.textContent = "/ 社團最新公告、賽事資訊與 LINE 廣播發布紀錄";
+
+        navBulletin.className = "text-primary-fixed border-b-2 border-primary-fixed pb-1 font-label-caps uppercase transition-colors flex items-center gap-1";
+        navCatalog.className = "text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors";
+        
+        btnBulletin.className = "px-2 py-1 bg-primary-fixed text-on-primary-fixed font-bold italic uppercase";
+        btnCatalog.className = "px-2 py-1 bg-surface-container text-on-surface-variant hover:text-white italic uppercase border border-outline-variant";
+      }
+    }
+
+    function scrollToProducts() {
+      document.getElementById("main-content-section").scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function scrollToLab() {
+      document.getElementById("section-3d-lab").scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function renderProducts() {
+      const grid = document.getElementById("product-grid");
+      const searchKeyword = document.getElementById("searchInput").value.toLowerCase().trim();
+
+      const filtered = productsData.filter(p => {
+        const matchCategory = activeCategory === "all" || p.category === activeCategory;
+        const matchMaterial = activeMaterial === "ALL" || p.material === activeMaterial;
+        const matchSearch = p.name.toLowerCase().includes(searchKeyword) || p.description.toLowerCase().includes(searchKeyword);
+        return matchCategory && matchMaterial && matchSearch;
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full py-12 text-center border border-dashed border-outline-variant p-8">
+            <span class="material-symbols-outlined text-4xl text-on-surface-variant mb-2">search_off</span>
+            <p class="font-label-caps text-sm text-on-surface-variant">NO_ITEMS_DETECTED (未找到相符的商品作品)</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(p => `
+        <div class="bg-surface-container-low border border-outline-variant group hover:glow-primary transition-all duration-300 flex flex-col">
+          <div class="aspect-square bg-surface-dim relative overflow-hidden ${p.is_uv || p.isUv ? 'uv-trigger' : ''}">
+            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${p.image_url || p.image}" alt="${p.name}"/>
+            
+            ${p.is_uv || p.isUv ? `
+              <div class="absolute inset-0 bg-secondary-container/30 opacity-0 uv-overlay transition-opacity duration-300 pointer-events-none flex items-center justify-center">
+                <span class="font-label-caps text-xs text-white bg-black/80 px-2 py-1 border border-secondary-container">UV_REACTIVE_PRINT (立體觸感)</span>
+              </div>
+            ` : ''}
+
+            <span class="absolute top-unit-2 left-unit-2 ${p.is_uv || p.isUv ? 'bg-secondary-container text-on-secondary-container' : 'bg-primary-fixed text-on-primary-fixed'} font-label-caps px-unit-2 py-0.5 text-[10px] font-bold">
+              ${p.badge}
+            </span>
+          </div>
+
+          <div class="p-unit-4 flex flex-col gap-unit-2 flex-grow justify-between">
+            <div>
+              <div class="flex justify-between items-start mb-1">
+                <h3 class="font-headline-md italic uppercase text-white text-base leading-tight">${p.name}</h3>
+                <span class="font-label-caps text-primary-fixed font-bold text-sm">$${parseFloat(p.price).toFixed(2)}</span>
+              </div>
+              <p class="text-on-surface-variant text-xs line-clamp-2 leading-relaxed mb-3">${p.description}</p>
+            </div>
+
+            <div class="flex gap-2">
+              <button onclick="openProductModal('${p.id}')" class="flex-1 border border-outline-variant text-on-surface-variant font-label-caps italic py-1.5 text-xs hover:border-primary-fixed hover:text-white transition-colors">
+                詳情
+              </button>
+              <button onclick="addToCart('${p.id}')" class="flex-1 border border-primary-fixed text-primary-fixed font-label-caps italic py-1.5 text-xs hover:bg-primary-fixed hover:text-on-primary-fixed transition-colors font-bold uppercase flex items-center justify-center gap-1">
+                <span class="material-symbols-outlined text-sm">add_shopping_cart</span> 加入購物車
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterProducts() {
+      const radios = document.getElementsByName("category");
+      for (let r of radios) {
+        if (r.checked) {
+          activeCategory = r.value;
+          break;
+        }
+      }
+      renderProducts();
+    }
+
+    function toggleMaterialFilter(mat) {
+      activeMaterial = mat;
+      const btns = document.querySelectorAll("#material-badges .mat-btn");
+      btns.forEach(btn => {
+        if (btn.textContent === mat) {
+          btn.className = "mat-btn px-2 py-1 bg-primary-container text-on-primary-container font-label-caps text-[10px] rounded hover:glow-primary cursor-pointer transition-all border border-transparent font-bold";
+        } else {
+          btn.className = "mat-btn px-2 py-1 bg-surface-container-high text-on-surface-variant border border-outline-variant font-label-caps text-[10px] rounded hover:border-primary-fixed cursor-pointer transition-all";
+        }
+      });
+      renderProducts();
+    }
+
+    function handleSearch() {
+      renderProducts();
+    }
+
+    function renderBulletins() {
+      const list = document.getElementById("bulletin-list");
+      list.innerHTML = announcementsData.map(b => `
+        <div class="bg-surface-container-low border ${b.is_pinned || b.isPinned ? 'border-secondary-container' : 'border-outline-variant'} p-5 relative scanline hover:border-primary-fixed transition-all">
+          ${b.is_pinned || b.isPinned ? `
+            <div class="absolute -top-3 right-4 bg-secondary-container text-white font-label-caps text-[10px] font-bold px-2 py-0.5 italic flex items-center gap-1">
+              <span class="material-symbols-outlined text-xs">push_pin</span> 置頂強檔公告
+            </div>
+          ` : ''}
+          
+          <div class="flex items-center gap-3 mb-2 flex-wrap">
+            <span class="font-label-caps text-xs px-2 py-0.5 ${b.is_pinned || b.isPinned ? 'bg-secondary-container/20 text-secondary-container border border-secondary-container' : 'bg-surface-container text-primary-fixed border border-outline-variant'} font-bold">
+              [${b.tag}]
+            </span>
+            <span class="font-label-caps text-xs text-on-surface-variant flex items-center gap-1">
+              <span class="material-symbols-outlined text-xs">schedule</span> ${b.date_str || b.date}
+            </span>
+          </div>
+
+          <h3 class="font-headline-md text-lg italic font-bold text-white mb-2 tracking-tight">${b.title}</h3>
+          <p class="text-on-surface-variant text-xs leading-relaxed mb-4">${b.summary}</p>
+          
+          <div class="p-3 bg-surface-container text-xs text-white/90 font-body-md whitespace-pre-line border-l-2 border-primary-fixed mb-4 leading-relaxed">
+            ${b.content}
+          </div>
+
+          <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-outline-variant/40">
+            <span class="font-label-caps text-[11px] text-line-green flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-line-green inline-block"></span> 已透過 LINE 廣播發送給社團成員
+            </span>
+            <button onclick="shareBulletinToLine('${b.id}')" class="px-3 py-1 bg-line-green/20 text-line-green border border-line-green font-label-caps text-xs font-bold italic hover:bg-line-green hover:text-white transition-all flex items-center gap-1">
+              <span class="material-symbols-outlined text-sm">send</span> 轉發至 LINE 群組
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function shareBulletinToLine(id) {
+      const b = announcementsData.find(item => item.id === id);
+      alert(`[LINE API Notification Simulated]\n已成功將公告「${b.title}」推送至社團 LINE 官方群組！`);
+    }
+
+    function openProductModal(id) {
+      const p = productsData.find(item => item.id === id);
+      const content = document.getElementById("product-modal-content");
+      
+      content.innerHTML = `
+        <div class="flex flex-col md:flex-row gap-6">
+          <div class="w-full md:w-1/2 aspect-square bg-surface-container overflow-hidden relative">
+            <img class="w-full h-full object-cover" src="${p.image_url || p.image}" alt="${p.name}"/>
+            <div class="absolute top-2 left-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs px-2 py-1 font-bold">
+              ${p.badge}
+            </div>
+          </div>
+          <div class="w-full md:w-1/2 flex flex-col justify-between space-y-4">
+            <div>
+              <span class="font-label-caps text-xs text-primary-fixed font-bold">[${p.category.toUpperCase()}] // ${p.material}</span>
+              <h2 class="font-headline-md text-xl italic font-bold text-white mt-1 mb-2">${p.name}</h2>
+              <p class="text-2xl font-label-caps text-primary-fixed font-black mb-4">$${parseFloat(p.price).toFixed(2)}</p>
+              
+              <div class="space-y-2 text-xs text-on-surface-variant font-label-caps mb-4">
+                <p>⚙️ 建議印製層高: <span class="text-white">0.12mm - 0.16mm</span></p>
+                <p>🔥 耐溫特性: <span class="text-white">高抗衝擊 / 100°C 變形溫度</span></p>
+                <p>🎨 質感說明: <span class="text-white">${p.is_uv || p.isUv ? '高解析 UV 浮雕金屬感多層噴印' : '幾何交錯結構 / 高密度減震細節'}</span></p>
+              </div>
+
+              <p class="text-xs text-on-surface-variant leading-relaxed border-t border-outline-variant pt-3">${p.description}</p>
+            </div>
+
+            <button onclick="addToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-2.5 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm">
+              <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車並設定規格
+            </button>
+          </div>
+        </div>
+      `;
+      document.getElementById("product-modal").classList.remove("hidden");
+    }
+
+    function closeProductModal() {
+      document.getElementById("product-modal").classList.add("hidden");
+    }
+
+    function addToCart(id) {
+      const p = productsData.find(item => item.id === id);
+      const existing = cart.find(item => item.id === id);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        cart.push({ ...p, qty: 1 });
+      }
+      updateCartUI();
+      const badge = document.getElementById("cart-count-badge");
+      badge.classList.add("animate-bounce");
+      setTimeout(() => badge.classList.remove("animate-bounce"), 1000);
+    }
+
+    function updateCartUI() {
+      const container = document.getElementById("cart-items");
+      const badge = document.getElementById("cart-count-badge");
+      const totalEl = document.getElementById("cart-total-price");
+
+      const totalItems = cart.reduce((acc, item) => acc + item.qty, 0);
+      const totalPrice = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.qty), 0);
+
+      badge.textContent = totalItems;
+      totalEl.textContent = `$${totalPrice.toFixed(2)}`;
+
+      if (cart.length === 0) {
+        container.innerHTML = `
+          <div class="py-12 text-center border border-dashed border-outline-variant p-4">
+            <span class="material-symbols-outlined text-3xl text-on-surface-variant mb-1">shopping_cart</span>
+            <p class="font-label-caps text-xs text-on-surface-variant">CART_EMPTY (購物車目前無商品)</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = cart.map(item => `
+        <div class="bg-surface-container-high p-3 border border-outline-variant flex gap-3 items-center">
+          <img src="${item.image_url || item.image}" class="w-14 h-14 object-cover border border-outline-variant" />
+          <div class="flex-grow">
+            <h4 class="font-label-caps text-xs font-bold text-white line-clamp-1">${item.name}</h4>
+            <span class="font-label-caps text-[10px] text-primary-fixed font-bold">$${parseFloat(item.price).toFixed(2)}</span>
+            <div class="flex items-center gap-2 mt-1">
+              <button onclick="changeQty('${item.id}', -1)" class="w-5 h-5 bg-surface-container border border-outline-variant text-white flex items-center justify-center text-xs">-</button>
+              <span class="font-label-caps text-xs text-white font-bold">${item.qty}</span>
+              <button onclick="changeQty('${item.id}', 1)" class="w-5 h-5 bg-surface-container border border-outline-variant text-white flex items-center justify-center text-xs">+</button>
+            </div>
+          </div>
+          <button onclick="removeItem('${item.id}')" class="text-on-surface-variant hover:text-error">
+            <span class="material-symbols-outlined text-sm">delete</span>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function changeQty(id, delta) {
+      const item = cart.find(i => i.id === id);
+      if (!item) return;
+      item.qty += delta;
+      if (item.qty <= 0) {
+        cart = cart.filter(i => i.id !== id);
+      }
+      updateCartUI();
+    }
+
+    function removeItem(id) {
+      cart = cart.filter(i => i.id !== id);
+      updateCartUI();
+    }
+
+    function toggleCartDrawer() {
+      const drawer = document.getElementById("cart-drawer");
+      drawer.classList.toggle("translate-x-full");
+    }
+
+    async function checkoutCart() {
+      if (cart.length === 0) {
+        alert("購物車為空，請先選擇 3D/UV 列印作品！");
+        return;
+      }
+
+      const userDisplayName = currentUser ? currentUser.name : "社團會員";
+      const userLineId = currentUser ? currentUser.lineId : "GUEST";
+      const total = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.qty), 0);
+
+      try {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            cart: cart,
+            user_name: userDisplayName,
+            user_line_id: userLineId,
+            total_amount: total
+          })
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+          alert(`[訂單成立通知]\n訂單編號: ${json.order_id}\n\n已將訂單同步儲存至 PostgreSQL 資料庫，並推播通知給 LINE 管理團隊！`);
+          cart = [];
+          updateCartUI();
+          toggleCartDrawer();
+        } else {
+          alert(`訂單送出失敗: ${json.message}`);
+        }
+      } catch (e) {
+        // Local simulation fallback
+        const orderSummary = cart.map(i => `• ${i.name} x${i.qty} ($${(parseFloat(i.price) * i.qty).toFixed(2)})`).join("\n");
+        alert(`[LINE Service 訂單發送測試]\n------------------------------\n訂購人: ${userDisplayName}\n明細:\n${orderSummary}\n------------------------------\n總計: $${total.toFixed(2)}\n已模擬推播至 LINE 管理團隊！`);
+        cart = [];
+        updateCartUI();
+        toggleCartDrawer();
+      }
+    }
+
+    function openLineModal(mode) {
+      const modal = document.getElementById("line-modal");
+      const content = document.getElementById("line-modal-content");
+
+      if (mode === "login") {
+        content.innerHTML = `
+          <div class="text-center space-y-4">
+            <div class="w-12 h-12 bg-line-green/20 rounded-full flex items-center justify-center mx-auto text-line-green">
+              <svg class="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
+            </div>
+            <h3 class="font-headline-md italic text-xl font-bold text-white">LINE LOGIN (快速登入)</h3>
+            <p class="text-xs text-on-surface-variant leading-relaxed">
+              點擊下方按鈕以 LINE 帳號登入 UX-PRINT 社團網站。<br/>
+              將自動帶入您的 LINE 暱稱、大頭貼與專屬識別碼。
+            </p>
+            <button onclick="simulateLineLogin()" class="w-full bg-line-green text-white py-3 font-label-caps font-bold italic uppercase flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(6,199,85,0.6)] transition-all">
+              <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
+              授權 LINE 帳號登入
+            </button>
+          </div>
+        `;
+      } else if (mode === "profile") {
+        if (!currentUser) {
+          openLineModal("login");
+          return;
+        }
+        content.innerHTML = `
+          <div class="space-y-4">
+            <div class="flex items-center gap-3 border-b border-outline-variant pb-3">
+              <img src="${currentUser.avatar}" class="w-12 h-12 rounded-full border-2 border-line-green" />
+              <div>
+                <h4 class="font-headline-md text-base font-bold text-white italic">${currentUser.name}</h4>
+                <p class="font-label-caps text-xs text-line-green">LINE ID: ${currentUser.lineId}</p>
+              </div>
+            </div>
+            
+            <div class="space-y-2 text-xs font-label-caps text-on-surface-variant">
+              <div class="flex justify-between p-2 bg-surface-container-high">
+                <span>社團會員等級:</span>
+                <span class="text-primary-fixed font-bold">VIP 選手認證</span>
+              </div>
+              <div class="flex justify-between p-2 bg-surface-container-high">
+                <span>LINE 群組通知狀態:</span>
+                <span class="text-line-green font-bold">已開啟自動推播</span>
+              </div>
+            </div>
+
+            <button onclick="logoutLine()" class="w-full bg-surface-container-high border border-outline-variant text-on-surface-variant py-2 font-label-caps text-xs hover:text-white">
+              解除 LINE 綁定 (登出)
+            </button>
+          </div>
+        `;
+      } else if (mode === "notify") {
+        content.innerHTML = `
+          <div class="text-center space-y-4">
+            <span class="material-symbols-outlined text-4xl text-line-green">notifications_active</span>
+            <h3 class="font-headline-md italic text-xl font-bold text-white">訂閱 LINE 公佈欄通知</h3>
+            <p class="text-xs text-on-surface-variant leading-relaxed">
+              開啟此功能後，當社團發布最新 3D/UV 列印活動、比賽訊息或折扣公告時，將第一時間發送推播至您的 LINE。
+            </p>
+            <button onclick="alert('已成功訂閱 LINE 社團即時通知！'); closeLineModal();" class="w-full bg-line-green text-white py-2.5 font-label-caps font-bold italic uppercase hover:shadow-[0_0_15px_rgba(6,199,85,0.5)] transition-all">
+              確認訂閱推播
+            </button>
+          </div>
+        `;
+      } else if (mode === "group") {
+        content.innerHTML = `
+          <div class="text-center space-y-4">
+            <span class="material-symbols-outlined text-4xl text-line-green">groups</span>
+            <h3 class="font-headline-md italic text-xl font-bold text-white">加入社團 LINE 討論群</h3>
+            <p class="text-xs text-on-surface-variant leading-relaxed">
+              掃描下方 QR Code 或點擊按鈕，加入 UX-PRINT 官方 LINE 社群，與超過 500 位極限運動與列印玩家交流！
+            </p>
+            <div class="w-32 h-32 bg-white p-2 mx-auto border-2 border-line-green">
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://line.me/R/ti/p/@ux-print-club" class="w-full h-full" />
+            </div>
+            <button onclick="alert('開啟 LINE App 加入社群...'); closeLineModal();" class="w-full bg-line-green text-white py-2.5 font-label-caps font-bold italic uppercase">
+              開啟 LINE App 加入社群
+            </button>
+          </div>
+        `;
+      }
+
+      modal.classList.remove("hidden");
+    }
+
+    function closeLineModal() {
+      document.getElementById("line-modal").classList.add("hidden");
+    }
+
+    function simulateLineLogin() {
+      currentUser = {
+        name: "賽車選手 Alex #88",
+        lineId: "U84920491823901",
+        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
+      };
+
+      const container = document.getElementById("line-auth-container");
+      container.innerHTML = `
+        <button onclick="openLineModal('profile')" class="bg-surface-container-high border border-line-green text-white px-2.5 py-1 font-label-caps text-xs flex items-center gap-2 hover:border-primary-fixed transition-all">
+          <img src="${currentUser.avatar}" class="w-5 h-5 rounded-full" />
+          <span class="font-bold text-line-green line-clamp-1">${currentUser.name}</span>
+        </button>
+      `;
+
+      alert(`[LINE OAuth 登入成功]\n歡迎回來，${currentUser.name}！已成功與社團 LINE Bot 完成身份同步。`);
+      closeLineModal();
+    }
+
+    function logoutLine() {
+      currentUser = null;
+      const container = document.getElementById("line-auth-container");
+      container.innerHTML = `
+        <button onclick="openLineModal('login')" class="bg-line-green text-white px-3 py-1.5 font-label-caps font-bold italic text-xs flex items-center gap-1.5 hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all rounded-sm">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
+          LINE 登入
+        </button>
+      `;
+      alert("已解除 LINE 帳號綁定。");
+      closeLineModal();
+    }
+  </script>
+</body>
+</html>
