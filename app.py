@@ -218,6 +218,58 @@ def api_get_products():
     products = db_service.get_products()
     return jsonify({"status": "success", "data": products})
 
+@app.route('/api/product-options', methods=['GET'])
+def api_get_product_options():
+    cats = db_service.get_custom_categories()
+    mats = db_service.get_custom_materials()
+    return jsonify({"status": "success", "categories": cats, "materials": mats})
+
+@app.route('/api/admin/product-options/category', methods=['POST'])
+@admin_or_coach_required
+def api_admin_add_category():
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    code = data.get('code', '').strip() or f"cat_{uuid.uuid4().hex[:6]}"
+    if not name:
+        return jsonify({"status": "error", "message": "請輸入分類名稱"}), 400
+    success = db_service.add_custom_category(code, name)
+    if success:
+        return jsonify({"status": "success", "message": "分類新增成功", "code": code, "name": name})
+    return jsonify({"status": "error", "message": "新增分類失敗"}), 500
+
+@app.route('/api/admin/product-options/material', methods=['POST'])
+@admin_or_coach_required
+def api_admin_add_material():
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    code = data.get('code', '').strip() or f"mat_{uuid.uuid4().hex[:6]}"
+    if not name:
+        return jsonify({"status": "error", "message": "請輸入材質等級/小分類名稱"}), 400
+    success = db_service.add_custom_material(code, name)
+    if success:
+        return jsonify({"status": "success", "message": "材質/小分類新增成功", "code": code, "name": name})
+    return jsonify({"status": "error", "message": "新增材質失敗"}), 500
+
+@app.route('/api/admin/upload-image', methods=['POST'])
+@admin_or_coach_required
+def api_admin_upload_image():
+    file = request.files.get('file') or request.files.get('image')
+    if not file or not file.filename:
+        return jsonify({"status": "error", "message": "無上傳圖片檔案"}), 400
+
+    orig_filename = secure_filename(file.filename) or f"img_{uuid.uuid4().hex[:6]}.jpg"
+    ext = os.path.splitext(orig_filename)[1].lower() or ".jpg"
+    unique_name = f"item_{uuid.uuid4().hex[:12]}{ext}"
+    file_path = os.path.join(UPLOAD_FOLDER, unique_name)
+    file.save(file_path)
+
+    host_base = request.host_url.rstrip('/')
+    if host_base.startswith('http://'):
+        host_base = 'https://' + host_base[7:]
+
+    public_url = f"{host_base}/uploads/{unique_name}"
+    return jsonify({"status": "success", "url": public_url, "filename": unique_name})
+
 @app.route('/api/admin/products', methods=['POST'])
 @admin_or_coach_required
 def api_admin_save_product():
@@ -228,6 +280,7 @@ def api_admin_save_product():
     material = data.get('material', 'TPU_95A')
     price = float(data.get('price', 0))
     cost_price = float(data.get('cost_price', 0))
+    uv_cost_price = float(data.get('uv_cost_price', 0))
     stock_qty = int(data.get('stock_qty', 0))
     badge = data.get('badge', '')
     image_url = data.get('image_url', '')
@@ -236,7 +289,10 @@ def api_admin_save_product():
     description = data.get('description', '')
     is_uv = bool(data.get('is_uv', False))
 
-    saved = db_service.save_product(prod_id, name, category, material, price, cost_price, stock_qty, badge, image_url, images_json, description, is_uv)
+    items = data.get('items', [])
+    items_json = json.dumps(items, ensure_ascii=False) if isinstance(items, list) else items
+
+    saved = db_service.save_product(prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, description, is_uv, items_json=items_json)
     if saved:
         return jsonify({"status": "success", "message": "商品儲存成功"})
     return jsonify({"status": "error", "message": "商品儲存失敗"}), 500

@@ -146,13 +146,29 @@ class DBService:
                         material VARCHAR(50) NOT NULL,
                         price NUMERIC(10, 2) NOT NULL,
                         cost_price NUMERIC(10, 2) DEFAULT 0.00,
+                        uv_cost_price NUMERIC(10, 2) DEFAULT 0.00,
                         stock_qty INTEGER DEFAULT 50,
                         badge VARCHAR(100),
                         image_url TEXT,
                         images_json TEXT,
+                        items_json TEXT DEFAULT '[]',
                         description TEXT,
                         is_uv BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS product_categories (
+                        id SERIAL PRIMARY KEY,
+                        code VARCHAR(100) UNIQUE,
+                        name VARCHAR(255) NOT NULL
+                    )
+                ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS product_materials (
+                        id SERIAL PRIMARY KEY,
+                        code VARCHAR(100) UNIQUE,
+                        name VARCHAR(255) NOT NULL
                     )
                 ''')
                 cursor.execute('''
@@ -200,6 +216,21 @@ class DBService:
                         created_at VARCHAR(100)
                     )
                 ''')
+
+            # 數據表欄位自動補全與檢核遷移 (Migration)
+            try:
+                if self.use_sqlite:
+                    cursor.execute("PRAGMA table_info(products)")
+                    p_cols = [r[1] for r in cursor.fetchall()]
+                    if 'uv_cost_price' not in p_cols:
+                        cursor.execute("ALTER TABLE products ADD COLUMN uv_cost_price REAL DEFAULT 0.0")
+                    if 'items_json' not in p_cols:
+                        cursor.execute("ALTER TABLE products ADD COLUMN items_json TEXT DEFAULT '[]'")
+                else:
+                    cursor.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS uv_cost_price NUMERIC(10, 2) DEFAULT 0.00")
+                    cursor.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS items_json TEXT DEFAULT '[]'")
+            except Exception as mig_err:
+                print(f"Migration notice: {mig_err}")
 
             conn.commit()
             conn.close()
@@ -437,29 +468,85 @@ class DBService:
         except Exception as e:
             return []
 
-    def save_product(self, prod_id, name, category, material, price, cost_price, stock_qty, badge, image_url, images_json, description, is_uv):
+    def save_product(self, prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, description, is_uv, items_json='[]'):
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             if self.use_sqlite:
                 cursor.execute('''
-                    INSERT OR REPLACE INTO products (id, name, category, material, price, cost_price, stock_qty, badge, image_url, images_json, description, is_uv)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (prod_id, name, category, material, price, cost_price, stock_qty, badge, image_url, images_json, description, 1 if is_uv else 0))
+                    INSERT OR REPLACE INTO products (id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, items_json, description, is_uv)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, items_json, description, 1 if is_uv else 0))
             else:
                 cursor.execute('''
-                    INSERT INTO products (id, name, category, material, price, cost_price, stock_qty, badge, image_url, images_json, description, is_uv)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO products (id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, items_json, description, is_uv)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE SET
                         name = EXCLUDED.name, category = EXCLUDED.category, material = EXCLUDED.material,
-                        price = EXCLUDED.price, cost_price = EXCLUDED.cost_price, stock_qty = EXCLUDED.stock_qty,
-                        badge = EXCLUDED.badge, image_url = EXCLUDED.image_url, images_json = EXCLUDED.images_json,
+                        price = EXCLUDED.price, cost_price = EXCLUDED.cost_price, uv_cost_price = EXCLUDED.uv_cost_price,
+                        stock_qty = EXCLUDED.stock_qty, badge = EXCLUDED.badge, image_url = EXCLUDED.image_url,
+                        images_json = EXCLUDED.images_json, items_json = EXCLUDED.items_json,
                         description = EXCLUDED.description, is_uv = EXCLUDED.is_uv
-                ''', (prod_id, name, category, material, price, cost_price, stock_qty, badge, image_url, images_json, description, is_uv))
+                ''', (prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, items_json, description, is_uv))
             conn.commit()
             conn.close()
             return True
         except Exception as e:
+            print(f"Error saving product: {e}")
+            return False
+
+    def get_custom_categories(self):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            if self.use_sqlite:
+                cursor.execute("SELECT * FROM product_categories ORDER BY id ASC")
+            else:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("SELECT * FROM product_categories ORDER BY id ASC")
+            rows = cursor.fetchall()
+            conn.close()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+    def add_custom_category(self, code, name):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO product_categories (code, name) VALUES (%s, %s)" if not self.use_sqlite else "INSERT INTO product_categories (code, name) VALUES (?, ?)", (code, name))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error adding custom category: {e}")
+            return False
+
+    def get_custom_materials(self):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            if self.use_sqlite:
+                cursor.execute("SELECT * FROM product_materials ORDER BY id ASC")
+            else:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("SELECT * FROM product_materials ORDER BY id ASC")
+            rows = cursor.fetchall()
+            conn.close()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+    def add_custom_material(self, code, name):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO product_materials (code, name) VALUES (%s, %s)" if not self.use_sqlite else "INSERT INTO product_materials (code, name) VALUES (?, ?)", (code, name))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error adding custom material: {e}")
             return False
 
     def delete_product(self, prod_id):

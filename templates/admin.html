@@ -300,9 +300,10 @@
               <tr>
                 <th class="p-3">商品圖片 (主圖/多圖)</th>
                 <th class="p-3">商品名稱</th>
-                <th class="p-3">分類 / 材質</th>
+                <th class="p-3">分類 / 材質/小分類</th>
                 <th class="p-3">銷售價 (PRICE)</th>
-                <th class="p-3">3D設計成本 (COST)</th>
+                <th class="p-3">3D列印成本</th>
+                <th class="p-3">UV列印成本</th>
                 <th class="p-3">目前庫存</th>
                 <th class="p-3 text-right">操作</th>
               </tr>
@@ -548,10 +549,10 @@
     </div>
   </div>
 
-  <!-- Product Modal (新增/編輯商品 - 包含多圖與3D設計成本) -->
-  <div id="modal-product" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
-    <div class="bg-surface-container border-2 border-primary-fixed max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-      <h3 class="font-headline-md italic text-lg font-bold text-white">編輯商品 (多圖與3D成本維護)</h3>
+  <!-- Product Modal (新增/編輯商品與多項目規格) -->
+  <div id="modal-product" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-surface-container border-2 border-primary-fixed max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto my-auto">
+      <h3 class="font-headline-md italic text-lg font-bold text-white">編輯商品 (多圖、成本與多項目維護)</h3>
       <input type="hidden" id="prod-edit-id" />
       
       <div>
@@ -561,7 +562,10 @@
 
       <div class="grid grid-cols-2 gap-2">
         <div>
-          <label class="block text-xs font-label-caps text-on-surface-variant mb-1">分類</label>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-xs font-label-caps text-on-surface-variant">分類</label>
+            <button type="button" onclick="promptAddCategory()" class="text-[10px] text-primary-fixed hover:underline font-bold">+ 新增分類</button>
+          </div>
           <select id="prod-edit-category" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2">
             <option value="3d-print">3D列印套件 (3d-print)</option>
             <option value="uv-print">UV炫彩作品 (uv-print)</option>
@@ -569,7 +573,10 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs font-label-caps text-on-surface-variant mb-1">材質等級</label>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-xs font-label-caps text-on-surface-variant">材質等級/小分類</label>
+            <button type="button" onclick="promptAddMaterial()" class="text-[10px] text-primary-fixed hover:underline font-bold">+ 新增材質</button>
+          </div>
           <select id="prod-edit-material" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2">
             <option value="TPU_95A">TPU_95A</option>
             <option value="PLA_PRO">PLA_PRO</option>
@@ -579,9 +586,27 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-2">
+      <!-- 項目 (Variants) 多選項動態維護區塊 (對齊圖3、圖4) -->
+      <div class="bg-surface-container-low p-4 border border-outline-variant rounded-lg space-y-3">
+        <div class="flex justify-between items-center border-b border-outline-variant/60 pb-2">
+          <div>
+            <span class="font-bold text-xs text-white flex items-center gap-1">
+              <span class="material-symbols-outlined text-primary-fixed text-sm">tune</span> 項目規格 (Variants)
+            </span>
+            <p class="text-[10px] text-gray-400">可新增多個款式項目，各項目可各自設定價格、3D/UV成本與圖片</p>
+          </div>
+          <button type="button" onclick="addProductItem()" class="px-2.5 py-1 bg-primary-fixed/20 text-primary-fixed border border-primary-fixed/40 hover:bg-primary-fixed hover:text-on-primary-fixed text-xs font-bold rounded transition-all">
+            + 新增項目
+          </button>
+        </div>
+        <div id="product-items-list-container" class="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+          <!-- Dynamically rendered items -->
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2">
         <div>
-          <label class="block text-xs font-label-caps text-primary-fixed mb-1">銷售價格 (PRICE $)</label>
+          <label class="block text-xs font-label-caps text-primary-fixed mb-1">銷售價格 ($ PRICE)</label>
           <input type="number" step="0.01" id="prod-edit-price" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
         </div>
         <div>
@@ -829,8 +854,11 @@
 
     // --- Product & Inventory Logic ---
     let productsList = [];
+    let currentProductItems = [];
+
     async function loadProducts() {
       try {
+        await loadProductOptions();
         const res = await fetch('/api/products');
         const json = await res.json();
         if (json.status === 'success') {
@@ -841,31 +869,226 @@
       } catch(e) { console.error(e); }
     }
 
+    async function loadProductOptions() {
+      try {
+        const res = await fetch('/api/product-options');
+        const json = await res.json();
+        if (json.status === 'success') {
+          const catSelect = document.getElementById('prod-edit-category');
+          const matSelect = document.getElementById('prod-edit-material');
+          
+          const defaultCats = [
+            { code: '3d-print', name: '3D列印套件 (3d-print)' },
+            { code: 'uv-print', name: 'UV炫彩作品 (uv-print)' },
+            { code: 'custom', name: '社團限定 (custom)' }
+          ];
+          const defaultMats = [
+            { code: 'TPU_95A', name: 'TPU_95A' },
+            { code: 'PLA_PRO', name: 'PLA_PRO' },
+            { code: 'NYLON_CF', name: 'NYLON_CF' },
+            { code: 'UV_RESIN', name: 'UV_RESIN' }
+          ];
+
+          const allCats = [...defaultCats];
+          (json.categories || []).forEach(c => {
+            if (!allCats.some(x => x.code === c.code)) allCats.push(c);
+          });
+          const allMats = [...defaultMats];
+          (json.materials || []).forEach(m => {
+            if (!allMats.some(x => x.code === m.code)) allMats.push(m);
+          });
+
+          catSelect.innerHTML = allCats.map(c => `<option value="${c.code}">${c.name}</option>`).join('');
+          matSelect.innerHTML = allMats.map(m => `<option value="${m.code}">${m.name}</option>`).join('');
+        }
+      } catch(e){}
+    }
+
+    async function promptAddCategory() {
+      const name = prompt('請輸入新分類名稱 (例如：車架升級套件、競賽級護具):');
+      if (!name || !name.trim()) return;
+      const res = await fetch('/api/admin/product-options/category', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name: name.trim() })
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('分類新增成功！');
+        await loadProductOptions();
+        document.getElementById('prod-edit-category').value = json.code;
+      } else { alert(json.message); }
+    }
+
+    async function promptAddMaterial() {
+      const name = prompt('請輸入新材質等級/小分類名稱 (例如：TPU_95A_PRO、CARBON_FIBER):');
+      if (!name || !name.trim()) return;
+      const res = await fetch('/api/admin/product-options/material', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name: name.trim() })
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('材質等級/小分類新增成功！');
+        await loadProductOptions();
+        document.getElementById('prod-edit-material').value = json.code;
+      } else { alert(json.message); }
+    }
+
     function renderProductsTable() {
       const tbody = document.getElementById('product-table-body');
       tbody.innerHTML = productsList.map(p => {
         let multiImgs = [];
+        let itemsCount = 0;
         try { multiImgs = JSON.parse(p.images_json || '[]'); } catch(e){}
+        try {
+          const itemsArr = typeof p.items_json === 'string' ? JSON.parse(p.items_json || '[]') : (p.items_json || []);
+          itemsCount = itemsArr.length;
+        } catch(e){}
+
         return `
           <tr class="hover:bg-surface-container/50">
             <td class="p-3">
               <div class="flex items-center gap-1">
-                <img src="${p.image_url}" class="w-10 h-10 object-cover border border-outline-variant" />
-                ${multiImgs.length > 1 ? `<span class="text-[10px] bg-secondary-container text-white px-1 font-bold">+${multiImgs.length - 1}圖</span>` : ''}
+                <img src="${p.image_url}" class="w-10 h-10 object-cover border border-outline-variant rounded" />
+                ${multiImgs.length > 1 ? `<span class="text-[10px] bg-secondary-container text-white px-1 font-bold rounded">+${multiImgs.length - 1}圖</span>` : ''}
               </div>
             </td>
-            <td class="p-3 font-bold text-white">${p.name}</td>
+            <td class="p-3 font-bold text-white">
+              ${p.name}
+              ${itemsCount > 0 ? `<span class="block text-[10px] text-primary-fixed font-normal">(${itemsCount} 個項目規格)</span>` : ''}
+            </td>
             <td class="p-3"><span class="text-primary-fixed">${p.category}</span> / ${p.material}</td>
             <td class="p-3 text-primary-fixed font-bold">$${parseFloat(p.price).toFixed(2)}</td>
             <td class="p-3 text-secondary-container font-bold">$${parseFloat(p.cost_price || 0).toFixed(2)}</td>
+            <td class="p-3 text-amber-400 font-bold">$${parseFloat(p.uv_cost_price || 0).toFixed(2)}</td>
             <td class="p-3 font-bold ${p.stock_qty < 10 ? 'text-error' : 'text-line-green'}">${p.stock_qty || 0} 件</td>
             <td class="p-3 text-right">
-              <button onclick="editProduct('${p.id}')" class="text-primary-fixed hover:underline mr-2">編輯</button>
-              <button onclick="deleteProduct('${p.id}')" class="text-error hover:underline">下架</button>
+              <button onclick="editProduct('${p.id}')" class="text-primary-fixed hover:underline mr-2 font-bold">編輯</button>
+              <button onclick="deleteProduct('${p.id}')" class="text-error hover:underline font-bold">下架</button>
             </td>
           </tr>
         `;
       }).join('');
+    }
+
+    function renderProductItemsList() {
+      const container = document.getElementById('product-items-list-container');
+      if (!container) return;
+
+      if (currentProductItems.length === 0) {
+        container.innerHTML = `
+          <div class="text-center p-3 text-xs text-gray-400 italic bg-surface-container/40 rounded-lg">
+            目前尚無項目規格。點擊右上角【+ 新增項目】即可新增不同款式 (如: 黑色-HELLO純棉款)。
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = currentProductItems.map((item, index) => `
+        <div class="bg-surface-container p-3 rounded-lg border border-outline-variant space-y-2 relative">
+          <div class="flex justify-between items-center">
+            <span class="text-xs font-bold text-line-green flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-line-green"></span> 項目規格 #${index + 1}
+            </span>
+            <button type="button" onclick="removeProductItem(${index})" class="text-error hover:underline text-xs font-bold">✕ 移除</button>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-gray-300">項目名稱 (例: 黑色-HELLO純棉款)</label>
+              <input type="text" value="${item.name || ''}" onchange="currentProductItems[${index}].name = this.value" class="w-full bg-surface-container-high border border-outline-variant text-white text-xs p-1.5 rounded outline-none focus:border-line-green" placeholder="如: 款式 A" />
+            </div>
+            <div>
+              <label class="block text-[10px] text-primary-fixed">銷售價格 ($ PRICE)</label>
+              <input type="number" step="0.01" value="${item.price !== undefined ? item.price : 0}" onchange="currentProductItems[${index}].price = parseFloat(this.value||0)" class="w-full bg-surface-container-high border border-outline-variant text-white text-xs p-1.5 rounded outline-none focus:border-line-green" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-secondary-container">3D列印成本 ($ COST)</label>
+              <input type="number" step="0.01" value="${item.cost_price !== undefined ? item.cost_price : 0}" onchange="currentProductItems[${index}].cost_price = parseFloat(this.value||0)" class="w-full bg-surface-container-high border border-outline-variant text-white text-xs p-1.5 rounded outline-none focus:border-line-green" />
+            </div>
+            <div>
+              <label class="block text-[10px] text-amber-400">UV列印成本 ($ COST)</label>
+              <input type="number" step="0.01" value="${item.uv_cost_price !== undefined ? item.uv_cost_price : 0}" onchange="currentProductItems[${index}].uv_cost_price = parseFloat(this.value||0)" class="w-full bg-surface-container-high border border-outline-variant text-white text-xs p-1.5 rounded outline-none focus:border-line-green" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[10px] text-gray-300 mb-1">項目對應圖片 (網址或選擇上傳)</label>
+            <div class="flex gap-2 items-center">
+              ${item.image_url ? `<img src="${item.image_url}" class="w-7 h-7 object-cover rounded border border-outline-variant" />` : ''}
+              <input type="text" value="${item.image_url || ''}" id="item-img-input-${index}" onchange="currentProductItems[${index}].image_url = this.value" class="flex-1 bg-surface-container-high border border-outline-variant text-white text-xs p-1.5 rounded truncate outline-none focus:border-line-green" placeholder="https://..." />
+              <label class="bg-line-green/20 hover:bg-line-green text-line-green hover:text-white px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all border border-line-green/40">
+                上傳圖片
+                <input type="file" accept="image/*" class="hidden" onchange="uploadItemImage(this, ${index})" />
+              </label>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function addProductItem() {
+      const defaultPrice = parseFloat(document.getElementById('prod-edit-price').value || 0);
+      const default3DCost = parseFloat(document.getElementById('prod-edit-cost').value || 0);
+      const defaultUVCost = parseFloat(document.getElementById('prod-edit-uv-cost').value || 0);
+      const defaultImg = document.getElementById('prod-edit-image').value.trim();
+
+      currentProductItems.push({
+        id: 'v_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+        name: `款式 #${currentProductItems.length + 1}`,
+        price: defaultPrice,
+        cost_price: default3DCost,
+        uv_cost_price: defaultUVCost,
+        image_url: defaultImg
+      });
+      renderProductItemsList();
+    }
+
+    function removeProductItem(index) {
+      currentProductItems.splice(index, 1);
+      renderProductItemsList();
+    }
+
+    async function uploadMainProductImage(fileInput) {
+      if (!fileInput.files || fileInput.files.length === 0) return;
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+        const json = await res.json();
+        if (json.status === 'success' && json.url) {
+          document.getElementById('prod-edit-image').value = json.url;
+          alert('商品主圖上傳成功！');
+        } else {
+          alert(json.message || '圖片上傳失敗');
+        }
+      } catch(e){ alert('圖片上傳發生錯誤'); }
+    }
+
+    async function uploadItemImage(fileInput, index) {
+      if (!fileInput.files || fileInput.files.length === 0) return;
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+        const json = await res.json();
+        if (json.status === 'success' && json.url) {
+          currentProductItems[index].image_url = json.url;
+          renderProductItemsList();
+          alert(`項目規格 #${index + 1} 圖片上傳成功！`);
+        } else {
+          alert(json.message || '圖片上傳失敗');
+        }
+      } catch(e){ alert('圖片上傳發生錯誤'); }
     }
 
     function openProductModal(p = null) {
@@ -875,6 +1098,7 @@
       document.getElementById('prod-edit-material').value = p ? p.material : 'TPU_95A';
       document.getElementById('prod-edit-price').value = p ? p.price : '45.00';
       document.getElementById('prod-edit-cost').value = p ? (p.cost_price || 15.00) : '15.00';
+      document.getElementById('prod-edit-uv-cost').value = p ? (p.uv_cost_price || 5.00) : '5.00';
       document.getElementById('prod-edit-badge').value = p ? p.badge : '';
       document.getElementById('prod-edit-image').value = p ? p.image_url : '';
       
@@ -885,6 +1109,18 @@
       } catch(e){}
       document.getElementById('prod-edit-images-list').value = multiImgsText;
       document.getElementById('prod-edit-desc').value = p ? p.description : '';
+
+      currentProductItems = [];
+      if (p) {
+        try {
+          if (typeof p.items_json === 'string') {
+            currentProductItems = JSON.parse(p.items_json || '[]');
+          } else if (Array.isArray(p.items_json)) {
+            currentProductItems = p.items_json;
+          }
+        } catch(e){ currentProductItems = []; }
+      }
+      renderProductItemsList();
 
       document.getElementById('modal-product').classList.remove('hidden');
     }
@@ -903,10 +1139,12 @@
         material: document.getElementById('prod-edit-material').value,
         price: parseFloat(document.getElementById('prod-edit-price').value || 0),
         cost_price: parseFloat(document.getElementById('prod-edit-cost').value || 0),
+        uv_cost_price: parseFloat(document.getElementById('prod-edit-uv-cost').value || 0),
         badge: document.getElementById('prod-edit-badge').value.trim(),
         image_url: document.getElementById('prod-edit-image').value.trim() || (imagesRaw[0] || ''),
         images: imagesRaw,
-        description: document.getElementById('prod-edit-desc').value.trim()
+        description: document.getElementById('prod-edit-desc').value.trim(),
+        items: currentProductItems
       };
 
       const res = await fetch('/api/admin/products', {
@@ -916,7 +1154,7 @@
       });
       const json = await res.json();
       if (json.status === 'success') {
-        alert('商品資料已儲存！');
+        alert('商品資料與項目規格已成功儲存！');
         closeModal('modal-product');
         loadProducts();
       } else { alert(json.message); }
