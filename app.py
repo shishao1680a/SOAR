@@ -32,7 +32,10 @@ def admin_or_coach_required(f):
 # --- Public Uploads Serving Route ---
 @app.route('/uploads/<path:filename>')
 def serve_uploaded_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    res = send_from_directory(UPLOAD_FOLDER, filename)
+    res.headers['Access-Control-Allow-Origin'] = '*'
+    res.headers['Cache-Control'] = 'public, max-age=31536000'
+    return res
 
 # --- Frontend & Auth Routes ---
 
@@ -294,27 +297,35 @@ def api_admin_delete_line_group(group_id):
 @app.route('/api/admin/line/broadcast', methods=['POST'])
 @admin_or_coach_required
 def api_admin_line_broadcast():
-    """廣播推播：支援純文字或 FormData 圖片多檔真實推播 (ImageSendMessage)"""
-    if request.content_type and 'multipart/form-data' in request.content_type:
+    """廣播推播：支援純文字或 FormData 圖片多檔真實推播 (ImageSendMessage，強制 HTTPS)"""
+    if request.files or (request.content_type and 'multipart/form-data' in request.content_type):
         group_ids = request.form.getlist('group_ids') or [request.form.get('group_id')]
         message_text = request.form.get('message', '').strip()
         uploaded_files = request.files.getlist('files')
 
+        host_base = request.host_url.rstrip('/')
+        if host_base.startswith('http://'):
+            host_base = 'https://' + host_base[7:]
+
         image_urls = []
         for file in uploaded_files:
             if file and file.filename:
-                orig_filename = secure_filename(file.filename)
+                orig_filename = secure_filename(file.filename) or f"img_{uuid.uuid4().hex[:6]}.jpg"
                 ext = os.path.splitext(orig_filename)[1].lower()
+                if not ext:
+                    ext = ".jpg"
+
                 unique_name = f"{uuid.uuid4().hex[:12]}{ext}"
                 file_path = os.path.join(UPLOAD_FOLDER, unique_name)
                 file.save(file_path)
 
-                # 如果是圖片檔 (.jpg, .png, .jpeg, .webp, .gif) 產生公開網址供 LINE 預覽
+                public_url = f"{host_base}/uploads/{unique_name}"
+                print(f"[Broadcast API] Uploaded file public HTTPS URL: {public_url}")
+
                 if ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
-                    public_url = f"{request.host_url.rstrip('/')}/uploads/{unique_name}"
                     image_urls.append(public_url)
                 else:
-                    message_text += f"\n📎 檔案下載網址: {request.host_url.rstrip('/')}/uploads/{unique_name}"
+                    message_text += f"\n📎 檔案下載網址: {public_url}"
 
         success_count = 0
         for gid in group_ids:

@@ -112,7 +112,7 @@ class LineService:
             return False
 
     def push_messages_batch(self, group_id, text_content=None, image_urls=None):
-        """混合推送文字與直接在 LINE 聊天室顯示預覽的真實圖片訊息 (ImageSendMessage)"""
+        """混合推送文字與直接在 LINE 聊天室顯示預覽的真實圖片訊息 (ImageSendMessage，強制 HTTPS)"""
         target_group = group_id or self.group_id
         if not self.line_bot_api or not target_group:
             print("LINE Bot API or Group ID not configured.")
@@ -123,18 +123,24 @@ class LineService:
             messages.append(TextSendMessage(text=text_content))
 
         if image_urls:
-            for url in image_urls[:4]:  # LINE 單次最大發送 5 則訊息，留 1 則給文字
-                messages.append(ImageSendMessage(original_content_url=url, preview_image_url=url))
+            for url in image_urls[:4]:
+                # 強制轉換為 https 協定 (LINE API 嚴格要求 https)
+                secure_url = url
+                if secure_url.startswith('http://'):
+                    secure_url = 'https://' + secure_url[7:]
+                
+                print(f"[LINE ImageSendMessage] Pushing image URL: {secure_url}")
+                messages.append(ImageSendMessage(original_content_url=secure_url, preview_image_url=secure_url))
 
         if not messages:
             return False
 
         try:
             self.line_bot_api.push_message(target_group, messages)
-            print(f"LINE Push batch messages ({len(messages)} items) to group {target_group} success.")
+            print(f"✅ LINE Push batch messages ({len(messages)} items) to group {target_group} success.")
             return True
         except LineBotApiError as e:
-            print(f"LINE Bot Push Batch Error: {e.status_code} - {e.error.message}")
+            print(f"❌ LINE Bot Push Batch Error: {e.status_code} - {e.error.message}")
             if e.error.details:
                 for detail in e.error.details:
                     print(f"Detail: {detail.property} - {detail.message}")
