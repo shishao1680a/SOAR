@@ -428,8 +428,9 @@
       <div>
         <label class="block text-xs font-label-caps text-on-surface-variant mb-1">角色權限 (ROLE)</label>
         <select id="user-edit-role" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2">
-          <option value="member">一般成員 (member)</option>
-          <option value="admin">最高管理員 (admin)</option>
+          <option value="user">🏃 一般使用者 (user)</option>
+          <option value="assistant_coach">🧢 助理教練 (assistant_coach)</option>
+          <option value="admin">👑 最高管理員 (admin)</option>
         </select>
       </div>
 
@@ -638,27 +639,36 @@
 
     function renderUsersTable() {
       const tbody = document.getElementById('user-table-body');
-      tbody.innerHTML = usersList.map(u => `
-        <tr class="hover:bg-surface-container/50">
-          <td class="p-3 flex items-center gap-2">
-            <img src="${u.avatar_url}" class="w-7 h-7 rounded-full border border-primary-fixed" />
-            <span class="font-bold text-white">${u.name}</span>
-          </td>
-          <td class="p-3 text-primary-fixed font-bold">${u.username || '-'}</td>
-          <td class="p-3 text-line-green">${u.line_id || '-'}</td>
-          <td class="p-3">
-            <span class="px-2 py-0.5 ${u.role === 'admin' ? 'bg-primary-fixed text-on-primary-fixed' : 'bg-surface-container text-on-surface-variant'} rounded font-bold">
-              ${u.role === 'admin' ? '最高管理員' : '一般成員'}
-            </span>
-          </td>
-          <td class="p-3">${u.phone || '-'}</td>
-          <td class="p-3 text-on-surface-variant text-[11px]">${u.register_date || '-'}</td>
-          <td class="p-3 text-right">
-            <button onclick="editUser('${u.id}')" class="text-primary-fixed hover:underline mr-2">編輯</button>
-            <button onclick="deleteUser('${u.id}')" class="text-error hover:underline">刪除</button>
-          </td>
-        </tr>
-      `).join('');
+      const roleMap = {
+        admin: { label: '👑 最高管理員', style: 'bg-primary-fixed text-on-primary-fixed' },
+        assistant_coach: { label: '🧢 助理教練', style: 'bg-secondary-container text-white' },
+        user: { label: '🏃 一般使用者', style: 'bg-surface-container text-on-surface-variant' }
+      };
+
+      tbody.innerHTML = usersList.map(u => {
+        const r = roleMap[u.role] || roleMap.user;
+        return `
+          <tr class="hover:bg-surface-container/50">
+            <td class="p-3 flex items-center gap-2">
+              <img src="${u.avatar_url}" class="w-7 h-7 rounded-full border border-primary-fixed" />
+              <span class="font-bold text-white">${u.name}</span>
+            </td>
+            <td class="p-3 text-primary-fixed font-bold">${u.username || '-'}</td>
+            <td class="p-3 text-line-green">${u.line_id || '-'}</td>
+            <td class="p-3">
+              <span class="px-2 py-0.5 ${r.style} rounded font-bold">
+                ${r.label}
+              </span>
+            </td>
+            <td class="p-3">${u.phone || '-'}</td>
+            <td class="p-3 text-on-surface-variant text-[11px]">${u.register_date || '-'}</td>
+            <td class="p-3 text-right">
+              <button onclick="editUser('${u.id}')" class="text-primary-fixed hover:underline mr-2">編輯</button>
+              <button onclick="deleteUser('${u.id}')" class="text-error hover:underline">刪除</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
 
     function openUserModal(u = null) {

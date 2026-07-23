@@ -7,22 +7,20 @@ from db_service import DBService
 from line_service import LineService
 from functools import wraps
 
-# 載入環境變數
 load_dotenv(override=False)
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.secret_key = os.getenv("SECRET_KEY", "ux_print_club_secret_key_2026")
 
-# 初始化 DB 與 LINE 服務 (對齊 第一金人壽 BR)
 db_service = DBService()
 line_service = LineService()
 
-# 權限驗證 Decorator
-def admin_required(f):
+# 權限驗證 Decorator (允許 管理員 admin 與 助理教練 assistant_coach 造訪後台)
+def admin_or_coach_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         user = session.get('user')
-        if not user or user.get('role') != 'admin':
+        if not user or user.get('role') not in ['admin', 'assistant_coach']:
             return redirect(url_for('login_page', next=request.url))
         return f(*args, **kwargs)
     return decorated_function
@@ -31,18 +29,15 @@ def admin_required(f):
 
 @app.route('/')
 def home():
-    """主頁面渲染"""
     return render_template('index.html')
 
 @app.route('/login')
 def login_page():
-    """登入頁面 (支援一般帳/密登入與 LINE Login 登入)"""
     return render_template('login.html')
 
 @app.route('/admin')
-@admin_required
+@admin_or_coach_required
 def admin_page():
-    """管理員後台頁面 (對齊 第一金人壽 BR admin.html 介面)"""
     return render_template('admin.html')
 
 @app.route('/logout')
@@ -50,7 +45,28 @@ def logout():
     session.clear()
     return redirect(url_for('home'))
 
-# --- Login & Authentication APIs ---
+# --- Login & Registration APIs ---
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    """使用者註冊 API (支援姓名、帳號、密碼、電話、角色選擇)"""
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    phone = data.get('phone', '').strip()
+    role = data.get('role', 'user').strip() # 'user' | 'assistant_coach' | 'admin'
+
+    if not name or not username or not password:
+        return jsonify({"status": "error", "message": "姓名、帳號與密碼為必填欄位！"}), 400
+
+    if role not in ['user', 'assistant_coach', 'admin']:
+        role = 'user'
+
+    success, msg = db_service.register_user(username, password, name, phone, role)
+    if success:
+        return jsonify({"status": "success", "message": msg})
+    return jsonify({"status": "error", "message": msg}), 400
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
@@ -75,39 +91,37 @@ def api_login():
 
 @app.route('/api/line/login-url', methods=['GET'])
 def api_line_login_url():
-    """取得 LINE Login 授權網址"""
     state = uuid.uuid4().hex
     url = line_service.get_login_url(state)
     return jsonify({"status": "success", "url": url})
 
 @app.route('/api/user/current', methods=['GET'])
 def api_current_user():
-    """取得目前登入使用者狀態"""
     user = session.get('user')
     if user:
         return jsonify({"status": "success", "user": user})
     return jsonify({"status": "error", "message": "Not logged in"}), 401
 
-# --- Member Management APIs (成員管理) ---
+# --- Member Management APIs ---
 
 @app.route('/api/admin/users', methods=['GET'])
-@admin_required
+@admin_or_coach_required
 def api_admin_get_users():
     users = db_service.get_all_users()
     return jsonify({"status": "success", "data": users})
 
 @app.route('/api/admin/users', methods=['POST'])
-@admin_required
+@admin_or_coach_required
 def api_admin_save_user():
     data = request.get_json() or {}
     user_id = data.get('id') or f"u_{uuid.uuid4().hex[:8]}"
     username = data.get('username')
-    password = data.get('password', '123456')
+    password = data.get('password', '')
     name = data.get('name')
     line_id = data.get('line_id', '')
     avatar_url = data.get('avatar_url', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80')
     phone = data.get('phone', '')
-    role = data.get('role', 'member')
+    role = data.get('role', 'user')
 
     saved = db_service.save_or_update_user(user_id, username, password, name, line_id, avatar_url, phone, role)
     if saved:
@@ -115,36 +129,34 @@ def api_admin_save_user():
     return jsonify({"status": "error", "message": "儲存失敗"}), 500
 
 @app.route('/api/admin/users/<user_id>', methods=['DELETE'])
-@admin_required
+@admin_or_coach_required
 def api_admin_delete_user(user_id):
     deleted = db_service.delete_user(user_id)
     if deleted:
         return jsonify({"status": "success", "message": "成員已刪除"})
     return jsonify({"status": "error", "message": "刪除失敗"}), 500
 
-# --- Product & Inventory Management APIs (商品與進貨維護) ---
+# --- Product & Inventory Management APIs ---
 
 @app.route('/api/products', methods=['GET'])
 def api_get_products():
-    """抓取公開商品清單"""
     products = db_service.get_products()
     return jsonify({"status": "success", "data": products})
 
 @app.route('/api/admin/products', methods=['POST'])
-@admin_required
+@admin_or_coach_required
 def api_admin_save_product():
-    """新增/編輯商品 (支援上傳多張照片 images_json、3D設計成本 cost_price)"""
     data = request.get_json() or {}
     prod_id = data.get('id') or f"p_{uuid.uuid4().hex[:6]}"
     name = data.get('name')
     category = data.get('category', '3d-print')
     material = data.get('material', 'TPU_95A')
     price = float(data.get('price', 0))
-    cost_price = float(data.get('cost_price', 0)) # 3D設計與生產成本
+    cost_price = float(data.get('cost_price', 0))
     stock_qty = int(data.get('stock_qty', 0))
     badge = data.get('badge', '')
-    image_url = data.get('image_url', '') # 主圖
-    images = data.get('images', []) # 多張照片列表
+    image_url = data.get('image_url', '')
+    images = data.get('images', [])
     images_json = json.dumps(images if images else [image_url], ensure_ascii=False)
     description = data.get('description', '')
     is_uv = bool(data.get('is_uv', False))
@@ -155,7 +167,7 @@ def api_admin_save_product():
     return jsonify({"status": "error", "message": "商品儲存失敗"}), 500
 
 @app.route('/api/admin/products/<prod_id>', methods=['DELETE'])
-@admin_required
+@admin_or_coach_required
 def api_admin_delete_product(prod_id):
     deleted = db_service.delete_product(prod_id)
     if deleted:
@@ -163,9 +175,8 @@ def api_admin_delete_product(prod_id):
     return jsonify({"status": "error", "message": "刪除失敗"}), 500
 
 @app.route('/api/admin/inventory', methods=['GET', 'POST'])
-@admin_required
+@admin_or_coach_required
 def api_admin_inventory():
-    """商品進貨服務 (記錄進貨數量、單價與供應商，並自動更新庫存)"""
     if request.method == 'POST':
         data = request.get_json() or {}
         product_id = data.get('product_id')
@@ -183,12 +194,11 @@ def api_admin_inventory():
         logs = db_service.get_inventory_logs()
         return jsonify({"status": "success", "data": logs})
 
-# --- LINE Group & Broadcast APIs (LINE 與各項群組功能) ---
+# --- LINE Group & Broadcast APIs ---
 
 @app.route('/api/admin/line-groups', methods=['GET', 'POST'])
-@admin_required
+@admin_or_coach_required
 def api_admin_line_groups():
-    """群組維護 (同 第一金人壽 BR 群組維護卡片)"""
     if request.method == 'POST':
         data = request.get_json() or {}
         group_id = data.get('id') or f"g_{uuid.uuid4().hex[:6]}"
@@ -204,7 +214,7 @@ def api_admin_line_groups():
         return jsonify({"status": "success", "data": groups})
 
 @app.route('/api/admin/line-groups/<group_id>', methods=['DELETE'])
-@admin_required
+@admin_or_coach_required
 def api_admin_delete_line_group(group_id):
     deleted = db_service.delete_line_group(group_id)
     if deleted:
@@ -212,9 +222,8 @@ def api_admin_delete_line_group(group_id):
     return jsonify({"status": "error", "message": "刪除失敗"}), 500
 
 @app.route('/api/admin/line/broadcast', methods=['POST'])
-@admin_required
+@admin_or_coach_required
 def api_admin_line_broadcast():
-    """發送群組訊息 (批量發送文字/圖片訊息至 LINE 群組)"""
     data = request.get_json() or {}
     group_id = data.get('group_id')
     message_text = data.get('message')
@@ -228,7 +237,7 @@ def api_admin_line_broadcast():
         "message": f"已推播訊息至 LINE 群組 [{group_id or '預設群組'}]"
     })
 
-# --- Bulletin APIs (公佈欄訊息維護) ---
+# --- Bulletin APIs ---
 
 @app.route('/api/bulletins', methods=['GET'])
 def api_get_bulletins():
@@ -236,9 +245,8 @@ def api_get_bulletins():
     return jsonify({"status": "success", "data": bulletins})
 
 @app.route('/api/admin/bulletins', methods=['POST'])
-@admin_required
+@admin_or_coach_required
 def api_admin_save_bulletin():
-    """發佈與管理首頁最新公告 (公佈欄訊息維護)"""
     data = request.get_json() or {}
     b_id = data.get('id') or f"b_{uuid.uuid4().hex[:6]}"
     title = data.get('title')
@@ -251,14 +259,13 @@ def api_admin_save_bulletin():
 
     saved = db_service.save_bulletin(b_id, title, date_str, tag, is_pinned, summary, content, line_broadcasted)
     if saved:
-        # 如果勾選一鍵推播，同步發送 LINE 訊息
         if line_broadcasted:
             line_service.push_text_message(None, f"📢 【社團最新公告】\n{title}\n\n{summary}\n\n詳情請至 UX-PRINT 首頁查看！")
         return jsonify({"status": "success", "message": "公告已成功發佈！"})
     return jsonify({"status": "error", "message": "發佈失敗"}), 500
 
 @app.route('/api/admin/bulletins/<b_id>', methods=['DELETE'])
-@admin_required
+@admin_or_coach_required
 def api_admin_delete_bulletin(b_id):
     deleted = db_service.delete_bulletin(b_id)
     if deleted:
@@ -267,7 +274,6 @@ def api_admin_delete_bulletin(b_id):
 
 @app.route('/api/orders', methods=['POST'])
 def api_create_order():
-    """成立購物車訂單並同步推播至社團 LINE 群組"""
     data = request.get_json() or {}
     cart_items = data.get('cart', [])
     user_name = data.get('user_name', '社團會員')

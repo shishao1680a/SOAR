@@ -6,13 +6,9 @@ from datetime import datetime, timezone, timedelta
 
 class DBService:
     def __init__(self, db_url=None):
-        # 取得資料庫連接網址，預設相容 Railway DATABASE_URL 變數
         url = db_url or os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/uxprint_db")
-        
-        # 相容 Railway/Heroku 回傳 postgres:// 協定名
         if url and url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
-            
         self.db_url = url
         print(f"DEBUG: Initializing DBService for PostgreSQL (Target DB: {self.db_url.split('@')[-1] if '@' in self.db_url else 'local'})")
         self._ensure_tables_exist()
@@ -29,7 +25,7 @@ class DBService:
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cursor:
-                    # 1. users 表 (新增 username, password, phone, role)
+                    # 1. users 表 (支援三種角色: admin, assistant_coach, user)
                     cursor.execute('''
                         CREATE TABLE IF NOT EXISTS users (
                             id VARCHAR(255) PRIMARY KEY,
@@ -39,12 +35,12 @@ class DBService:
                             line_id VARCHAR(255),
                             avatar_url TEXT,
                             phone VARCHAR(255),
-                            role VARCHAR(50) DEFAULT 'member',
+                            role VARCHAR(50) DEFAULT 'user',
                             register_date VARCHAR(100)
                         )
                     ''')
 
-                    # 2. products 表 (擴充 3D設計成本 cost_price, 庫存 stock_qty, 多照片 images_json)
+                    # 2. products 表
                     cursor.execute('''
                         CREATE TABLE IF NOT EXISTS products (
                             id VARCHAR(100) PRIMARY KEY,
@@ -63,7 +59,7 @@ class DBService:
                         )
                     ''')
 
-                    # 3. inventory_logs 表 (商品進貨紀錄)
+                    # 3. inventory_logs 表
                     cursor.execute('''
                         CREATE TABLE IF NOT EXISTS inventory_logs (
                             id SERIAL PRIMARY KEY,
@@ -77,7 +73,7 @@ class DBService:
                         )
                     ''')
 
-                    # 4. line_groups 表 (LINE 群組維護)
+                    # 4. line_groups 表
                     cursor.execute('''
                         CREATE TABLE IF NOT EXISTS line_groups (
                             id VARCHAR(255) PRIMARY KEY,
@@ -87,7 +83,7 @@ class DBService:
                         )
                     ''')
 
-                    # 5. bulletins 表 (公佈欄)
+                    # 5. bulletins 表
                     cursor.execute('''
                         CREATE TABLE IF NOT EXISTS bulletins (
                             id VARCHAR(100) PRIMARY KEY,
@@ -102,7 +98,7 @@ class DBService:
                         )
                     ''')
 
-                    # 6. orders 表 (購物車與LINE推播訂單)
+                    # 6. orders 表
                     cursor.execute('''
                         CREATE TABLE IF NOT EXISTS orders (
                             id VARCHAR(100) PRIMARY KEY,
@@ -117,23 +113,23 @@ class DBService:
                     ''')
 
                 conn.commit()
-                print("DEBUG: PostgreSQL tables verified successfully.")
                 self._seed_initial_data()
         except Exception as e:
             print(f"ERROR: Table initialization failed: {e}")
 
     def _seed_initial_data(self):
-        """播種預設管理員、商品、LINE群組與公告"""
+        """播種三種角色的範例帳號與初始資料"""
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cursor:
-                    # 預設管理員與成員
+                    # 預設帳號: 管理員 (admin), 助理教練 (assistant_coach), 一般使用者 (user)
                     cursor.execute("SELECT COUNT(*) FROM users")
                     if cursor.fetchone()[0] == 0:
                         now_str = self._get_taiwan_now_str()
                         initial_users = [
                             ("u_admin", "admin", "admin123", "系統超級管理員", "U84920491823901", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80", "0912345678", "admin", now_str),
-                            ("u_member1", "alex88", "123456", "賽車選手 Alex #88", "U12345678901234", "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80", "0987654321", "member", now_str)
+                            ("u_coach", "coach1", "coach123", "陳教練 (助理教練)", "U22345678901234", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80", "0922334455", "assistant_coach", now_str),
+                            ("u_user1", "alex88", "123456", "賽車選手 Alex #88", "U12345678901234", "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80", "0987654321", "user", now_str)
                         ]
                         cursor.executemany('''
                             INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
@@ -146,20 +142,12 @@ class DBService:
                         initial_products = [
                             ("p1", "VORTEX H-BLOCK 避震套件", "3d-print", "TPU_95A", 45.00, 18.00, 50, "TPU HIGH-IMPACT", 
                              "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80",
-                             json.dumps(["https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80", "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80"]),
+                             json.dumps(["https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80"]),
                              "Reinforced lattice structure for maximum sliding speed and impact absorption. 高密度 TPU 3D 列印套件。", False),
                             ("p2", "GLITCH DECAL UV炫彩貼紙包", "uv-print", "UV_RESIN", 18.00, 5.00, 120, "UV REACTIVE", 
                              "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80",
                              json.dumps(["https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80"]),
-                             "Ultra-durable UV resin prints. Scuff-resistant and glow-active under city lights. 高精度 UV 浮雕圖騰貼紙。", True),
-                            ("p3", "PRO SPACER PA12 精密墊片", "3d-print", "NYLON_CF", 22.00, 8.50, 80, "NYLON-PA12", 
-                             "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80",
-                             json.dumps(["https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80"]),
-                             "Precision spacers engineered for zero-wiggle performance and heat dissipation. 碳纖維強化尼龍 PA12 超高硬度墊片。", False),
-                            ("p4", "TITAN SOUL PLATE 魂板底座", "3d-print", "PLA_PRO", 65.00, 25.00, 35, "PLA-PRO", 
-                             "https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&w=600&q=80",
-                             json.dumps(["https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&w=600&q=80"]),
-                             "Custom-fit soul plates with reinforced mounting points and ultra-slick formula. 特調低摩擦係數 3D 列印魂板。", False)
+                             "Ultra-durable UV resin prints. Scuff-resistant and glow-active under city lights. 高精度 UV 浮雕圖騰貼紙。", True)
                         ]
                         cursor.executemany('''
                             INSERT INTO products (id, name, category, material, price, cost_price, stock_qty, badge, image_url, images_json, description, is_uv)
@@ -183,8 +171,7 @@ class DBService:
                     cursor.execute("SELECT COUNT(*) FROM bulletins")
                     if cursor.fetchone()[0] == 0:
                         initial_bulletins = [
-                            ("b1", "🔥 【社團賽事】2026 夏季極限 3D/UV 作品改裝大賽開始報名！", "2026-07-20", "賽事公告", True, "本屆改裝大賽包含 3D 列印機構件設計組與 UV 炫彩彩繪組，獎品包含 Bambu 3D 列印機與客製列印資材！", "親愛的社友們：\n2026 夏季極限 3D/UV 作品改裝大賽即日起開放報名！", True),
-                            ("b2", "📦 新進資材通知：Nylon-CF 碳纖維尼龍與亮面 UV 樹脂已上架", "2026-07-15", "資材更新", False, "全新批次高剛性碳纖維線材與日本進口 UV 抗黃化樹脂已抵達社團工坊。", "工坊目前已完成 Bambu X1C 8台機器聯網，提供更快速的 3D 打樣服務。", True)
+                            ("b1", "🔥 【社團賽事】2026 夏季極限 3D/UV 作品改裝大賽開始報名！", "2026-07-20", "賽事公告", True, "本屆改裝大賽包含 3D 列印機構件設計組與 UV 炫彩彩繪組！", "親愛的社友們：\n2026 夏季極限 3D/UV 作品改裝大賽即日起開放報名！", True)
                         ]
                         cursor.executemany('''
                             INSERT INTO bulletins (id, title, date_str, tag, is_pinned, summary, content, line_broadcasted)
@@ -195,7 +182,30 @@ class DBService:
         except Exception as e:
             print(f"ERROR: Initial seed failed: {e}")
 
-    # --- User Authentication & Management ---
+    def register_user(self, username, password, name, phone, role='user'):
+        """註冊新使用者 (檢查帳號重複，預設角色為 user)"""
+        try:
+            now_str = self._get_taiwan_now_str()
+            user_id = f"u_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            avatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
+            
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    # 檢查帳號是否存在
+                    cursor.execute("SELECT COUNT(*) FROM users WHERE username = %s", (username,))
+                    if cursor.fetchone()[0] > 0:
+                        return False, "該帳號已有人使用，請嘗試其他帳號！"
+
+                    cursor.execute('''
+                        INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ''', (user_id, username, password, name, '', avatar, phone, role, now_str))
+                conn.commit()
+                return True, "註冊成功！"
+        except Exception as e:
+            print(f"Error registering user: {e}")
+            return False, f"資料庫註冊失敗: {str(e)}"
+
     def authenticate_user(self, username, password):
         """一般帳/密 登入驗證"""
         try:
@@ -205,15 +215,6 @@ class DBService:
                     return cursor.fetchone()
         except Exception as e:
             print(f"Error authenticating user: {e}")
-            return None
-
-    def get_user_by_id(self, user_id):
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
-                    cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-                    return cursor.fetchone()
-        except Exception as e:
             return None
 
     def get_all_users(self):
@@ -236,7 +237,7 @@ class DBService:
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE SET
                             username = EXCLUDED.username,
-                            password = EXCLUDED.password,
+                            password = CASE WHEN EXCLUDED.password <> '' THEN EXCLUDED.password ELSE users.password END,
                             name = EXCLUDED.name,
                             line_id = EXCLUDED.line_id,
                             avatar_url = EXCLUDED.avatar_url,
@@ -260,7 +261,7 @@ class DBService:
             print(f"Error deleting user: {e}")
             return False
 
-    # --- Product & Inventory Management ---
+    # --- Products & Inventory ---
     def get_products(self):
         try:
             with self._get_connection() as conn:
@@ -313,13 +314,11 @@ class DBService:
             now_str = self._get_taiwan_now_str()
             with self._get_connection() as conn:
                 with conn.cursor() as cursor:
-                    # 1. 寫入進貨紀錄
                     cursor.execute('''
                         INSERT INTO inventory_logs (product_id, product_name, purchase_qty, purchase_cost, supplier, purchase_date, remark)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ''', (product_id, product_name, purchase_qty, purchase_cost, supplier, now_str, remark))
                     
-                    # 2. 自動增加商品的庫存數量與更新進貨成本
                     cursor.execute('''
                         UPDATE products SET 
                             stock_qty = stock_qty + %s,
