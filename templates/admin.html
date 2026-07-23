@@ -1044,15 +1044,44 @@
           itemsArr = typeof p.items_json === 'string' ? JSON.parse(p.items_json || '[]') : (p.items_json || []);
         } catch(e){ itemsArr = []; }
 
-        const itemsHtml = (itemsArr && itemsArr.length > 0)
-          ? itemsArr.map((item, idx) => `
-              <div class="flex items-center gap-1.5 bg-surface-container-high/90 px-2 py-1 rounded border border-outline-variant/60 whitespace-nowrap mb-1">
+        const hasItems = itemsArr && itemsArr.length > 0;
+
+        // 項目名稱 HTML (不顯示價格)
+        const itemsNameHtml = hasItems
+          ? itemsArr.map(item => `
+              <div class="flex items-center gap-1.5 bg-surface-container-high/90 px-2.5 py-1 rounded border border-outline-variant/60 whitespace-nowrap mb-1">
                 ${item.image_url ? `<img src="${item.image_url}" class="w-4 h-4 object-cover rounded border border-outline-variant shrink-0" />` : '<span class="material-symbols-outlined text-[12px] text-line-green shrink-0">tune</span>'}
                 <span class="font-bold text-white text-[11px]">${item.name}</span>
-                <span class="text-[10px] text-primary-fixed ml-auto font-mono">$${parseFloat(item.price !== undefined ? item.price : 0).toFixed(2)}</span>
               </div>
             `).join('')
           : `<span class="text-gray-400 italic text-[11px]">- (無項目)</span>`;
+
+        // 銷售價 HTML (依項目個別顯示)
+        const itemsPriceHtml = hasItems
+          ? itemsArr.map(item => `
+              <div class="py-1 text-primary-fixed font-bold font-mono text-[11px] mb-1">
+                $${parseFloat(item.price !== undefined ? item.price : p.price).toFixed(2)}
+              </div>
+            `).join('')
+          : `<span class="text-primary-fixed font-bold font-mono">$${parseFloat(p.price).toFixed(2)}</span>`;
+
+        // 3D列印成本 HTML (依項目個別顯示)
+        const items3DCostHtml = hasItems
+          ? itemsArr.map(item => `
+              <div class="py-1 text-secondary-container font-bold font-mono text-[11px] mb-1">
+                $${parseFloat(item.cost_price !== undefined ? item.cost_price : p.cost_price).toFixed(2)}
+              </div>
+            `).join('')
+          : `<span class="text-secondary-container font-bold font-mono">$${parseFloat(p.cost_price || 0).toFixed(2)}</span>`;
+
+        // UV列印成本 HTML (依項目個別顯示)
+        const itemsUVCostHtml = hasItems
+          ? itemsArr.map(item => `
+              <div class="py-1 text-amber-400 font-bold font-mono text-[11px] mb-1">
+                $${parseFloat(item.uv_cost_price !== undefined ? item.uv_cost_price : p.uv_cost_price).toFixed(2)}
+              </div>
+            `).join('')
+          : `<span class="text-amber-400 font-bold font-mono">$${parseFloat(p.uv_cost_price || 0).toFixed(2)}</span>`;
 
         return `
           <tr class="hover:bg-surface-container/50">
@@ -1064,19 +1093,19 @@
             </td>
             <td class="p-3 font-bold text-white whitespace-nowrap">
               ${p.name}
-              ${itemsArr.length > 0 ? `<span class="block text-[10px] text-gray-400 font-normal">(${itemsArr.length} 個項目)</span>` : ''}
+              ${hasItems ? `<span class="block text-[10px] text-gray-400 font-normal">(${itemsArr.length} 個項目)</span>` : ''}
             </td>
             <td class="p-3">
-              <div class="max-w-[220px] space-y-1">
-                ${itemsHtml}
+              <div class="max-w-[200px] space-y-1">
+                ${itemsNameHtml}
               </div>
             </td>
             <td class="p-3"><span class="text-primary-fixed">${p.category}</span> / ${p.material}</td>
-            <td class="p-3 text-primary-fixed font-bold">$${parseFloat(p.price).toFixed(2)}</td>
-            <td class="p-3 text-secondary-container font-bold">$${parseFloat(p.cost_price || 0).toFixed(2)}</td>
-            <td class="p-3 text-amber-400 font-bold">$${parseFloat(p.uv_cost_price || 0).toFixed(2)}</td>
+            <td class="p-3">${itemsPriceHtml}</td>
+            <td class="p-3">${items3DCostHtml}</td>
+            <td class="p-3">${itemsUVCostHtml}</td>
             <td class="p-3 font-bold ${p.stock_qty < 10 ? 'text-error' : 'text-line-green'}">${p.stock_qty || 0} 件</td>
-            <td class="p-3 text-right">
+            <td class="p-3 text-right whitespace-nowrap">
               <button onclick="editProduct('${p.id}')" class="text-primary-fixed hover:underline mr-2 font-bold">編輯</button>
               <button onclick="deleteProduct('${p.id}')" class="text-error hover:underline font-bold">下架</button>
             </td>
