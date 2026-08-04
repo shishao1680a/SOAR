@@ -263,11 +263,17 @@ class DBService:
                         cursor.execute("ALTER TABLE inventory_logs ADD COLUMN item_name TEXT DEFAULT '-'")
                     if 'operator_name' not in inv_cols:
                         cursor.execute("ALTER TABLE inventory_logs ADD COLUMN operator_name TEXT DEFAULT '管理員'")
+
+                    cursor.execute("PRAGMA table_info(material_purchases)")
+                    mat_cols = [r[1] for r in cursor.fetchall()]
+                    if 'total_capacity' not in mat_cols:
+                        cursor.execute("ALTER TABLE material_purchases ADD COLUMN total_capacity TEXT DEFAULT ''")
                 else:
                     cursor.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS uv_cost_price NUMERIC(10, 2) DEFAULT 0.00")
                     cursor.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS items_json TEXT DEFAULT '[]'")
                     cursor.execute("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS item_name VARCHAR(255) DEFAULT '-'")
                     cursor.execute("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS operator_name VARCHAR(255) DEFAULT '管理員'")
+                    cursor.execute("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS total_capacity VARCHAR(255) DEFAULT ''")
             except Exception as mig_err:
                 print(f"Migration notice: {mig_err}")
 
