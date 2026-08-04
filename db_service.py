@@ -503,27 +503,31 @@ class DBService:
                 cursor.execute("SELECT * FROM products ORDER BY id ASC")
                 rows = cursor.fetchall()
                 prods = [dict(r) for r in rows]
-                cursor.execute("SELECT * FROM inventory_purchases")
-                logs = [dict(r) for r in cursor.fetchall()]
+                try:
+                    cursor.execute("SELECT * FROM inventory_logs")
+                    logs = [dict(r) for r in cursor.fetchall()]
+                except Exception: logs = []
                 conn.close()
             else:
                 cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                 cursor.execute("SELECT * FROM products ORDER BY id ASC")
                 prods = [dict(p) for p in cursor.fetchall()]
-                cursor.execute("SELECT * FROM inventory_purchases")
-                logs = [dict(l) for l in cursor.fetchall()]
+                try:
+                    cursor.execute("SELECT * FROM inventory_logs")
+                    logs = [dict(l) for l in cursor.fetchall()]
+                except Exception: logs = []
                 conn.close()
 
             # 動態算庫存
             for p in prods:
-                prod_id = str(p['id']).strip() if p.get('id') else ''
-                prod_name = (p.get('name') or '').strip()
-
-                prod_logs = [l for l in logs if (l.get('product_id') and str(l['product_id']).strip() == prod_id) or (l.get('product_name') and str(l['product_name']).strip() == prod_name)]
-                total_stock = sum(int(l.get('purchase_qty') or 0) for l in prod_logs)
-                p['stock_qty'] = total_stock
-
                 try:
+                    prod_id = str(p.get('id', '')).strip()
+                    prod_name = (p.get('name') or '').strip()
+
+                    prod_logs = [l for l in logs if (l.get('product_id') and str(l['product_id']).strip() == prod_id) or (l.get('product_name') and str(l['product_name']).strip() == prod_name)]
+                    total_stock = sum(int(l.get('purchase_qty') or 0) for l in prod_logs)
+                    p['stock_qty'] = total_stock
+
                     items_arr = json.loads(p.get('items_json') or '[]') if isinstance(p.get('items_json'), str) else (p.get('items_json') or [])
                     if isinstance(items_arr, list):
                         for itm in items_arr:
@@ -536,7 +540,8 @@ class DBService:
                             itm['stock_qty'] = item_purchased
                         p['items_json'] = json.dumps(items_arr, ensure_ascii=False)
                 except Exception as ex:
-                    print(f"Error parsing items_json for stock: {ex}")
+                    print(f"Error calculating stock for product {p.get('id')}: {ex}")
+                    p['stock_qty'] = p.get('stock_qty') or 0
 
             return prods
         except Exception as e:
