@@ -1,0 +1,78 @@
+<!-- SECTION 4: LINE GROUPS (LINE 群組維護) -->
+<div id="sec-line-groups" class="hidden space-y-6">
+  <div>
+    <h2 class="font-display-lg text-2xl italic font-black text-white">LINE 群組維護</h2>
+    <p class="font-label-caps text-xs text-on-surface-variant">管理用於接收群組訊息通知與 PDF 檔案傳送的 LINE 群組 ID。</p>
+  </div>
+
+  <!-- 雙卡片雙欄結構 -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    
+    <!-- 左側卡片：新增 / 修改 LINE 群組 -->
+    <div class="lg:col-span-5 bg-surface-container-low p-6 border border-outline-variant hover:border-line-green/60 transition-all space-y-4">
+      <div class="flex items-center gap-2 border-b border-outline-variant/60 pb-3">
+        <span class="material-symbols-outlined text-line-green text-xl">add_box</span>
+        <h3 id="group-form-title" class="font-headline-md text-base italic font-bold text-white">新增 LINE 群組</h3>
+      </div>
+
+      <input type="hidden" id="group-edit-id" />
+
+      <div>
+        <label class="block text-xs font-bold text-gray-200 mb-1.5">群組名稱</label>
+        <input type="text" id="group-input-name" placeholder="例如：北區業務群組" class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-3 outline-none focus:border-line-green transition-all" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-200 mb-1.5">群組 GID</label>
+        <input type="text" id="group-input-gid" placeholder="Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" class="w-full bg-surface-container border border-outline-variant text-white font-label-caps text-xs p-3 outline-none focus:border-line-green font-mono transition-all" />
+      </div>
+
+      <!-- 快速取得說明盒 -->
+      <div class="p-3.5 bg-surface-container border border-line-green/30 text-xs text-on-surface-variant space-y-1.5">
+        <div class="font-bold text-line-green flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">info</span> 快速取得說明：
+        </div>
+        <ol class="list-decimal list-inside space-y-1 text-[11px] text-gray-300 leading-relaxed">
+          <li>將 Line 機器人邀請入該群組。</li>
+          <li>在群組內打指令「<span class="font-bold text-white font-mono">FLBR</span>」(不限大小寫)。</li>
+          <li>機器人將自動回覆該群組的 GID，複製貼上至此即可。</li>
+        </ol>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button id="btn-save-group" onclick="saveLineGroupForm()" class="flex-1 py-3 bg-primary-green hover:bg-primary-green-hover text-white font-label-caps font-bold italic text-xs shadow-lg shadow-primary-green/20 transition-all">
+          確認新增
+        </button>
+        <button id="btn-cancel-group" onclick="resetLineGroupForm()" class="hidden py-3 px-4 bg-surface-container text-gray-400 hover:text-white font-label-caps text-xs">
+          取消修改
+        </button>
+      </div>
+    </div>
+
+    <!-- 右側卡片：現有群組列表表格 -->
+    <div class="lg:col-span-7 bg-surface-container-low p-6 border border-outline-variant space-y-4">
+      <div class="flex justify-between items-center border-b border-outline-variant/60 pb-3">
+        <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-2">
+          <span class="material-symbols-outlined text-line-green text-xl">table_view</span> 現有群組列表
+        </h3>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-surface-container text-on-surface-variant font-label-caps border-b border-outline-variant">
+              <th class="p-3">建立日期</th>
+              <th class="p-3">群組名稱</th>
+              <th class="p-3">群組 GID</th>
+              <th class="p-3 text-right">操作</th>
+            </tr>
+          </thead>
+          <tbody id="line-group-table-body" class="divide-y divide-outline-variant/40 font-body-md text-gray-200">
+            <!-- Dynamically rendered -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,34 @@
+<!-- SECTION: ORDERS (訂單資訊管理) -->
+<div id="sec-orders" class="hidden space-y-6">
+  <div class="flex justify-between items-center flex-wrap gap-4">
+    <div>
+      <h2 class="font-display-lg text-2xl italic font-black text-white flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary-fixed">shopping_bag</span> 訂單資訊管理
+      </h2>
+      <p class="font-label-caps text-xs text-on-surface-variant">查看線上訂單紀錄、發送狀態與耗材淨利潤精準結算試算。</p>
+    </div>
+    <button onclick="loadAdminOrdersList()" class="px-3.5 py-2 bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs font-bold italic flex items-center gap-1 hover:border-primary-fixed transition-all">
+      <span class="material-symbols-outlined text-sm">refresh</span> 重新整理訂單
+    </button>
+  </div>
+
+  <div class="bg-surface-container-low border border-outline-variant overflow-x-auto shadow-2xl">
+    <table class="w-full text-left font-label-caps text-xs">
+      <thead class="bg-surface-container border-b border-outline-variant text-primary-fixed">
+        <tr>
+          <th class="p-3">訂單時間</th>
+          <th class="p-3">訂單編號</th>
+          <th class="p-3">購買商品 / 款式</th>
+          <th class="p-3">數量</th>
+          <th class="p-3">訂購人 (LINE)</th>
+          <th class="p-3">總金額 ($)</th>
+          <th class="p-3">狀態 / 淨利潤</th>
+          <th class="p-3 text-right">操作</th>
+        </tr>
+      </thead>
+      <tbody id="orders-table-body" class="divide-y divide-outline-variant/40">
+        <!-- Dynamically rendered -->
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,0 +1,1462 @@
+<!-- Application Logic JavaScript -->
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    loadUsers();
+    loadProducts();
+    loadInventoryLogs();
+    loadMaterialPurchases();
+    loadLineGroups();
+    loadBulletins();
+  });
+
+  // 頁籤 Tab 切換選單
+  function switchProductSubTab(subTabId) {
+    ['products', 'inventory', 'materials'].forEach(tab => {
+      const contentEl = document.getElementById(`prod-subtab-${tab}`);
+      const btnEl = document.getElementById(`prod-tab-${tab}`);
+      if (contentEl) contentEl.classList.add('hidden');
+      if (btnEl) {
+        btnEl.className = "px-5 py-3 font-bold italic border-b-4 border-transparent text-gray-400 hover:text-white hover:bg-surface-container transition-all flex items-center gap-2";
+      }
+    });
+
+    const activeContent = document.getElementById(`prod-subtab-${subTabId}`);
+    const activeBtn = document.getElementById(`prod-tab-${subTabId}`);
+    if (activeContent) activeContent.classList.remove('hidden');
+    if (activeBtn) {
+      if (subTabId === 'products') {
+        activeBtn.className = "px-5 py-3 font-bold italic border-b-4 border-primary-fixed text-primary-fixed bg-surface-container-high transition-all flex items-center gap-2";
+      } else if (subTabId === 'inventory') {
+        activeBtn.className = "px-5 py-3 font-bold italic border-b-4 border-secondary-container text-secondary-container bg-surface-container-high transition-all flex items-center gap-2";
+      } else if (subTabId === 'materials') {
+        activeBtn.className = "px-5 py-3 font-bold italic border-b-4 border-cyan-400 text-cyan-400 bg-surface-container-high transition-all flex items-center gap-2";
+      }
+    }
+  }
+
+  function switchAdminSection(secId) {
+    ['dashboard', 'users', 'products', 'orders', 'line-groups', 'line-send', 'bulletins'].forEach(s => {
+      const sec = document.getElementById(`sec-${s}`);
+      if (sec) sec.classList.add('hidden');
+      const sideBtn = document.getElementById(`side-${s}`);
+      if (sideBtn) {
+        sideBtn.className = "w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors";
+      }
+    });
+
+    const activeSec = document.getElementById(`sec-${secId}`);
+    if (activeSec) activeSec.classList.remove('hidden');
+    const activeBtn = document.getElementById(`side-${secId}`);
+    if (activeBtn) {
+      activeBtn.className = "w-full text-left p-3 rounded font-bold italic flex items-center gap-2 bg-primary-fixed text-on-primary-fixed";
+    }
+
+    if (secId === 'orders') {
+      loadAdminOrdersList();
+    } else if (secId === 'line-send') {
+      renderLineSendGroupCards();
+    }
+  }
+
+  function closeModal(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
+  }
+
+  // --- Member Management Logic ---
+  let usersList = [];
+  async function loadUsers() {
+    try {
+      const res = await fetch('/api/admin/users');
+      const json = await res.json();
+      if (json.status === 'success') {
+        usersList = json.data;
+        renderUsersTable();
+      }
+    } catch(e) { console.error(e); }
+  }
+
+  function renderUsersTable() {
+    const tbody = document.getElementById('user-table-body');
+    const roleMap = {
+      admin: { label: '👑 最高管理員', style: 'bg-primary-fixed text-on-primary-fixed' },
+      assistant_coach: { label: '🧢 助理教練', style: 'bg-secondary-container text-white' },
+      user: { label: '🏃 一般使用者', style: 'bg-surface-container text-on-surface-variant' }
+    };
+
+    tbody.innerHTML = usersList.map(u => {
+      const r = roleMap[u.role] || roleMap.user;
+      return `
+        <tr class="hover:bg-surface-container/50">
+          <td class="p-3 flex items-center gap-2">
+            <img src="${u.avatar_url}" class="w-7 h-7 rounded-full border border-primary-fixed" />
+            <span class="font-bold text-white">${u.name}</span>
+          </td>
+          <td class="p-3 text-primary-fixed font-bold">${u.username || '-'}</td>
+          <td class="p-3 text-line-green">${u.line_id || '-'}</td>
+          <td class="p-3">
+            <span class="px-2 py-0.5 ${r.style} rounded font-bold">
+              ${r.label}
+            </span>
+          </td>
+          <td class="p-3">${u.phone || '-'}</td>
+          <td class="p-3 text-on-surface-variant text-[11px]">${u.register_date || '-'}</td>
+          <td class="p-3 text-right">
+            <button onclick="editUser('${u.id}')" class="text-primary-fixed hover:underline mr-2">編輯</button>
+            <button onclick="deleteUser('${u.id}')" class="text-error hover:underline">刪除</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function openUserModal(u = null) {
+    document.getElementById('user-edit-id').value = u ? u.id : '';
+    document.getElementById('user-edit-name').value = u ? u.name : '';
+    document.getElementById('user-edit-username').value = u ? (u.username || '') : '';
+    document.getElementById('user-edit-password').value = '';
+    document.getElementById('user-edit-lineid').value = u ? (u.line_id || '') : '';
+    document.getElementById('user-edit-role').value = u ? u.role : 'member';
+    document.getElementById('modal-user').classList.remove('hidden');
+  }
+
+  function editUser(id) {
+    const u = usersList.find(item => item.id === id);
+    if (u) openUserModal(u);
+  }
+
+  async function saveUserSubmit() {
+    const payload = {
+      id: document.getElementById('user-edit-id').value,
+      name: document.getElementById('user-edit-name').value.trim(),
+      username: document.getElementById('user-edit-username').value.trim(),
+      password: document.getElementById('user-edit-password').value.trim(),
+      line_id: document.getElementById('user-edit-lineid').value.trim(),
+      role: document.getElementById('user-edit-role').value
+    };
+
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('成員資料更新成功！');
+      closeModal('modal-user');
+      loadUsers();
+    } else { alert(json.message); }
+  }
+
+  async function deleteUser(id) {
+    if (!confirm('確定要刪除此成員嗎？')) return;
+    const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.status === 'success') { loadUsers(); }
+  }
+
+  // --- Product & Inventory Logic ---
+  let productsList = [];
+  let currentProductItems = [];
+
+  async function loadProducts() {
+    try {
+      await loadProductOptions();
+      const res = await fetch('/api/products');
+      const json = await res.json();
+      if (json.status === 'success') {
+        productsList = json.data;
+        await loadInventoryLogs();
+        renderProductsTable();
+        updateInventorySelect();
+      }
+    } catch(e) { console.error(e); }
+  }
+
+  async function loadProductOptions() {
+    try {
+      const res = await fetch('/api/product-options');
+      const json = await res.json();
+      if (json.status === 'success') {
+        const catSelect = document.getElementById('prod-edit-category');
+        const matSelect = document.getElementById('prod-edit-material');
+        
+        const defaultCats = [
+          { code: '3d-print', name: '3D列印套件 (3d-print)' },
+          { code: 'uv-print', name: 'UV炫彩作品 (uv-print)' },
+          { code: 'custom', name: '社團限定 (custom)' }
+        ];
+        const defaultMats = [
+          { code: 'TPU_95A', name: 'TPU_95A' },
+          { code: 'PLA_PRO', name: 'PLA_PRO' },
+          { code: 'NYLON_CF', name: 'NYLON_CF' },
+          { code: 'UV_RESIN', name: 'UV_RESIN' }
+        ];
+
+        const allCats = [...defaultCats];
+        (json.categories || []).forEach(c => {
+          if (!allCats.some(x => x.code === c.code)) allCats.push(c);
+        });
+        const allMats = [...defaultMats];
+        (json.materials || []).forEach(m => {
+          if (!allMats.some(x => x.code === m.code)) allMats.push(m);
+        });
+
+        catSelect.innerHTML = allCats.map(c => `<option value="${c.code}">${c.name}</option>`).join('');
+        matSelect.innerHTML = allMats.map(m => `<option value="${m.code}">${m.name}</option>`).join('');
+      }
+    } catch(e){}
+  }
+
+  async function promptAddCategory() {
+    const name = prompt('請輸入新分類名稱 (例如：車架升級套件、競賽級護具):');
+    if (!name || !name.trim()) return;
+    const res = await fetch('/api/admin/product-options/category', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name: name.trim() })
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('分類新增成功！');
+      await loadProductOptions();
+      document.getElementById('prod-edit-category').value = json.code;
+    } else { alert(json.message); }
+  }
+
+  async function promptAddMaterial() {
+    const name = prompt('請輸入新材質等級/小分類名稱 (例如：TPU_95A_PRO、CARBON_FIBER):');
+    if (!name || !name.trim()) return;
+    const res = await fetch('/api/admin/product-options/material', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name: name.trim() })
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('材質等級/小分類新增成功！');
+      await loadProductOptions();
+      document.getElementById('prod-edit-material').value = json.code;
+    } else { alert(json.message); }
+  }
+
+  let inventoryLogsList = [];
+
+  function calcCalculatedStock(prodId, itemName) {
+    if (!inventoryLogsList || inventoryLogsList.length === 0) return 0;
+    const prod = productsList.find(p => String(p.id).trim() === String(prodId).trim());
+    const prodName = prod ? prod.name.trim() : '';
+    let purchased = 0;
+
+    inventoryLogsList.forEach(log => {
+      const logProdId = log.product_id ? String(log.product_id).trim() : '';
+      const logProdName = log.product_name ? String(log.product_name).trim() : '';
+
+      const matchesProduct = (logProdId && logProdId === String(prodId).trim()) ||
+                             (logProdName && prodName && logProdName === prodName);
+
+      if (matchesProduct) {
+        const logItem = (log.item_name || '-').trim();
+        const targetItem = (itemName || '-').trim();
+        
+        if (targetItem === '-') {
+          purchased += parseInt(log.purchase_qty || 0);
+        } else {
+          if (logItem === targetItem || logItem === '-' || logItem === '-- 全品項預設/主商品 --') {
+            purchased += parseInt(log.purchase_qty || 0);
+          }
+        }
+      }
+    });
+    let sold = 0;
+    return Math.max(0, purchased - sold);
+  }
+
+  function renderProductsTable() {
+    const tbody = document.getElementById('product-table-body');
+    tbody.innerHTML = productsList.map(p => {
+      let multiImgs = [];
+      let itemsArr = [];
+      try { multiImgs = JSON.parse(p.images_json || '[]'); } catch(e){}
+      try {
+        itemsArr = typeof p.items_json === 'string' ? JSON.parse(p.items_json || '[]') : (p.items_json || []);
+      } catch(e){ itemsArr = []; }
+
+      const hasItems = itemsArr && itemsArr.length > 0;
+
+      const itemsNameHtml = hasItems
+        ? itemsArr.map(item => `
+            <div class="flex items-center gap-1.5 bg-surface-container-high/90 px-2.5 py-1 rounded border border-outline-variant/60 whitespace-nowrap mb-1">
+              ${item.image_url ? `<img src="${item.image_url}" class="w-4 h-4 object-cover rounded border border-outline-variant shrink-0" />` : '<span class="material-symbols-outlined text-[12px] text-line-green shrink-0">tune</span>'}
+              <span class="font-bold text-white text-[11px]">${item.name}</span>
+            </div>
+          `).join('')
+        : `<span class="text-gray-400 italic text-[11px]">- (無項目)</span>`;
+
+      const itemsPriceHtml = hasItems
+        ? itemsArr.map(item => `
+            <div class="py-1 text-primary-fixed font-bold font-mono text-[11px] mb-1">
+              $${parseFloat(item.price !== undefined ? item.price : p.price).toFixed(2)}
+            </div>
+          `).join('')
+        : `<span class="text-primary-fixed font-bold font-mono">$${parseFloat(p.price).toFixed(2)}</span>`;
+
+      const itemsStockHtml = hasItems
+        ? itemsArr.map(item => {
+            const qty = calcCalculatedStock(p.id, item.name);
+            return `
+              <div class="py-1 font-bold font-mono text-[11px] mb-1 ${qty < 10 ? 'text-error' : 'text-line-green'}">
+                ${qty} 件
+              </div>
+            `;
+          }).join('')
+        : `<span class="font-bold ${calcCalculatedStock(p.id, '-') < 10 ? 'text-error' : 'text-line-green'}">${calcCalculatedStock(p.id, '-')} 件</span>`;
+
+      return `
+        <tr class="hover:bg-surface-container/50">
+          <td class="p-3">
+            <div class="flex items-center gap-1">
+              <img src="${p.image_url}" class="w-10 h-10 object-cover border border-outline-variant rounded" />
+              ${multiImgs.length > 1 ? `<span class="text-[10px] bg-secondary-container text-white px-1 font-bold rounded">+${multiImgs.length - 1}圖</span>` : ''}
+            </div>
+          </td>
+          <td class="p-3 font-bold text-white whitespace-nowrap">
+            ${p.name}
+            ${hasItems ? `<span class="block text-[10px] text-gray-400 font-normal">(${itemsArr.length} 個項目)</span>` : ''}
+          </td>
+          <td class="p-3"><span class="text-primary-fixed">${p.category}</span> / ${p.material}</td>
+          <td class="p-3">
+            <div class="max-w-[200px] space-y-1">
+              ${itemsNameHtml}
+            </div>
+          </td>
+          <td class="p-3">${itemsPriceHtml}</td>
+          <td class="p-3">${itemsStockHtml}</td>
+          <td class="p-3 text-right whitespace-nowrap">
+            <button onclick="editProduct('${p.id}')" class="text-primary-fixed hover:underline mr-2 font-bold">編輯</button>
+            <button onclick="deleteProduct('${p.id}')" class="text-error hover:underline font-bold">下架</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function updateSubItemImagePreview() {
+    const url = document.getElementById('item-edit-image').value.trim();
+    const previewBox = document.getElementById('item-edit-preview-box');
+    const previewImg = document.getElementById('item-edit-img-preview');
+    if (url) {
+      previewImg.src = url;
+      previewBox.classList.remove('hidden');
+    } else {
+      previewBox.classList.add('hidden');
+    }
+  }
+
+  function renderProductItemsList() {
+    const container = document.getElementById('product-items-list-container');
+    if (!container) return;
+
+    if (currentProductItems.length === 0) {
+      container.innerHTML = `
+        <div class="text-center p-4 text-xs text-gray-400 italic bg-surface-container/40 rounded-lg border border-dashed border-outline-variant/60">
+          目前尚無項目規格。點擊右上角【+ 新增項目】跳出視窗即可新增不同款式 (例: 黑色-HELLO純棉款)。
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = currentProductItems.map((item, index) => `
+      <div class="flex items-center justify-between p-3 bg-surface-container border border-outline-variant rounded-lg hover:border-line-green/60 transition-all gap-2">
+        <div class="flex items-center gap-3 overflow-hidden">
+          <img src="${item.image_url || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=150&q=80'}" class="w-10 h-10 object-cover rounded border border-outline-variant shrink-0" />
+          <div class="truncate">
+            <div class="font-bold text-white text-xs truncate flex items-center gap-1">
+              <span class="text-line-green font-mono text-[11px]">#${index + 1}</span> ${item.name || '未命名項目'}
+            </div>
+            <div class="text-[11px] text-gray-300 font-mono mt-0.5">
+              售價: <span class="text-primary-fixed font-bold">$${parseFloat(item.price !== undefined ? item.price : 0).toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-1.5 shrink-0">
+          <button type="button" onclick="openProductItemModal(${index})" class="px-2.5 py-1 bg-primary-fixed/20 text-primary-fixed hover:bg-primary-fixed hover:text-black font-bold text-xs rounded transition-all border border-primary-fixed/30 flex items-center gap-1">
+            <span class="material-symbols-outlined text-xs">edit</span> 編輯
+          </button>
+          <button type="button" onclick="removeProductItem(${index})" class="px-2 py-1 bg-error/20 text-error hover:bg-error hover:text-white font-bold text-xs rounded transition-all flex items-center gap-0.5">
+            ✕ 刪除
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function addProductItem() {
+    openProductItemModal(-1);
+  }
+
+  function openProductItemModal(index = -1) {
+    const titleEl = document.getElementById('item-modal-title');
+    document.getElementById('item-edit-index').value = index;
+
+    if (index === -1) {
+      if (titleEl) titleEl.innerHTML = `<span class="material-symbols-outlined text-line-green text-lg">add_circle</span> 新增項目規格`;
+      setVal('item-edit-name', `款式 #${currentProductItems.length + 1}`);
+      setVal('item-edit-price', document.getElementById('prod-edit-price').value || '45.00');
+      setVal('item-edit-cost', document.getElementById('prod-edit-cost').value || '18.00');
+      setVal('item-edit-uv-cost', document.getElementById('prod-edit-uv-cost').value || '5.00');
+      setVal('item-edit-image', document.getElementById('prod-edit-image').value || '');
+    } else {
+      const item = currentProductItems[index];
+      if (titleEl) titleEl.innerHTML = `<span class="material-symbols-outlined text-line-green text-lg">edit_note</span> 編輯項目規格 #${index + 1}`;
+      setVal('item-edit-name', item ? item.name : '');
+      setVal('item-edit-price', item ? item.price : 0);
+      setVal('item-edit-cost', item ? item.cost_price : 0);
+      setVal('item-edit-uv-cost', item ? item.uv_cost_price : 0);
+      setVal('item-edit-image', item ? item.image_url : '');
+    }
+
+    updateSubItemImagePreview();
+
+    const subModal = document.getElementById('modal-product-item');
+    if (subModal) subModal.classList.remove('hidden');
+  }
+
+  function saveProductItemSubmit() {
+    const index = parseInt(document.getElementById('item-edit-index').value);
+    const name = document.getElementById('item-edit-name').value.trim();
+    const price = parseFloat(document.getElementById('item-edit-price').value || 0);
+    const cost_price = parseFloat(document.getElementById('item-edit-cost').value || 0);
+    const uv_cost_price = parseFloat(document.getElementById('item-edit-uv-cost').value || 0);
+    const image_url = document.getElementById('item-edit-image').value.trim();
+
+    if (!name) {
+      alert('請輸入項目名稱 (例如: 黑色-HELLO純棉款)');
+      return;
+    }
+
+    const itemObj = {
+      id: index >= 0 && currentProductItems[index] ? currentProductItems[index].id : ('v_' + Date.now() + '_' + Math.floor(Math.random()*1000)),
+      name: name,
+      price: price,
+      cost_price: cost_price,
+      uv_cost_price: uv_cost_price,
+      image_url: image_url
+    };
+
+    if (index === -1) {
+      currentProductItems.push(itemObj);
+    } else {
+      currentProductItems[index] = itemObj;
+    }
+
+    closeModal('modal-product-item');
+    renderProductItemsList();
+  }
+
+  function removeProductItem(index) {
+    currentProductItems.splice(index, 1);
+    renderProductItemsList();
+  }
+
+  async function uploadMainProductImage(fileInput) {
+    if (!fileInput.files || fileInput.files.length === 0) return;
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (json.status === 'success' && json.url) {
+        document.getElementById('prod-edit-image').value = json.url;
+        alert('商品主圖上傳成功！');
+      } else {
+        alert(json.message || '圖片上傳失敗');
+      }
+    } catch(e){ alert('圖片上傳發生錯誤'); }
+  }
+
+  async function uploadSubItemImage(fileInput) {
+    if (!fileInput.files || fileInput.files.length === 0) return;
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (json.status === 'success' && json.url) {
+        document.getElementById('item-edit-image').value = json.url;
+        updateSubItemImagePreview();
+        alert('項目規格圖片上傳成功！');
+      } else {
+        alert(json.message || '圖片上傳失敗');
+      }
+    } catch(e){ alert('圖片上傳發生錯誤'); }
+  }
+
+  function setVal(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.value = (val !== undefined && val !== null) ? val : '';
+  }
+
+  function openProductModal(p = null) {
+    setVal('prod-edit-id', p ? p.id : '');
+    setVal('prod-edit-name', p ? p.name : '');
+    setVal('prod-edit-category', p ? p.category : '3d-print');
+    setVal('prod-edit-material', p ? p.material : 'TPU_95A');
+    setVal('prod-edit-price', p ? p.price : '45.00');
+    setVal('prod-edit-cost', p ? (p.cost_price || 15.00) : '15.00');
+    setVal('prod-edit-uv-cost', p ? (p.uv_cost_price || 5.00) : '5.00');
+    setVal('prod-edit-badge', p ? p.badge : '');
+    setVal('prod-edit-image', p ? p.image_url : '');
+    
+    let multiImgsText = '';
+    try {
+      const arr = JSON.parse(p ? p.images_json : '[]');
+      multiImgsText = Array.isArray(arr) ? arr.join('\n') : '';
+    } catch(e){}
+    setVal('prod-edit-images-list', multiImgsText);
+    setVal('prod-edit-desc', p ? p.description : '');
+
+    currentProductItems = [];
+    if (p) {
+      try {
+        if (typeof p.items_json === 'string') {
+          currentProductItems = JSON.parse(p.items_json || '[]');
+        } else if (Array.isArray(p.items_json)) {
+          currentProductItems = p.items_json;
+        }
+      } catch(e){ currentProductItems = []; }
+    }
+    renderProductItemsList();
+
+    const modal = document.getElementById('modal-product');
+    if (modal) {
+      modal.classList.remove('hidden');
+    } else {
+      console.error("modal-product element not found in DOM");
+    }
+  }
+
+  function editProduct(id) {
+    const p = productsList.find(item => item.id === id);
+    if (p) openProductModal(p);
+  }
+
+  async function saveProductSubmit() {
+    const imagesRaw = document.getElementById('prod-edit-images-list').value.split('\n').map(s => s.trim()).filter(Boolean);
+    const payload = {
+      id: document.getElementById('prod-edit-id').value,
+      name: document.getElementById('prod-edit-name').value.trim(),
+      category: document.getElementById('prod-edit-category').value,
+      material: document.getElementById('prod-edit-material').value,
+      price: parseFloat(document.getElementById('prod-edit-price').value || 0),
+      cost_price: parseFloat(document.getElementById('prod-edit-cost').value || 0),
+      uv_cost_price: parseFloat(document.getElementById('prod-edit-uv-cost').value || 0),
+      badge: document.getElementById('prod-edit-badge').value.trim(),
+      image_url: document.getElementById('prod-edit-image').value.trim() || (imagesRaw[0] || ''),
+      images: imagesRaw,
+      description: document.getElementById('prod-edit-desc').value.trim(),
+      items: currentProductItems
+    };
+
+    const res = await fetch('/api/admin/products', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('商品資料與項目規格已成功儲存！');
+      closeModal('modal-product');
+      loadProducts();
+    } else { alert(json.message); }
+  }
+
+  async function deleteProduct(id) {
+    if (!confirm('確定要下架刪除此商品嗎？')) return;
+    const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.status === 'success') { loadProducts(); }
+  }
+
+  // Inventory Logs
+  async function loadInventoryLogs() {
+    try {
+      const res = await fetch('/api/admin/inventory');
+      const json = await res.json();
+      if (json.status === 'success') {
+        inventoryLogsList = json.data || [];
+        renderInventoryLogsTable();
+        renderProductsTable();
+      }
+    } catch(e){}
+  }
+
+  function renderInventoryLogsTable() {
+    const tbody = document.getElementById('inventory-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = inventoryLogsList.map(l => `
+      <tr class="hover:bg-surface-container/50">
+        <td class="p-3 text-on-surface-variant">${l.purchase_date}</td>
+        <td class="p-3 font-bold text-white">${l.product_name}</td>
+        <td class="p-3 text-line-green font-bold">${l.item_name || '-'}</td>
+        <td class="p-3 text-line-green font-bold">+${l.purchase_qty} 件</td>
+        <td class="p-3 text-primary-fixed font-bold">${l.operator_name || '管理員'}</td>
+        <td class="p-3">${l.supplier} / ${l.remark || '-'}</td>
+        <td class="p-3 text-right whitespace-nowrap">
+          <button onclick="editInventoryLog(${l.id})" class="text-primary-fixed hover:underline mr-2 font-bold">修改</button>
+          <button onclick="deleteInventoryLog(${l.id})" class="text-error hover:underline font-bold">刪除</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  // --- Material Purchases JS ---
+  let materialPurchasesList = [];
+
+  async function loadMaterialPurchases() {
+    try {
+      const res = await fetch('/api/admin/material-purchases');
+      const json = await res.json();
+      if (json.status === 'success') {
+        materialPurchasesList = json.data || [];
+        renderMaterialPurchasesTable();
+      }
+    } catch(e){ console.error("Error loading material purchases:", e); }
+    loadMaterialNamesForDatalist();
+  }
+
+  async function loadMaterialNamesForDatalist() {
+    try {
+      const res = await fetch('/api/admin/material-names');
+      const json = await res.json();
+      if (json.status === 'success' && Array.isArray(json.data)) {
+        const datalist = document.getElementById('mat-name-list');
+        if (datalist) {
+          datalist.innerHTML = json.data.map(name => `<option value="${name}"></option>`).join('');
+        }
+      }
+
+      const supRes = await fetch('/api/admin/material-suppliers');
+      const supJson = await supRes.json();
+      if (supJson.status === 'success' && Array.isArray(supJson.data)) {
+        const supDatalist = document.getElementById('mat-supplier-list');
+        if (supDatalist) {
+          supDatalist.innerHTML = supJson.data.map(sup => `<option value="${sup}"></option>`).join('');
+        }
+      }
+    } catch(e){}
+  }
+
+  function renderMaterialPurchasesTable() {
+    const tbody = document.getElementById('material-inventory-table-body');
+    if (!tbody) return;
+    if (materialPurchasesList.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" class="p-4 text-center text-gray-400 italic">尚無耗材進貨紀錄。請點擊右上角【🧪 耗材進貨服務】新增進貨單。</td>
+        </tr>
+      `;
+      return;
+    }
+    tbody.innerHTML = materialPurchasesList.map(m => `
+      <tr class="hover:bg-surface-container/50">
+        <td class="p-3 text-on-surface-variant">${m.purchase_date || '-'}</td>
+        <td class="p-3 font-bold text-white">${m.material_name}</td>
+        <td class="p-3 text-cyan-300 font-bold">${m.total_capacity || '-'}</td>
+        <td class="p-3 text-amber-400 font-bold">$${parseFloat(m.purchase_cost || 0).toFixed(2)}</td>
+        <td class="p-3 text-cyan-400 font-bold">+${m.purchase_qty}</td>
+        <td class="p-3 text-primary-fixed font-bold">${m.operator_name || '管理員'}</td>
+        <td class="p-3">${m.supplier || '-'} / ${m.remark || '-'}</td>
+        <td class="p-3 text-right whitespace-nowrap">
+          <button onclick="editMaterialLog(${m.id})" class="text-primary-fixed hover:underline mr-2 font-bold">修改</button>
+          <button onclick="deleteMaterialLog(${m.id})" class="text-error hover:underline font-bold">刪除</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function openMaterialPurchaseModal() {
+    const now = new Date();
+    const localIso = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+    setVal('mat-date', localIso);
+    setVal('mat-name', '');
+    setVal('mat-capacity', '');
+    setVal('mat-cost', '10.00');
+    setVal('mat-qty', '10');
+    setVal('mat-supplier', '');
+    setVal('mat-remark', '');
+    loadMaterialNamesForDatalist();
+    const modal = document.getElementById('modal-material-purchase');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  async function saveMaterialPurchaseSubmit() {
+    const material_name = document.getElementById('mat-name').value.trim();
+    if (!material_name) {
+      alert('請輸入或選擇耗材名稱！');
+      return;
+    }
+
+    const rawDate = document.getElementById('mat-date').value;
+    const formattedDate = rawDate ? rawDate.replace('T', ' ') + ':00' : '';
+
+    const payload = {
+      material_name: material_name,
+      total_capacity: document.getElementById('mat-capacity').value.trim(),
+      purchase_cost: parseFloat(document.getElementById('mat-cost').value || 0),
+      purchase_qty: parseInt(document.getElementById('mat-qty').value || 0),
+      supplier: document.getElementById('mat-supplier').value.trim(),
+      remark: document.getElementById('mat-remark').value.trim(),
+      purchase_date: formattedDate
+    };
+
+    const res = await fetch('/api/admin/material-purchases', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('耗材進貨紀錄已成功儲存！');
+      closeModal('modal-material-purchase');
+      loadMaterialPurchases();
+    } else { alert(json.message); }
+  }
+
+  function editMaterialLog(logId) {
+    const log = materialPurchasesList.find(m => String(m.id) === String(logId));
+    if (!log) return;
+    setVal('mat-edit-log-id', log.id);
+    setVal('mat-edit-date', log.purchase_date || '');
+    setVal('mat-edit-name', log.material_name);
+    setVal('mat-edit-capacity', log.total_capacity || '');
+    setVal('mat-edit-cost', log.purchase_cost);
+    setVal('mat-edit-qty', log.purchase_qty);
+    setVal('mat-edit-operator', log.operator_name || '管理員');
+    setVal('mat-edit-supplier', log.supplier);
+    setVal('mat-edit-remark', log.remark);
+    const modal = document.getElementById('modal-material-log-edit');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  async function saveMaterialLogEditSubmit() {
+    const logId = document.getElementById('mat-edit-log-id').value;
+    const payload = {
+      purchase_date: document.getElementById('mat-edit-date').value.trim(),
+      material_name: document.getElementById('mat-edit-name').value.trim(),
+      total_capacity: document.getElementById('mat-edit-capacity').value.trim(),
+      purchase_cost: parseFloat(document.getElementById('mat-edit-cost').value || 0),
+      purchase_qty: parseInt(document.getElementById('mat-edit-qty').value || 0),
+      supplier: document.getElementById('mat-edit-supplier').value.trim(),
+      remark: document.getElementById('mat-edit-remark').value.trim()
+    };
+
+    const res = await fetch(`/api/admin/material-purchases/${logId}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('耗材進貨紀錄已成功修改！');
+      closeModal('modal-material-log-edit');
+      loadMaterialPurchases();
+    } else { alert(json.message); }
+  }
+
+  async function deleteMaterialLog(logId) {
+    if (!confirm('確定要刪除此筆耗材進貨紀錄嗎？')) return;
+    const res = await fetch(`/api/admin/material-purchases/${logId}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('耗材進貨紀錄已成功刪除！');
+      loadMaterialPurchases();
+    } else { alert(json.message); }
+  }
+
+  function editInventoryLog(logId) {
+    const log = inventoryLogsList.find(l => String(l.id) === String(logId));
+    if (!log) return;
+    setVal('inv-edit-log-id', log.id);
+    setVal('inv-edit-product-name', log.product_name);
+    setVal('inv-edit-item-name', log.item_name || '-');
+    setVal('inv-edit-qty', log.purchase_qty);
+    setVal('inv-edit-cost', log.purchase_cost);
+    setVal('inv-edit-supplier', log.supplier);
+    setVal('inv-edit-remark', log.remark);
+    const modal = document.getElementById('modal-inventory-log-edit');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  async function saveInventoryLogEditSubmit() {
+    const logId = document.getElementById('inv-edit-log-id').value;
+    const payload = {
+      item_name: document.getElementById('inv-edit-item-name').value.trim() || '-',
+      purchase_qty: parseInt(document.getElementById('inv-edit-qty').value || 0),
+      purchase_cost: parseFloat(document.getElementById('inv-edit-cost').value || 0),
+      supplier: document.getElementById('inv-edit-supplier').value.trim(),
+      remark: document.getElementById('inv-edit-remark').value.trim()
+    };
+
+    const res = await fetch(`/api/admin/inventory/${logId}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('進貨紀錄已成功修改！');
+      closeModal('modal-inventory-log-edit');
+      loadInventoryLogs();
+    } else { alert(json.message); }
+  }
+
+  async function deleteInventoryLog(logId) {
+    if (!confirm('確定要刪除此筆進貨紀錄嗎？刪除後將重新計算目前庫存數值。')) return;
+    const res = await fetch(`/api/admin/inventory/${logId}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('進貨紀錄已成功刪除！');
+      loadInventoryLogs();
+    } else { alert(json.message); }
+  }
+
+  function updateInventorySelect() {
+    const select = document.getElementById('inv-product-select');
+    select.innerHTML = productsList.map(p => {
+      const calculatedStock = calcCalculatedStock(p.id, '-');
+      return `<option value="${p.id}">${p.name} (庫存: ${calculatedStock})</option>`;
+    }).join('');
+    onInventoryProductChange();
+  }
+
+  function onInventoryProductChange() {
+    const prodId = document.getElementById('inv-product-select').value;
+    const prod = productsList.find(p => p.id === prodId);
+    const wrapper = document.getElementById('inv-item-select-wrapper');
+    const itemSelect = document.getElementById('inv-item-select');
+    
+    let itemsArr = [];
+    if (prod) {
+      try {
+        if (typeof prod.items_json === 'string') itemsArr = JSON.parse(prod.items_json || '[]');
+        else if (Array.isArray(prod.items_json)) itemsArr = prod.items_json;
+      } catch(e){}
+    }
+
+    if (itemsArr && itemsArr.length > 0) {
+      wrapper.classList.remove('hidden');
+      itemSelect.innerHTML = `<option value="-">-- 全品項預設/主商品 --</option>` + 
+        itemsArr.map((item) => {
+          const itemStock = calcCalculatedStock(prod.id, item.name);
+          return `<option value="${item.name}">${item.name} (庫存: ${itemStock})</option>`;
+        }).join('');
+    } else {
+      wrapper.classList.add('hidden');
+      itemSelect.innerHTML = `<option value="-">-</option>`;
+    }
+
+    const defaultCost = prod ? (prod.cost_price || 15.00) : 15.00;
+    document.getElementById('inv-cost').value = defaultCost;
+  }
+
+  function onInventoryItemChange() {
+    const prodId = document.getElementById('inv-product-select').value;
+    const prod = productsList.find(p => p.id === prodId);
+    const selectedItemName = document.getElementById('inv-item-select').value;
+
+    if (prod && selectedItemName !== '-') {
+      let itemsArr = [];
+      try {
+        if (typeof prod.items_json === 'string') itemsArr = JSON.parse(prod.items_json || '[]');
+        else if (Array.isArray(prod.items_json)) itemsArr = prod.items_json;
+      } catch(e){}
+      
+      const matchedItem = itemsArr.find(i => i.name === selectedItemName);
+      if (matchedItem && matchedItem.cost_price !== undefined) {
+        document.getElementById('inv-cost').value = matchedItem.cost_price;
+      }
+    }
+  }
+
+  function openInventoryModal() {
+    updateInventorySelect();
+    document.getElementById('modal-inventory').classList.remove('hidden');
+  }
+
+  async function saveInventorySubmit() {
+    const prodId = document.getElementById('inv-product-select').value;
+    const prod = productsList.find(p => p.id === prodId);
+    const itemName = document.getElementById('inv-item-select').value || '-';
+
+    const payload = {
+      product_id: prodId,
+      product_name: prod ? prod.name : '自訂進貨品項',
+      item_name: itemName,
+      purchase_qty: parseInt(document.getElementById('inv-qty').value || 0),
+      purchase_cost: parseFloat(document.getElementById('inv-cost').value || 0),
+      supplier: document.getElementById('inv-supplier').value.trim(),
+      remark: document.getElementById('inv-remark').value.trim()
+    };
+
+    const res = await fetch('/api/admin/inventory', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('進貨紀錄已儲存！');
+      closeModal('modal-inventory');
+      loadProducts();
+      loadInventoryLogs();
+    } else { alert(json.message); }
+  }
+
+  // --- LINE Groups & Broadcast Logic ---
+  let groupsList = [];
+  async function loadLineGroups() {
+    try {
+      const res = await fetch('/api/admin/line-groups');
+      const json = await res.json();
+      if (json.status === 'success') {
+        groupsList = json.data;
+        renderLineGroups();
+      }
+    } catch(e){}
+  }
+
+  function renderLineGroups() {
+    const tbody = document.getElementById('line-group-table-body');
+    if (!groupsList || groupsList.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-500 italic">目前尚未建立任何 LINE 群組</td></tr>`;
+    } else {
+      tbody.innerHTML = groupsList.map(g => {
+        const createdDate = g.created_at ? g.created_at.substring(0, 10) : '2026-06-19';
+        return `
+          <tr class="hover:bg-surface-container/60 transition-colors">
+            <td class="p-3 font-mono text-gray-400">${createdDate}</td>
+            <td class="p-3 font-bold text-line-green">${g.name}</td>
+            <td class="p-3 font-mono text-gray-300">${g.id}</td>
+            <td class="p-3 text-right">
+              <button onclick="editLineGroup('${g.id}')" class="text-primary-fixed hover:underline mr-3 font-bold">修改</button>
+              <button onclick="deleteLineGroup('${g.id}')" class="text-error hover:underline font-bold">刪除</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    renderLineSendGroupCards();
+  }
+
+  let selectedSendFiles = [];
+  let isAllGroupsSelected = false;
+
+  function renderLineSendGroupCards() {
+    const container = document.getElementById('send-groups-cards-container');
+    if (!container) return;
+
+    if (!groupsList || groupsList.length === 0) {
+      container.innerHTML = `
+        <div class="col-span-full bg-surface-container border border-dashed border-outline-variant p-6 rounded-xl text-center text-on-surface-variant text-xs">
+          目前尚無可發送的 LINE 群組，請至【LINE 群組維護】新增群組。
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = groupsList.map((g) => `
+      <label class="relative cursor-pointer select-none">
+        <input type="checkbox" name="send_group_ids" value="${g.id}" class="sr-only send-group-checkbox" onchange="updateGroupCardStyle(this)" />
+        <div class="send-group-card border border-outline-variant hover:border-line-green rounded-xl p-3.5 flex items-center justify-between transition-all bg-surface-container">
+          <div class="truncate">
+            <span class="text-xs font-bold text-white block truncate">${g.name}</span>
+            <span class="text-[10px] text-gray-400 font-mono block truncate">${g.id}</span>
+          </div>
+          <span class="material-symbols-outlined text-lg text-line-green hidden check-icon">check_circle</span>
+        </div>
+      </label>
+    `).join('');
+  }
+
+  function updateGroupCardStyle(checkbox) {
+    const card = checkbox.nextElementSibling;
+    const icon = card.querySelector('.check-icon');
+    if (checkbox.checked) {
+      card.classList.add('border-line-green', 'bg-line-green/10', 'text-line-green', 'shadow-md');
+      icon.classList.remove('hidden');
+    } else {
+      card.classList.remove('border-line-green', 'bg-line-green/10', 'text-line-green', 'shadow-md');
+      icon.classList.add('hidden');
+    }
+  }
+
+  function toggleSelectAllGroups() {
+    const checkboxes = document.querySelectorAll('.send-group-checkbox');
+    isAllGroupsSelected = !isAllGroupsSelected;
+    checkboxes.forEach(cb => {
+      cb.checked = isAllGroupsSelected;
+      updateGroupCardStyle(cb);
+    });
+  }
+
+  function handleSelectedFilesChange(files) {
+    selectedSendFiles = Array.from(files);
+    const container = document.getElementById('selected-files-list');
+    const label = document.getElementById('file-count-label');
+
+    if (!container || !label) return;
+
+    container.innerHTML = '';
+    if (selectedSendFiles.length > 0) {
+      label.textContent = `已選擇 ${selectedSendFiles.length} 個檔案`;
+      selectedSendFiles.forEach((file, index) => {
+        const tag = document.createElement('div');
+        tag.className = 'bg-surface-container border border-line-green/40 px-3 py-1.5 rounded-lg text-xs text-white flex items-center gap-2 font-mono';
+        tag.innerHTML = `
+          <span class="material-symbols-outlined text-line-green text-sm">attach_file</span>
+          <span class="truncate max-w-[200px]">${file.name} (${(file.size/1024).toFixed(1)} KB)</span>
+          <button type="button" onclick="removeSelectedFile(${index})" class="text-gray-400 hover:text-error text-xs font-bold ml-1">✕</button>
+        `;
+        container.appendChild(tag);
+      });
+    } else {
+      label.textContent = '點擊或拖曳檔案至此';
+    }
+  }
+
+  function removeSelectedFile(index) {
+    selectedSendFiles.splice(index, 1);
+    const container = document.getElementById('selected-files-list');
+    const label = document.getElementById('file-count-label');
+
+    container.innerHTML = '';
+    if (selectedSendFiles.length > 0) {
+      label.textContent = `已選擇 ${selectedSendFiles.length} 個檔案`;
+      selectedSendFiles.forEach((file, idx) => {
+        const tag = document.createElement('div');
+        tag.className = 'bg-surface-container border border-line-green/40 px-3 py-1.5 rounded-lg text-xs text-white flex items-center gap-2 font-mono';
+        tag.innerHTML = `
+          <span class="material-symbols-outlined text-line-green text-sm">attach_file</span>
+          <span class="truncate max-w-[200px]">${file.name} (${(file.size/1024).toFixed(1)} KB)</span>
+          <button type="button" onclick="removeSelectedFile(${idx})" class="text-gray-400 hover:text-error text-xs font-bold ml-1">✕</button>
+        `;
+        container.appendChild(tag);
+      });
+    } else {
+      label.textContent = '點擊或拖曳檔案至此';
+    }
+  }
+
+  async function handleLineBatchSendSubmit(e) {
+    e.preventDefault();
+    const checkedCbs = document.querySelectorAll('.send-group-checkbox:checked');
+    const selectedGroupIds = Array.from(checkedCbs).map(cb => cb.value);
+    const messageText = document.getElementById('batch-send-text').value.trim();
+
+    if (selectedGroupIds.length === 0) {
+      alert('請至少選擇一個發送群組 (可複選)！');
+      return;
+    }
+
+    if (!messageText && selectedSendFiles.length === 0) {
+      alert('請輸入文字訊息內容或選擇附件檔案！');
+      return;
+    }
+
+    const btn = document.getElementById('btn-batch-send-submit');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="animate-spin material-symbols-outlined">sync</span> 圖片上傳與 LINE 推播中，請稍候...`;
+
+    try {
+      const formData = new FormData();
+      selectedGroupIds.forEach(gid => formData.append('group_ids', gid));
+      formData.append('message', messageText);
+
+      selectedSendFiles.forEach(file => {
+        formData.append('files', file);
+      });
+
+      const res = await fetch('/api/admin/line/broadcast', {
+        method: 'POST',
+        body: formData
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert(`🎉 ${json.message}`);
+        document.getElementById('batch-send-text').value = '';
+        selectedSendFiles = [];
+        handleSelectedFilesChange([]);
+      } else {
+        alert(json.message || '發送失敗');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('發送過程中發生連線錯誤');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<span class="material-symbols-outlined">send</span> 確認發送群組訊息`;
+    }
+  }
+
+  async function saveLineGroupForm() {
+    const gId = document.getElementById('group-input-gid').value.trim();
+    const gName = document.getElementById('group-input-name').value.trim();
+
+    if (!gName || !gId) {
+      alert('請填寫群組名稱與群組 GID！');
+      return;
+    }
+
+    const res = await fetch('/api/admin/line-groups', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ id: gId, name: gName, description: '管理員維護之通知群組' })
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('LINE 群組設定儲存成功！');
+      resetLineGroupForm();
+      loadLineGroups();
+    } else { alert(json.message || '儲存失敗'); }
+  }
+
+  function editLineGroup(id) {
+    const g = groupsList.find(item => item.id === id);
+    if (g) {
+      document.getElementById('group-edit-id').value = g.id;
+      document.getElementById('group-input-name').value = g.name;
+      document.getElementById('group-input-gid').value = g.id;
+
+      document.getElementById('group-form-title').textContent = "修改 LINE 群組";
+      document.getElementById('btn-save-group').textContent = "儲存變更";
+      document.getElementById('btn-cancel-group').classList.remove('hidden');
+    }
+  }
+
+  function resetLineGroupForm() {
+    document.getElementById('group-edit-id').value = "";
+    document.getElementById('group-input-name').value = "";
+    document.getElementById('group-input-gid').value = "";
+
+    document.getElementById('group-form-title').textContent = "新增 LINE 群組";
+    document.getElementById('btn-save-group').textContent = "確認新增";
+    document.getElementById('btn-cancel-group').classList.add('hidden');
+  }
+
+  async function sendLineGroupBroadcast() {
+    const groupId = document.getElementById('send-group-select').value;
+    const message = document.getElementById('send-message-text').value.trim();
+    if (!message) return alert('請輸入推播訊息內容！');
+
+    const res = await fetch('/api/admin/line/broadcast', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ group_id: groupId, message })
+    });
+    const json = await res.json();
+    alert(`[LINE Push] ${json.message}`);
+    document.getElementById('send-message-text').value = '';
+  }
+
+  async function deleteLineGroup(id) {
+    if (!confirm('確定刪除此群組設定嗎？')) return;
+    await fetch(`/api/admin/line-groups/${id}`, { method: 'DELETE' });
+    loadLineGroups();
+  }
+
+  // --- Bulletin Management Logic ---
+  let bulletinsList = [];
+  async function loadBulletins() {
+    try {
+      const res = await fetch('/api/bulletins');
+      const json = await res.json();
+      if (json.status === 'success') {
+        bulletinsList = json.data;
+        renderAdminBulletins();
+      }
+    } catch(e){}
+  }
+
+  function renderAdminBulletins() {
+    const container = document.getElementById('admin-bulletin-list');
+    container.innerHTML = bulletinsList.map(b => `
+      <div class="bg-surface-container-low border ${b.is_pinned ? 'border-secondary-container' : 'border-outline-variant'} p-4 flex justify-between items-start">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] bg-primary-fixed/20 text-primary-fixed border border-primary-fixed px-1.5 font-bold">[${b.tag}]</span>
+            ${b.is_pinned ? '<span class="text-[10px] bg-secondary-container text-white px-1.5 font-bold">置頂</span>' : ''}
+            <span class="text-xs font-bold text-white">${b.title}</span>
+          </div>
+          <p class="text-xs text-on-surface-variant">${b.summary}</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="editBulletin('${b.id}')" class="text-xs text-primary-fixed hover:underline">編輯</button>
+          <button onclick="deleteBulletin('${b.id}')" class="text-xs text-error hover:underline">刪除</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function openBulletinModal(b = null) {
+    document.getElementById('bull-edit-id').value = b ? b.id : '';
+    document.getElementById('bull-edit-title').value = b ? b.title : '';
+    document.getElementById('bull-edit-tag').value = b ? b.tag : '最新公告';
+    document.getElementById('bull-edit-pinned').checked = b ? b.is_pinned : false;
+    document.getElementById('bull-edit-summary').value = b ? b.summary : '';
+    document.getElementById('bull-edit-content').value = b ? b.content : '';
+    document.getElementById('modal-bulletin').classList.remove('hidden');
+  }
+
+  function editBulletin(id) {
+    const b = bulletinsList.find(item => item.id === id);
+    if (b) openBulletinModal(b);
+  }
+
+  async function saveBulletinSubmit() {
+    const payload = {
+      id: document.getElementById('bull-edit-id').value,
+      title: document.getElementById('bull-edit-title').value.trim(),
+      tag: document.getElementById('bull-edit-tag').value.trim(),
+      is_pinned: document.getElementById('bull-edit-pinned').checked,
+      summary: document.getElementById('bull-edit-summary').value.trim(),
+      content: document.getElementById('bull-edit-content').value.trim(),
+      line_broadcasted: document.getElementById('bull-edit-broadcast').checked
+    };
+
+    const res = await fetch('/api/admin/bulletins', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert('公告已儲存並同步處理 LINE 推播！');
+      closeModal('modal-bulletin');
+      loadBulletins();
+    } else { alert(json.message); }
+  }
+
+  async function deleteBulletin(id) {
+    if (!confirm('確定刪除此公告嗎？')) return;
+    await fetch(`/api/admin/bulletins/${id}`, { method: 'DELETE' });
+    loadBulletins();
+  }
+
+  // --- Orders Management & Shipment Calculator JS ---
+  let adminOrdersList = [];
+  let currentShipmentOrder = null;
+
+  async function loadAdminOrdersList() {
+    try {
+      const res = await fetch('/api/admin/orders');
+      const json = await res.json();
+      if (json.status === 'success') {
+        adminOrdersList = json.data || [];
+        renderAdminOrdersTable();
+      }
+    } catch(e) { console.error("Error loading admin orders:", e); }
+  }
+
+  function renderAdminOrdersTable() {
+    const tbody = document.getElementById('orders-table-body');
+    if (!tbody) return;
+    if (adminOrdersList.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" class="p-6 text-center text-gray-400 italic">尚無訂單資料。當使用者在前端購物車結帳時，訂單將自動即時顯示於此。</td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = adminOrdersList.map(o => {
+      let itemsSummary = '';
+      try {
+        const items = typeof o.items_json === 'string' ? JSON.parse(o.items_json || '[]') : (o.items_json || []);
+        itemsSummary = items.map(i => `${i.name || i.product_name} (${i.itemName || i.item_name || '預設規格'}) x ${i.qty || 1}`).join('<br/>');
+      } catch(e) { itemsSummary = o.items_json || '-'; }
+
+      const totalQty = (function(){
+        try {
+          const items = typeof o.items_json === 'string' ? JSON.parse(o.items_json || '[]') : (o.items_json || []);
+          return items.reduce((acc, i) => acc + (i.qty || 1), 0);
+        } catch(e) { return 1; }
+      })();
+
+      const isShipped = o.status === 'SHIPPED' || o.status === 'COMPLETED';
+
+      return `
+        <tr class="hover:bg-surface-container/50">
+          <td class="p-3 text-on-surface-variant whitespace-nowrap">${o.created_at || '-'}</td>
+          <td class="p-3 font-mono text-xs text-cyan-300 font-bold">${o.id}</td>
+          <td class="p-3 text-white font-bold">${itemsSummary || '線上列印作品'}</td>
+          <td class="p-3 text-primary-fixed font-bold">${totalQty} 件</td>
+          <td class="p-3 text-gray-200 font-bold">${o.user_name || '線上會員'} (${o.user_line_id || '-'})</td>
+          <td class="p-3 text-primary-fixed font-black">$${parseFloat(o.total_amount || 0).toFixed(2)}</td>
+          <td class="p-3">
+            <span class="px-2 py-0.5 text-[11px] rounded font-bold ${isShipped ? 'bg-line-green/20 text-line-green border border-line-green' : 'bg-secondary-container/20 text-secondary-container border border-secondary-container'}">
+              ${isShipped ? '已寄送' : '待處理解算'}
+            </span>
+          </td>
+          <td class="p-3 text-right whitespace-nowrap">
+            <button onclick="openOrderShipmentModal('${o.id}')" class="px-2.5 py-1 bg-line-green hover:bg-line-green/80 text-white font-bold rounded text-xs mr-1 shadow">
+              寄送
+            </button>
+            <button onclick="editAdminOrder('${o.id}')" class="px-2.5 py-1 bg-surface-container border border-outline-variant text-gray-200 hover:text-white font-bold rounded text-xs">
+              修改
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function openOrderShipmentModal(orderId) {
+    const order = adminOrdersList.find(o => String(o.id) === String(orderId));
+    if (!order) return;
+    currentShipmentOrder = order;
+
+    document.getElementById('shipment-order-id').value = order.id;
+
+    const prodSelect = document.getElementById('shipment-product-select');
+    prodSelect.innerHTML = '';
+
+    let items = [];
+    try {
+      items = typeof order.items_json === 'string' ? JSON.parse(order.items_json || '[]') : (order.items_json || []);
+    } catch(e) { items = []; }
+
+    if (items.length > 0) {
+      items.forEach((itm, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = `${itm.name || itm.product_name} (${itm.itemName || itm.item_name || '預設規格'}) x ${itm.qty || 1} 件`;
+        prodSelect.appendChild(opt);
+      });
+    } else {
+      const opt = document.createElement('option');
+      opt.value = 0;
+      opt.textContent = `訂單作品 #${order.id} x 1 件`;
+      prodSelect.appendChild(opt);
+    }
+
+    const totalAmount = parseFloat(order.total_amount || 0);
+    document.getElementById('shipment-sales-total').textContent = `$${totalAmount.toFixed(2)}`;
+
+    const tbody = document.getElementById('shipment-materials-tbody');
+    tbody.innerHTML = '';
+
+    await loadMaterialNamesForDatalist();
+    addShipmentMaterialRow();
+
+    calculateShipmentNetProfit();
+
+    const modal = document.getElementById('modal-order-shipment');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  function addShipmentMaterialRow() {
+    const tbody = document.getElementById('shipment-materials-tbody');
+    if (!tbody) return;
+
+    const rowId = 'mat-row-' + Date.now() + '-' + Math.floor(Math.random()*1000);
+    const tr = document.createElement('tr');
+    tr.id = rowId;
+    tr.className = 'hover:bg-surface-container/40';
+
+    const matNames = (function(){
+      const list = document.getElementById('mat-name-list');
+      if (!list) return [];
+      return Array.from(list.options).map(o => o.value);
+    })();
+
+    const optionsHtml = matNames.map(n => `<option value="${n}">${n}</option>`).join('');
+
+    tr.innerHTML = `
+      <td class="p-1.5">
+        <input type="text" list="mat-name-list" class="shipment-mat-name w-full bg-surface-container border border-outline-variant text-white p-1 rounded outline-none text-xs" placeholder="輸入或選擇耗材" />
+      </td>
+      <td class="p-1.5">
+        <input type="number" step="1" class="shipment-mat-qty w-full bg-surface-container border border-outline-variant text-cyan-300 font-bold p-1 text-center rounded outline-none text-xs" value="150" oninput="calculateShipmentRowCost('${rowId}')" />
+      </td>
+      <td class="p-1.5 text-right">
+        <input type="number" step="0.01" class="shipment-mat-cost w-full bg-surface-container border border-outline-variant text-amber-400 font-bold p-1 text-right rounded outline-none text-xs" value="15.00" oninput="calculateShipmentNetProfit()" />
+      </td>
+      <td class="p-1.5 text-center">
+        <button type="button" onclick="removeShipmentMaterialRow('${rowId}')" class="text-error font-bold text-xs hover:underline">✕</button>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+    calculateShipmentNetProfit();
+  }
+
+  function removeShipmentMaterialRow(rowId) {
+    const tr = document.getElementById(rowId);
+    if (tr) tr.remove();
+    calculateShipmentNetProfit();
+  }
+
+  function calculateShipmentRowCost(rowId) {
+    calculateShipmentNetProfit();
+  }
+
+  function calculateShipmentNetProfit() {
+    if (!currentShipmentOrder) return;
+
+    const salesTotal = parseFloat(currentShipmentOrder.total_amount || 0);
+
+    let totalMaterialCost = 0;
+    const costInputs = document.querySelectorAll('.shipment-mat-cost');
+    costInputs.forEach(inp => {
+      totalMaterialCost += parseFloat(inp.value || 0);
+    });
+
+    document.getElementById('shipment-total-material-cost').textContent = `$${totalMaterialCost.toFixed(2)}`;
+
+    const otherCost = parseFloat(document.getElementById('shipment-other-cost').value || 0);
+    const shippingCost = parseFloat(document.getElementById('shipment-shipping-cost').value || 0);
+
+    const netProfit = salesTotal - totalMaterialCost - otherCost - shippingCost;
+    document.getElementById('shipment-net-profit').textContent = `$${netProfit.toFixed(2)}`;
+  }
+
+  async function submitOrderShipmentConfirm() {
+    if (!currentShipmentOrder) return;
+    const orderId = currentShipmentOrder.id;
+
+    const otherCost = parseFloat(document.getElementById('shipment-other-cost').value || 0);
+    const shippingCost = parseFloat(document.getElementById('shipment-shipping-cost').value || 0);
+    const netProfitText = document.getElementById('shipment-net-profit').textContent.replace('$', '');
+    const netProfit = parseFloat(netProfitText || 0);
+
+    const res = await fetch(`/api/admin/orders/${orderId}/ship`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        status: 'SHIPPED',
+        other_cost: otherCost,
+        shipping_cost: shippingCost,
+        net_profit: netProfit
+      })
+    });
+
+    const json = await res.json();
+    if (json.status === 'success') {
+      alert(`訂單 #${orderId} 已成功執行寄送！精算淨利潤: $${netProfit.toFixed(2)}`);
+      closeModal('modal-order-shipment');
+      loadAdminOrdersList();
+    } else {
+      alert(json.message || '執行寄送失敗');
+    }
+  }
+
+  function editAdminOrder(orderId) {
+    alert(`[修改訂單機能]\n已載入訂單 #${orderId} 狀態，可手動更新相關資訊。`);
+  }
+</script>

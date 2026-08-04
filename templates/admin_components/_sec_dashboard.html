@@ -1,0 +1,114 @@
+<!-- SECTION 1: DASHBOARD (儀表板首頁) -->
+<div id="sec-dashboard" class="space-y-6">
+  <div>
+    <h1 class="font-display-lg text-2xl md:text-3xl italic font-black text-white">管理員後台</h1>
+    <p class="font-label-caps text-xs text-on-surface-variant">歡迎回來，管理員。請點擊下方卡片進入各項系統管理模組。</p>
+  </div>
+
+  <!-- Top Modules Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    
+    <!-- Card 1: 成員清單管理 -->
+    <div class="bg-surface-container-low p-6 border border-outline-variant hover:border-primary-fixed transition-all flex flex-col justify-between scanline">
+      <div class="space-y-3">
+        <div class="w-12 h-12 bg-primary-fixed/20 text-primary-fixed rounded flex items-center justify-center">
+          <span class="material-symbols-outlined text-2xl">manage_accounts</span>
+        </div>
+        <h3 class="font-headline-md text-lg italic font-bold text-white">成員清單管理</h3>
+        <p class="text-xs text-on-surface-variant leading-relaxed">
+          查看系統已註冊的會員資料、修改角色權限 (管理員/一般會員) 或進行帳號維護。
+        </p>
+      </div>
+      <button onclick="switchAdminSection('users')" class="mt-6 w-full py-2 bg-primary-fixed text-on-primary-fixed font-label-caps font-bold italic text-xs hover:glow-primary transition-all">
+        管理成員
+      </button>
+    </div>
+
+    <!-- Card 2: 商品與進貨維護 -->
+    <div class="bg-surface-container-low p-6 border border-outline-variant hover:border-primary-fixed transition-all flex flex-col justify-between scanline">
+      <div class="space-y-3">
+        <div class="w-12 h-12 bg-secondary-container/20 text-secondary-container rounded flex items-center justify-center">
+          <span class="material-symbols-outlined text-2xl">style</span>
+        </div>
+        <h3 class="font-headline-md text-lg italic font-bold text-white">商品與進貨維護</h3>
+        <p class="text-xs text-on-surface-variant leading-relaxed">
+          維護商品清單，支援多圖上傳相簿、3D設計成本計算、庫存追蹤與進貨單記錄服務。
+        </p>
+      </div>
+      <button onclick="switchAdminSection('products')" class="mt-6 w-full py-2 bg-secondary-container text-white font-label-caps font-bold italic text-xs hover:shadow-[0_0_12px_rgba(254,107,0,0.5)] transition-all">
+        管理商品與進貨
+      </button>
+    </div>
+
+    <!-- Card 3: 公佈欄編輯與廣播 -->
+    <div class="bg-surface-container-low p-6 border border-outline-variant hover:border-primary-fixed transition-all flex flex-col justify-between scanline">
+      <div class="space-y-3">
+        <div class="w-12 h-12 bg-line-green/20 text-line-green rounded flex items-center justify-center">
+          <span class="material-symbols-outlined text-2xl">campaign</span>
+        </div>
+        <h3 class="font-headline-md text-lg italic font-bold text-white">公佈欄與訊息廣播</h3>
+        <p class="text-xs text-on-surface-variant leading-relaxed">
+          發布與管理首頁最新公告，支援圖片附件上傳，並能一鍵廣播至 LINE 社團。
+        </p>
+      </div>
+      <button onclick="switchAdminSection('bulletins')" class="mt-6 w-full py-2 bg-line-green text-white font-label-caps font-bold italic text-xs hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all">
+        管理公告與推播
+      </button>
+    </div>
+
+  </div>
+
+  <!-- LINE與各項群組功能區塊 -->
+  <div class="pt-6 border-t border-outline-variant">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="material-symbols-outlined text-line-green text-2xl">forum</span>
+      <h2 class="font-headline-md text-xl italic font-bold text-white">LINE 與各項群組功能</h2>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      
+      <!-- 1. LINE 群組維護 -->
+      <div class="bg-surface-container-low p-5 border border-line-green/40 flex flex-col justify-between">
+        <div class="space-y-2">
+          <div class="w-10 h-10 bg-line-green/20 text-line-green rounded flex items-center justify-center">
+            <span class="material-symbols-outlined text-xl">settings_suggest</span>
+          </div>
+          <h4 class="font-bold text-white text-base">LINE 群組維護</h4>
+          <p class="text-xs text-on-surface-variant">管理通知發送群組 ID、群組說明與權限設定。</p>
+        </div>
+        <button onclick="switchAdminSection('line-groups')" class="mt-4 py-2 bg-surface-container border border-line-green text-line-green font-label-caps text-xs font-bold hover:bg-line-green hover:text-white transition-all">
+          維護群組 ID
+        </button>
+      </div>
+
+      <!-- 2. 發送群組訊息 -->
+      <div class="bg-surface-container-low p-5 border border-line-green/40 flex flex-col justify-between">
+        <div class="space-y-2">
+          <div class="w-10 h-10 bg-line-green/20 text-line-green rounded flex items-center justify-center">
+            <span class="material-symbols-outlined text-xl">send</span>
+          </div>
+          <h4 class="font-bold text-white text-base">發送群組訊息 (文字/圖片)</h4>
+          <p class="text-xs text-on-surface-variant">批量傳送文字公告或圖片/檔案至指定的 LINE 群組。</p>
+        </div>
+        <button onclick="switchAdminSection('line-send')" class="mt-4 py-2 bg-line-green text-white font-label-caps text-xs font-bold hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all">
+          開啟群發訊息
+        </button>
+      </div>
+
+      <!-- 3. 公佈欄訊息維護 -->
+      <div class="bg-surface-container-low p-5 border border-line-green/40 flex flex-col justify-between">
+        <div class="space-y-2">
+          <div class="w-10 h-10 bg-line-green/20 text-line-green rounded flex items-center justify-center">
+            <span class="material-symbols-outlined text-xl">mark_chat_read</span>
+          </div>
+          <h4 class="font-bold text-white text-base">公佈欄訊息維護</h4>
+          <p class="text-xs text-on-surface-variant">發布與管理首頁最新公告，支援圖片與附件上傳。</p>
+        </div>
+        <button onclick="switchAdminSection('bulletins')" class="mt-4 py-1.5 bg-surface-container border border-line-green text-line-green font-label-caps text-xs hover:bg-line-green hover:text-white transition-all">
+          管理公告
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>

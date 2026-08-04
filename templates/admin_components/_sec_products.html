@@ -1,0 +1,115 @@
+<!-- SECTION 3: PRODUCT & INVENTORY MANAGEMENT (商品與進貨維護) -->
+<div id="sec-products" class="hidden space-y-6">
+  <div>
+    <h2 class="font-display-lg text-2xl italic font-black text-white">商品與進貨維護</h2>
+    <p class="font-label-caps text-xs text-on-surface-variant">包含商品作品維護、商品進貨歷程服務紀錄與獨立耗材進貨維護服務</p>
+  </div>
+
+  <!-- 水平頁籤列 (Tab Nav Buttons) -->
+  <div class="border-b-2 border-outline-variant flex gap-2 font-label-caps text-xs" id="product-tab-bar">
+    <button onclick="switchProductSubTab('products')" id="prod-tab-products" class="px-5 py-3 font-bold italic border-b-4 border-primary-fixed text-primary-fixed bg-surface-container-high transition-all flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm">inventory_2</span> 📦 商品
+    </button>
+    <button onclick="switchProductSubTab('inventory')" id="prod-tab-inventory" class="px-5 py-3 font-bold italic border-b-4 border-transparent text-gray-400 hover:text-white hover:bg-surface-container transition-all flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm">local_shipping</span> 🚚 商品進貨
+    </button>
+    <button onclick="switchProductSubTab('materials')" id="prod-tab-materials" class="px-5 py-3 font-bold italic border-b-4 border-transparent text-gray-400 hover:text-white hover:bg-surface-container transition-all flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm">science</span> 🧪 耗材進貨
+    </button>
+  </div>
+
+  <!-- TAB 1: 商品維護與列表 -->
+  <div id="prod-subtab-products" class="space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary-fixed text-lg">format_list_bulleted</span> 商品與作品清單
+      </h3>
+      <button onclick="openProductModal()" class="px-3.5 py-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs font-bold italic flex items-center gap-1 shadow hover:glow-primary transition-all">
+        <span class="material-symbols-outlined text-sm">add_circle</span> + 新增商品作品
+      </button>
+    </div>
+
+    <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
+      <table class="w-full text-left font-label-caps text-xs">
+        <thead class="bg-surface-container border-b border-outline-variant text-primary-fixed">
+          <tr>
+            <th class="p-3">商品圖片 (主圖/多圖)</th>
+            <th class="p-3">商品名稱</th>
+            <th class="p-3">分類 / 材質/小分類</th>
+            <th class="p-3 text-line-green font-bold">項目名稱</th>
+            <th class="p-3">銷售價 (PRICE)</th>
+            <th class="p-3">目前庫存</th>
+            <th class="p-3 text-right">操作</th>
+          </tr>
+        </thead>
+        <tbody id="product-table-body" class="divide-y divide-outline-variant/40">
+          <!-- Dynamically rendered -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 2: 商品進貨服務與歷程紀錄 -->
+  <div id="prod-subtab-inventory" class="hidden space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary-container text-lg">history</span> 商品進貨歷程服務紀錄
+      </h3>
+      <button onclick="openInventoryModal()" class="px-3.5 py-2 bg-secondary-container text-white font-label-caps text-xs font-bold italic flex items-center gap-1 shadow hover:shadow-[0_0_12px_rgba(254,107,0,0.5)] transition-all">
+        <span class="material-symbols-outlined text-sm">add_box</span> 📦 商品進貨服務
+      </button>
+    </div>
+
+    <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
+      <table class="w-full text-left font-label-caps text-xs">
+        <thead class="bg-surface-container border-b border-outline-variant text-secondary">
+          <tr>
+            <th class="p-3">進貨日期</th>
+            <th class="p-3">商品名稱</th>
+            <th class="p-3 text-line-green font-bold">項目名稱</th>
+            <th class="p-3">進貨數量</th>
+            <th class="p-3 text-primary-fixed font-bold">進貨人員</th>
+            <th class="p-3">供應商 / 備註</th>
+            <th class="p-3 text-right">操作</th>
+          </tr>
+        </thead>
+        <tbody id="inventory-table-body" class="divide-y divide-outline-variant/40">
+          <!-- Dynamically rendered -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 3: 耗材進貨服務與歷程紀錄 -->
+  <div id="prod-subtab-materials" class="hidden space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-2">
+        <span class="material-symbols-outlined text-cyan-400 text-lg">science</span> 耗材進貨歷程服務紀錄
+      </h3>
+      <button onclick="openMaterialPurchaseModal()" class="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-label-caps text-xs font-bold italic flex items-center gap-1 shadow transition-all">
+        <span class="material-symbols-outlined text-sm">add_box</span> 🧪 耗材進貨服務
+      </button>
+    </div>
+
+    <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
+      <table class="w-full text-left font-label-caps text-xs">
+        <thead class="bg-surface-container border-b border-outline-variant text-cyan-400">
+          <tr>
+            <th class="p-3">進貨日期</th>
+            <th class="p-3">耗材名稱</th>
+            <th class="p-3 text-cyan-300">總容量</th>
+            <th class="p-3 text-amber-400">進貨總成本 ($)</th>
+            <th class="p-3">進貨數量</th>
+            <th class="p-3 text-primary-fixed font-bold">進貨人員</th>
+            <th class="p-3">供應商 / 備註</th>
+            <th class="p-3 text-right">操作</th>
+          </tr>
+        </thead>
+        <tbody id="material-inventory-table-body" class="divide-y divide-outline-variant/40">
+          <!-- Dynamically rendered -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>

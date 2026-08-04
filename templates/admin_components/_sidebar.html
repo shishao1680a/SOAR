@@ -1,0 +1,42 @@
+<!-- Sidebar Navigation (左側側邊欄) -->
+<aside class="w-full md:w-64 bg-surface-container-low border-r border-outline-variant p-4 flex-shrink-0">
+  <div class="p-3 bg-surface-container border border-primary-fixed/40 mb-6 flex items-center gap-3">
+    <div class="w-10 h-10 rounded-full bg-primary-fixed/20 text-primary-fixed border border-primary-fixed flex items-center justify-center font-bold text-lg">
+      <span class="material-symbols-outlined">admin_panel_settings</span>
+    </div>
+    <div>
+      <h4 class="font-bold text-white text-xs">管理員中心</h4>
+      <span class="font-label-caps text-[10px] text-primary-fixed">系統最高權限</span>
+    </div>
+  </div>
+
+  <nav class="space-y-1 font-label-caps text-xs">
+    <button onclick="switchAdminSection('dashboard')" id="side-dashboard" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 bg-primary-fixed text-on-primary-fixed">
+      <span class="material-symbols-outlined text-sm">dashboard</span> 儀表板
+    </button>
+
+    <button onclick="switchAdminSection('users')" id="side-users" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+      <span class="material-symbols-outlined text-sm">group</span> 成員管理
+    </button>
+
+    <button onclick="switchAdminSection('products')" id="side-products" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+      <span class="material-symbols-outlined text-sm">inventory_2</span> 商品與進貨維護
+    </button>
+
+    <button onclick="switchAdminSection('orders')" id="side-orders" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+      <span class="material-symbols-outlined text-sm">shopping_cart_checkout</span> 訂單資訊
+    </button>
+
+    <button onclick="switchAdminSection('line-groups')" id="side-line-groups" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+      <span class="material-symbols-outlined text-sm">settings_suggest</span> LINE 群組維護
+    </button>
+
+    <button onclick="switchAdminSection('line-send')" id="side-line-send" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+      <span class="material-symbols-outlined text-sm">send</span> 發送群組訊息
+    </button>
+
+    <button onclick="switchAdminSection('bulletins')" id="side-bulletins" class="w-full text-left p-3 rounded font-bold italic flex items-center gap-2 text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
+      <span class="material-symbols-outlined text-sm">campaign</span> 公佈欄訊息維護
+    </button>
+  </nav>
+</aside>

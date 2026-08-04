@@ -1,0 +1,31 @@
+<!-- SECTION 2: MEMBER MANAGEMENT (成員管理) -->
+<div id="sec-users" class="hidden space-y-6">
+  <div class="flex justify-between items-center">
+    <div>
+      <h2 class="font-display-lg text-2xl italic font-black text-white">成員清單管理</h2>
+      <p class="font-label-caps text-xs text-on-surface-variant">檢視系統已註冊成員、修改角色權限 (管理員/會員) 或新增帳號</p>
+    </div>
+    <button onclick="openUserModal()" class="px-4 py-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs font-bold italic flex items-center gap-1">
+      <span class="material-symbols-outlined text-sm">person_add</span> 新增成員
+    </button>
+  </div>
+
+  <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
+    <table class="w-full text-left font-label-caps text-xs">
+      <thead class="bg-surface-container border-b border-outline-variant text-primary-fixed">
+        <tr>
+          <th class="p-3">姓名 / LINE 暱稱</th>
+          <th class="p-3">帳號 (USERNAME)</th>
+          <th class="p-3">LINE ID</th>
+          <th class="p-3">角色權限</th>
+          <th class="p-3">電話</th>
+          <th class="p-3">註冊時間</th>
+          <th class="p-3 text-right">操作</th>
+        </tr>
+      </thead>
+      <tbody id="user-table-body" class="divide-y divide-outline-variant/40">
+        <!-- Dynamically rendered -->
+      </tbody>
+    </table>
+  </div>
+</div>
