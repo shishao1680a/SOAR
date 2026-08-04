@@ -851,11 +851,6 @@
       </div>
 
       <div>
-        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">供應商 / 廠商名稱</label>
-        <input type="text" id="inv-supplier" value="Bambu 3D 資材供應商" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
-      </div>
-
-      <div>
         <label class="block text-xs font-label-caps text-on-surface-variant mb-1">備註說明</label>
         <input type="text" id="inv-remark" placeholder="進貨批號或進貨單據編號" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
       </div>
@@ -890,10 +885,6 @@
           <label class="block font-bold text-gray-200 mb-1">進貨數量 (件)</label>
           <input type="number" id="inv-edit-qty" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-secondary-container" />
           <input type="hidden" id="inv-edit-cost" value="0.00" />
-        </div>
-        <div>
-          <label class="block font-bold text-gray-200 mb-1">供應商 / 廠商名稱</label>
-          <input type="text" id="inv-edit-supplier" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
         </div>
         <div>
           <label class="block font-bold text-gray-200 mb-1">備註說明</label>
@@ -1558,9 +1549,7 @@
                 <span class="text-line-green font-mono text-[11px]">#${index + 1}</span> ${item.name || '未命名項目'}
               </div>
               <div class="text-[11px] text-gray-300 font-mono mt-0.5">
-                售價: <span class="text-primary-fixed font-bold">$${parseFloat(item.price !== undefined ? item.price : 0).toFixed(2)}</span> | 
-                3D成本: <span class="text-secondary-container">$${parseFloat(item.cost_price !== undefined ? item.cost_price : 0).toFixed(2)}</span> | 
-                UV成本: <span class="text-amber-400">$${parseFloat(item.uv_cost_price !== undefined ? item.uv_cost_price : 0).toFixed(2)}</span>
+                售價: <span class="text-primary-fixed font-bold">$${parseFloat(item.price !== undefined ? item.price : 0).toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -2113,7 +2102,10 @@
 
     function updateInventorySelect() {
       const select = document.getElementById('inv-product-select');
-      select.innerHTML = productsList.map(p => `<option value="${p.id}">${p.name} (庫存: ${p.stock_qty})</option>`).join('');
+      select.innerHTML = productsList.map(p => {
+        const calculatedStock = calcCalculatedStock(p.id, '-');
+        return `<option value="${p.id}">${p.name} (庫存: ${calculatedStock})</option>`;
+      }).join('');
       onInventoryProductChange();
     }
 
@@ -2134,7 +2126,10 @@
       if (itemsArr && itemsArr.length > 0) {
         wrapper.classList.remove('hidden');
         itemSelect.innerHTML = `<option value="-">-- 全品項預設/主商品 --</option>` + 
-          itemsArr.map((item) => `<option value="${item.name}">${item.name} (單價成本: $${parseFloat(item.cost_price !== undefined ? item.cost_price : 0).toFixed(2)})</option>`).join('');
+          itemsArr.map((item) => {
+            const itemStock = calcCalculatedStock(prod.id, item.name);
+            return `<option value="${item.name}">${item.name} (庫存: ${itemStock})</option>`;
+          }).join('');
       } else {
         wrapper.classList.add('hidden');
         itemSelect.innerHTML = `<option value="-">-</option>`;
