@@ -1319,13 +1319,12 @@
         const lines = items.map(i => {
           const qty = parseInt(i.qty || 1, 10) || 1;
           const name = i.name || i.product_name || '線上列印作品';
-          const variant = i.itemName || i.item_name || '預設規格';
           let price = parseFloat(i.price);
           if (isNaN(price)) price = parseFloat(o.total_amount || 0) / qty;
           price = isNaN(price) ? null : round2(price);
-          return { name, variant, qty, price };
+          return { name, qty, price };
         });
-        itemsSummary = lines.map(l => `${l.name} (${l.variant}) x ${l.qty}`).join('<br/>');
+        itemsSummary = lines.map(l => l.name).join('<br/>');
         unitPriceLines = lines.map(l => (l.price === null ? '-' : '$' + l.price.toFixed(2))).join('<br/>');
       } catch(e) {
         itemsSummary = o.items_json || '-';
