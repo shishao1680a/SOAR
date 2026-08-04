@@ -377,7 +377,8 @@
                 <tr>
                   <th class="p-3">進貨日期</th>
                   <th class="p-3">耗材名稱</th>
-                  <th class="p-3 text-amber-400">進貨成本</th>
+                  <th class="p-3 text-cyan-300">總容量</th>
+                  <th class="p-3 text-amber-400">進貨總成本 ($)</th>
                   <th class="p-3">進貨數量</th>
                   <th class="p-3 text-primary-fixed font-bold">進貨人員</th>
                   <th class="p-3">供應商 / 備註</th>
@@ -887,12 +888,20 @@
 
       <div>
         <label class="block text-xs font-label-caps text-cyan-400 mb-1 font-bold">耗材名稱</label>
-        <input type="text" id="mat-name" placeholder="例如: TPU-95A 耗材線材 / UV墨水" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-cyan-400" />
+        <input type="text" id="mat-name" list="mat-name-list" placeholder="請輸入或選擇耗材名稱 (例如: TPU-95A / UV墨水)" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-cyan-400" />
+        <datalist id="mat-name-list">
+          <!-- Dynamically populated from /api/admin/material-names -->
+        </datalist>
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-cyan-300 mb-1 font-bold">總容量 (例如: 1kg / 500ml / 1000g)</label>
+        <input type="text" id="mat-capacity" placeholder="例如: 1kg / 500ml" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-cyan-400" />
       </div>
 
       <div class="grid grid-cols-2 gap-2">
         <div>
-          <label class="block text-xs font-label-caps text-amber-400 mb-1 font-bold">進貨成本 ($)</label>
+          <label class="block text-xs font-label-caps text-amber-400 mb-1 font-bold">進貨總成本 ($)</label>
           <input type="number" step="0.01" id="mat-cost" value="10.00" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-amber-400" />
         </div>
         <div>
@@ -901,10 +910,8 @@
         </div>
       </div>
 
-      <div>
-        <label class="block text-xs font-label-caps text-primary-fixed mb-1 font-bold">進貨人員</label>
-        <input type="text" id="mat-operator" placeholder="例如: 小龍" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none" />
-      </div>
+      <!-- 隱藏進貨人員輸入框，由填表人 session 自動寫入 -->
+      <input type="hidden" id="mat-operator" value="" />
 
       <div>
         <label class="block text-xs font-label-caps text-on-surface-variant mb-1">供應商 / 廠商名稱</label>
@@ -942,9 +949,13 @@
           <label class="block font-bold text-cyan-400 mb-1">耗材名稱</label>
           <input type="text" id="mat-edit-name" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
         </div>
+        <div>
+          <label class="block font-bold text-cyan-300 mb-1">總容量 (例如: 1kg / 500ml)</label>
+          <input type="text" id="mat-edit-capacity" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
+        </div>
         <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block font-bold text-amber-400 mb-1">進貨成本 ($)</label>
+            <label class="block font-bold text-amber-400 mb-1">進貨總成本 ($)</label>
             <input type="number" step="0.01" id="mat-edit-cost" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-amber-400" />
           </div>
           <div>
@@ -952,10 +963,7 @@
             <input type="number" id="mat-edit-qty" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
           </div>
         </div>
-        <div>
-          <label class="block font-bold text-primary-fixed mb-1">進貨人員</label>
-          <input type="text" id="mat-edit-operator" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
-        </div>
+        <input type="hidden" id="mat-edit-operator" value="" />
         <div>
           <label class="block font-bold text-gray-200 mb-1">供應商 / 廠商名稱</label>
           <input type="text" id="mat-edit-supplier" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
@@ -1773,6 +1781,20 @@
           renderMaterialPurchasesTable();
         }
       } catch(e){ console.error("Error loading material purchases:", e); }
+      loadMaterialNamesForDatalist();
+    }
+
+    async function loadMaterialNamesForDatalist() {
+      try {
+        const res = await fetch('/api/admin/material-names');
+        const json = await res.json();
+        if (json.status === 'success' && Array.isArray(json.data)) {
+          const datalist = document.getElementById('mat-name-list');
+          if (datalist) {
+            datalist.innerHTML = json.data.map(name => `<option value="${name}"></option>`).join('');
+          }
+        }
+      } catch(e){}
     }
 
     function renderMaterialPurchasesTable() {
@@ -1781,7 +1803,7 @@
       if (materialPurchasesList.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="7" class="p-4 text-center text-gray-400 italic">尚無耗材進貨紀錄。請點擊右上角【🧪 耗材進貨服務】新增進貨單。</td>
+            <td colspan="8" class="p-4 text-center text-gray-400 italic">尚無耗材進貨紀錄。請點擊右上角【🧪 耗材進貨服務】新增進貨單。</td>
           </tr>
         `;
         return;
@@ -1790,6 +1812,7 @@
         <tr class="hover:bg-surface-container/50">
           <td class="p-3 text-on-surface-variant">${m.purchase_date || '-'}</td>
           <td class="p-3 font-bold text-white">${m.material_name}</td>
+          <td class="p-3 text-cyan-300 font-bold">${m.total_capacity || '-'}</td>
           <td class="p-3 text-amber-400 font-bold">$${parseFloat(m.purchase_cost || 0).toFixed(2)}</td>
           <td class="p-3 text-cyan-400 font-bold">+${m.purchase_qty}</td>
           <td class="p-3 text-primary-fixed font-bold">${m.operator_name || '管理員'}</td>
@@ -1807,11 +1830,12 @@
       const localIso = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
       setVal('mat-date', localIso);
       setVal('mat-name', '');
+      setVal('mat-capacity', '');
       setVal('mat-cost', '10.00');
       setVal('mat-qty', '10');
-      setVal('mat-operator', '管理員');
       setVal('mat-supplier', '3D 資材原廠');
       setVal('mat-remark', '');
+      loadMaterialNamesForDatalist();
       const modal = document.getElementById('modal-material-purchase');
       if (modal) modal.classList.remove('hidden');
     }
@@ -1819,7 +1843,7 @@
     async function saveMaterialPurchaseSubmit() {
       const material_name = document.getElementById('mat-name').value.trim();
       if (!material_name) {
-        alert('請輸入耗材名稱！');
+        alert('請輸入或選擇耗材名稱！');
         return;
       }
 
@@ -1828,9 +1852,9 @@
 
       const payload = {
         material_name: material_name,
+        total_capacity: document.getElementById('mat-capacity').value.trim(),
         purchase_cost: parseFloat(document.getElementById('mat-cost').value || 0),
         purchase_qty: parseInt(document.getElementById('mat-qty').value || 0),
-        operator_name: document.getElementById('mat-operator').value.trim() || '管理員',
         supplier: document.getElementById('mat-supplier').value.trim(),
         remark: document.getElementById('mat-remark').value.trim(),
         purchase_date: formattedDate
@@ -1855,6 +1879,7 @@
       setVal('mat-edit-log-id', log.id);
       setVal('mat-edit-date', log.purchase_date || '');
       setVal('mat-edit-name', log.material_name);
+      setVal('mat-edit-capacity', log.total_capacity || '');
       setVal('mat-edit-cost', log.purchase_cost);
       setVal('mat-edit-qty', log.purchase_qty);
       setVal('mat-edit-operator', log.operator_name || '管理員');
@@ -1869,9 +1894,9 @@
       const payload = {
         purchase_date: document.getElementById('mat-edit-date').value.trim(),
         material_name: document.getElementById('mat-edit-name').value.trim(),
+        total_capacity: document.getElementById('mat-edit-capacity').value.trim(),
         purchase_cost: parseFloat(document.getElementById('mat-edit-cost').value || 0),
         purchase_qty: parseInt(document.getElementById('mat-edit-qty').value || 0),
-        operator_name: document.getElementById('mat-edit-operator').value.trim() || '管理員',
         supplier: document.getElementById('mat-edit-supplier').value.trim(),
         remark: document.getElementById('mat-edit-remark').value.trim()
       };

@@ -97,6 +97,7 @@ class DBService:
                     CREATE TABLE IF NOT EXISTS material_purchases (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         material_name TEXT NOT NULL,
+                        total_capacity TEXT,
                         purchase_cost REAL NOT NULL,
                         purchase_qty INTEGER NOT NULL,
                         supplier TEXT,
@@ -203,6 +204,7 @@ class DBService:
                     CREATE TABLE IF NOT EXISTS material_purchases (
                         id SERIAL PRIMARY KEY,
                         material_name VARCHAR(255) NOT NULL,
+                        total_capacity VARCHAR(255),
                         purchase_cost NUMERIC(10, 2) NOT NULL,
                         purchase_qty INTEGER NOT NULL,
                         supplier VARCHAR(255),
@@ -684,22 +686,23 @@ class DBService:
             return False
 
     # --- Material Purchases Methods ---
-    def add_material_purchase(self, material_name, purchase_cost, purchase_qty, supplier='', remark='', operator_name='管理員', purchase_date=None):
+    def add_material_purchase(self, material_name, purchase_cost, purchase_qty, supplier='', remark='', operator_name='管理員', purchase_date=None, total_capacity=''):
         try:
             now_str = purchase_date or self._get_taiwan_now_str()
             operator_name = operator_name or '管理員'
+            total_capacity = total_capacity or ''
             conn = self._get_connection()
             cursor = conn.cursor()
             if self.use_sqlite:
                 cursor.execute('''
-                    INSERT INTO material_purchases (material_name, purchase_cost, purchase_qty, supplier, purchase_date, remark, operator_name)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (material_name, purchase_cost, purchase_qty, supplier, now_str, remark, operator_name))
+                    INSERT INTO material_purchases (material_name, total_capacity, purchase_cost, purchase_qty, supplier, purchase_date, remark, operator_name)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (material_name, total_capacity, purchase_cost, purchase_qty, supplier, now_str, remark, operator_name))
             else:
                 cursor.execute('''
-                    INSERT INTO material_purchases (material_name, purchase_cost, purchase_qty, supplier, purchase_date, remark, operator_name)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ''', (material_name, purchase_cost, purchase_qty, supplier, now_str, remark, operator_name))
+                    INSERT INTO material_purchases (material_name, total_capacity, purchase_cost, purchase_qty, supplier, purchase_date, remark, operator_name)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (material_name, total_capacity, purchase_cost, purchase_qty, supplier, now_str, remark, operator_name))
             conn.commit()
             conn.close()
             return True
@@ -726,23 +729,36 @@ class DBService:
             print(f"Error fetching material purchases: {e}")
             return []
 
-    def update_material_purchase(self, log_id, material_name, purchase_cost, purchase_qty, supplier='', remark='', operator_name='管理員', purchase_date=None):
+    def get_unique_material_names(self):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT DISTINCT material_name FROM material_purchases WHERE material_name IS NOT NULL AND material_name != '' ORDER BY material_name ASC")
+            rows = cursor.fetchall()
+            conn.close()
+            return [r[0] if isinstance(r, (tuple, list)) else r['material_name'] for r in rows]
+        except Exception as e:
+            print(f"Error fetching unique material names: {e}")
+            return []
+
+    def update_material_purchase(self, log_id, material_name, purchase_cost, purchase_qty, supplier='', remark='', operator_name='管理員', purchase_date=None, total_capacity=''):
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             now_str = purchase_date or self._get_taiwan_now_str()
+            total_capacity = total_capacity or ''
             if self.use_sqlite:
                 cursor.execute('''
                     UPDATE material_purchases 
-                    SET material_name = ?, purchase_cost = ?, purchase_qty = ?, supplier = ?, remark = ?, operator_name = ?, purchase_date = ?
+                    SET material_name = ?, total_capacity = ?, purchase_cost = ?, purchase_qty = ?, supplier = ?, remark = ?, operator_name = ?, purchase_date = ?
                     WHERE id = ?
-                ''', (material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, now_str, int(log_id)))
+                ''', (material_name, total_capacity, purchase_cost, purchase_qty, supplier, remark, operator_name, now_str, int(log_id)))
             else:
                 cursor.execute('''
                     UPDATE material_purchases 
-                    SET material_name = %s, purchase_cost = %s, purchase_qty = %s, supplier = %s, remark = %s, operator_name = %s, purchase_date = %s
+                    SET material_name = %s, total_capacity = %s, purchase_cost = %s, purchase_qty = %s, supplier = %s, remark = %s, operator_name = %s, purchase_date = %s
                     WHERE id = %s
-                ''', (material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, now_str, int(log_id)))
+                ''', (material_name, total_capacity, purchase_cost, purchase_qty, supplier, remark, operator_name, now_str, int(log_id)))
             conn.commit()
             conn.close()
             return True

@@ -360,6 +360,7 @@ def api_admin_material_purchases():
     if request.method == 'POST':
         data = request.get_json() or {}
         material_name = data.get('material_name', '').strip()
+        total_capacity = data.get('total_capacity', '').strip()
         purchase_cost = float(data.get('purchase_cost', 0))
         purchase_qty = int(data.get('purchase_qty', 0))
         supplier = data.get('supplier', '預設進貨廠商').strip()
@@ -371,9 +372,9 @@ def api_admin_material_purchases():
 
         session_user = session.get('user', {}) or {}
         current_name = session_user.get('name') or session_user.get('username') or '管理員'
-        operator_name = data.get('operator_name', '').strip() or current_name
+        operator_name = current_name  # 自動代入填表人姓名
 
-        success = db_service.add_material_purchase(material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date)
+        success = db_service.add_material_purchase(material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date, total_capacity)
         if success:
             return jsonify({"status": "success", "message": "耗材進貨紀錄已成功儲存！"})
         return jsonify({"status": "error", "message": "儲存耗材進貨紀錄失敗"}), 500
@@ -381,12 +382,19 @@ def api_admin_material_purchases():
         logs = db_service.get_material_purchases()
         return jsonify({"status": "success", "data": logs})
 
+@app.route('/api/admin/material-names', methods=['GET'])
+@admin_or_coach_required
+def api_admin_material_names():
+    names = db_service.get_unique_material_names()
+    return jsonify({"status": "success", "data": names})
+
 @app.route('/api/admin/material-purchases/<int:log_id>', methods=['PUT', 'DELETE'])
 @admin_or_coach_required
 def api_admin_material_purchases_detail(log_id):
     if request.method == 'PUT':
         data = request.get_json() or {}
         material_name = data.get('material_name', '').strip()
+        total_capacity = data.get('total_capacity', '').strip()
         purchase_cost = float(data.get('purchase_cost', 0))
         purchase_qty = int(data.get('purchase_qty', 0))
         supplier = data.get('supplier', '').strip()
@@ -396,7 +404,7 @@ def api_admin_material_purchases_detail(log_id):
         session_user = session.get('user', {}) or {}
         operator_name = session_user.get('name') or session_user.get('username') or '管理員'
 
-        updated = db_service.update_material_purchase(log_id, material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date)
+        updated = db_service.update_material_purchase(log_id, material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date, total_capacity)
         if updated:
             return jsonify({"status": "success", "message": "耗材進貨紀錄已成功修改！"})
         return jsonify({"status": "error", "message": "修改耗材進貨紀錄失敗"}), 500
