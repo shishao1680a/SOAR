@@ -1006,7 +1006,105 @@ class DBService:
             return True, "訂單已取消，庫存已釋放"
         except Exception as e:
             print(f"Error cancelling order {order_id}: {e}")
-            return False, "取消訂單失敗"
+            return False, f"取消訂單失敗：{e}"
+
+    def update_order_items(self, order_id, items):
+        """修改訂單明細：重新計算總額並同步庫存扣減（先釋放舊扣減，再依新明細重新扣減）。
+        items: [{id, name, variant_name, price, qty}]
+        """
+        try:
+            now_str = self._get_taiwan_now_str()
+            items_json = json.dumps(items, ensure_ascii=False)
+            total_amount = round(sum(
+                float(it.get('price') or 0) * int(it.get('qty') or 0) for it in items
+            ), 2)
+            with self.engine.begin() as conn:
+                row = conn.execute(
+                    text("SELECT status FROM orders WHERE id = :id FOR UPDATE"),
+                    {"id": str(order_id)},
+                ).first()
+                if not row:
+                    return False, "訂單不存在"
+                if row["status"] in ("SHIPPED", "COMPLETED", "CANCELLED"):
+                    return False, "已寄送或已取消的訂單無法修改"
+
+                # 先移除舊銷售紀錄（釋放庫存），再依新明細重新扣減
+                conn.execute(text("DELETE FROM sales_logs WHERE order_id = :id"), {"id": str(order_id)})
+
+                for it in items:
+                    pid = str(it.get('id') or '').strip()
+                    name = (it.get('name') or it.get('product_name') or '線上列印作品').strip()
+                    variant = (it.get('variant_name') or it.get('item_name') or '').strip()
+                    qty = int(it.get('qty') or 0)
+                    item_key = variant or '-'
+
+                    if pid:
+                        prod_row = conn.execute(
+                            text("SELECT id, name FROM products WHERE id = :pid FOR UPDATE"),
+                            {"pid": pid},
+                        ).first()
+                        if not prod_row:
+                            raise StockError(f"商品「{name}」不存在或已刪除，請先修正再儲存")
+                        pname = prod_row["name"]
+
+                        purchased = conn.execute(text("""
+                            SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
+                            WHERE (product_id IS NOT NULL AND product_id = :pid)
+                               OR (product_name IS NOT NULL AND product_name = :pname)
+                        """), {"pid": pid, "pname": pname}).scalar() or 0
+                        sold = conn.execute(text("""
+                            SELECT COALESCE(SUM(qty), 0) FROM sales_logs
+                            WHERE (product_id IS NOT NULL AND product_id = :pid)
+                               OR (product_name IS NOT NULL AND product_name = :pname)
+                        """), {"pid": pid, "pname": pname}).scalar() or 0
+                        available = int(purchased) - int(sold)
+
+                        if variant:
+                            purch_item = conn.execute(text("""
+                                SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
+                                WHERE ((product_id IS NOT NULL AND product_id = :pid)
+                                    OR (product_name IS NOT NULL AND product_name = :pname))
+                                  AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
+                            """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
+                            sold_item = conn.execute(text("""
+                                SELECT COALESCE(SUM(qty), 0) FROM sales_logs
+                                WHERE ((product_id IS NOT NULL AND product_id = :pid)
+                                    OR (product_name IS NOT NULL AND product_name = :pname))
+                                  AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
+                            """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
+                            available = min(available, int(purch_item) - int(sold_item))
+
+                        if qty > available:
+                            raise StockError(
+                                f"商品「{name}」庫存不足（剩餘 {max(available, 0)} 件）"
+                            )
+
+                        conn.execute(text("""
+                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, qty, created_at)
+                            VALUES (:order_id, :product_id, :product_name, :item_name, :qty, :created_at)
+                        """), {
+                            "order_id": str(order_id), "product_id": pid, "product_name": pname,
+                            "item_name": item_key, "qty": qty, "created_at": now_str,
+                        })
+                    else:
+                        conn.execute(text("""
+                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, qty, created_at)
+                            VALUES (:order_id, :product_id, :product_name, :item_name, :qty, :created_at)
+                        """), {
+                            "order_id": str(order_id), "product_id": None, "product_name": name,
+                            "item_name": item_key, "qty": qty, "created_at": now_str,
+                        })
+
+                conn.execute(text("""
+                    UPDATE orders SET items_json = :items_json, total_amount = :total_amount, status = 'PENDING'
+                    WHERE id = :id
+                """), {"items_json": items_json, "total_amount": total_amount, "id": str(order_id)})
+            return True, "訂單修改成功，總額與庫存扣減已同步更新"
+        except StockError as se:
+            return False, str(se)
+        except Exception as e:
+            print(f"Error updating order {order_id}: {e}")
+            return False, f"修改訂單失敗：{e}"
 
     def save_order_settlement(self, order_id, products, order_totals):
         """寄送結算：寫入逐商品明細（order_settlements）與耗材消耗（order_materials），並更新訂單狀態。

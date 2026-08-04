@@ -1305,7 +1305,7 @@
     if (adminOrdersList.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" class="p-6 text-center text-gray-400 italic">尚無訂單資料。當使用者在前端購物車結帳時，訂單將自動即時顯示於此。</td>
+          <td colspan="9" class="p-6 text-center text-gray-400 italic">尚無訂單資料。當使用者在前端購物車結帳時，訂單將自動即時顯示於此。</td>
         </tr>
       `;
       return;
@@ -1313,10 +1313,24 @@
 
     tbody.innerHTML = adminOrdersList.map(o => {
       let itemsSummary = '';
+      let unitPriceLines = '';
       try {
         const items = typeof o.items_json === 'string' ? JSON.parse(o.items_json || '[]') : (o.items_json || []);
-        itemsSummary = items.map(i => `${i.name || i.product_name} (${i.itemName || i.item_name || '預設規格'}) x ${i.qty || 1}`).join('<br/>');
-      } catch(e) { itemsSummary = o.items_json || '-'; }
+        const lines = items.map(i => {
+          const qty = parseInt(i.qty || 1, 10) || 1;
+          const name = i.name || i.product_name || '線上列印作品';
+          const variant = i.itemName || i.item_name || '預設規格';
+          let price = parseFloat(i.price);
+          if (isNaN(price)) price = parseFloat(o.total_amount || 0) / qty;
+          price = isNaN(price) ? null : round2(price);
+          return { name, variant, qty, price };
+        });
+        itemsSummary = lines.map(l => `${l.name} (${l.variant}) x ${l.qty}`).join('<br/>');
+        unitPriceLines = lines.map(l => (l.price === null ? '-' : '$' + l.price.toFixed(2))).join('<br/>');
+      } catch(e) {
+        itemsSummary = o.items_json || '-';
+        unitPriceLines = '-';
+      }
 
       const totalQty = (function(){
         try {
@@ -1334,6 +1348,7 @@
           <td class="p-3 font-mono text-xs text-cyan-300 font-bold">${o.id}</td>
           <td class="p-3 text-white font-bold">${itemsSummary || '線上列印作品'}</td>
           <td class="p-3 text-primary-fixed font-bold">${totalQty} 件</td>
+          <td class="p-3 text-primary-fixed font-bold">${unitPriceLines || '-'}</td>
           <td class="p-3 text-gray-200 font-bold">${o.user_name || '線上會員'} (${o.user_line_id || '-'})</td>
           <td class="p-3 text-primary-fixed font-black">$${parseFloat(o.total_amount || 0).toFixed(2)}</td>
           <td class="p-3">
@@ -1432,7 +1447,7 @@
 
     shipmentProducts = items.map((itm, idx) => {
       const qty = parseInt(itm.qty || 1, 10) || 1;
-      const unitPrice = parseFloat(itm.price !== undefined ? itm.price : ((order.total_amount || 0) / qty));
+      const unitPrice = roundInt(parseFloat(itm.price !== undefined ? itm.price : ((order.total_amount || 0) / qty)) || 0);
       const ratios = resolveProductRatios(itm);
       return {
         idx: idx,
@@ -1440,7 +1455,8 @@
         itemName: itm.name || itm.product_name || '-',
         variantName: (itm.variant_name || itm.item_name || ''),
         qty: qty,
-        salesAmount: qty * unitPrice,
+        unitPrice: unitPrice,
+        salesAmount: roundInt(qty * unitPrice),
         materials: [],
         otherCost: 0,
         shippingCost: idx === 0 ? 60 : 0,
@@ -1474,9 +1490,9 @@
         <div class="flex justify-between items-center border-b border-outline-variant/60 pb-2">
           <div class="font-bold text-white text-sm">
             <span class="text-primary-fixed font-mono">#${idx + 1}</span> ${p.itemName}
-            <span class="text-[10px] text-gray-400 font-normal">x ${p.qty} 件</span>
+            <span class="text-[10px] text-gray-400 font-normal">x ${p.qty} 件 · 單價 $${p.unitPrice}</span>
           </div>
-          <div class="text-primary-fixed font-black text-sm">銷售 $${p.salesAmount.toFixed(2)}</div>
+          <div class="text-primary-fixed font-black text-sm">銷售 $${p.salesAmount}</div>
         </div>
 
         <div class="space-y-1.5">
@@ -1489,6 +1505,7 @@
               <tr>
                 <th class="p-1.5">耗材名稱</th>
                 <th class="p-1.5 text-center w-28">消耗容量</th>
+                <th class="p-1.5 text-right w-28">單位成本</th>
                 <th class="p-1.5 text-right w-28">成本 ($)</th>
                 <th class="p-1.5 text-center w-10"></th>
               </tr>
@@ -1500,19 +1517,19 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
           <div>
             <label class="block text-[10px] font-bold text-gray-300 mb-1">其它成本 ($)</label>
-            <input type="number" step="0.1" id="shipment-other-cost-${idx}" value="${p.otherCost}" oninput="calculateShipmentNetProfit()" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
+            <input type="number" step="0.01" id="shipment-other-cost-${idx}" value="${p.otherCost}" oninput="calculateShipmentNetProfit()" onchange="roundShipmentInput(this)" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
           </div>
           <div>
             <label class="block text-[10px] font-bold text-gray-300 mb-1">郵寄成本 ($)</label>
-            <input type="number" step="0.1" id="shipment-shipping-cost-${idx}" value="${p.shippingCost}" oninput="calculateShipmentNetProfit()" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
+            <input type="number" step="0.01" id="shipment-shipping-cost-${idx}" value="${p.shippingCost}" oninput="calculateShipmentNetProfit()" onchange="roundShipmentInput(this)" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
           </div>
           <div class="p-1.5 bg-line-green/10 rounded border border-line-green/40">
             <div class="text-[10px] font-bold text-line-green mb-1">淨利潤 ($)</div>
-            <div id="shipment-net-profit-${idx}" class="font-black text-line-green text-sm">$0.00</div>
+            <div id="shipment-net-profit-${idx}" class="font-black text-line-green text-sm">$0</div>
           </div>
           <div class="p-1.5 bg-surface-container rounded border border-outline-variant">
             <div class="text-[10px] font-bold text-gray-400 mb-1">平台抽取金 ($)</div>
-            <div id="shipment-platform-amount-${idx}" class="font-black text-gray-300 text-sm">$0.00</div>
+            <div id="shipment-platform-amount-${idx}" class="font-black text-gray-300 text-sm">$0</div>
           </div>
         </div>
 
@@ -1523,6 +1540,10 @@
               <option value="">請選擇設計者</option>
               ${userOptions}
             </select>
+            <div class="mt-1 p-1.5 bg-surface-container rounded border border-outline-variant text-center">
+              <div class="text-[10px] font-bold text-primary-fixed mb-0.5">設計者金額</div>
+              <div id="shipment-designer-amount-${idx}" class="font-black text-primary-fixed">$0</div>
+            </div>
           </div>
           <div>
             <label class="block text-[10px] font-bold text-secondary-container mb-1">包裝人員（${p.packagerRatio}%）</label>
@@ -1530,21 +1551,10 @@
               <option value="">請選擇包裝人員</option>
               ${userOptions}
             </select>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-2 text-center">
-          <div class="p-1.5 bg-surface-container rounded border border-outline-variant">
-            <div class="text-[10px] font-bold text-primary-fixed mb-0.5">設計者金額</div>
-            <div id="shipment-designer-amount-${idx}" class="font-black text-primary-fixed">$0.00</div>
-          </div>
-          <div class="p-1.5 bg-surface-container rounded border border-outline-variant">
-            <div class="text-[10px] font-bold text-secondary-container mb-0.5">包裝人員金額</div>
-            <div id="shipment-packager-amount-${idx}" class="font-black text-secondary-container">$0.00</div>
-          </div>
-          <div class="p-1.5 bg-surface-container rounded border border-outline-variant">
-            <div class="text-[10px] font-bold text-gray-400 mb-0.5">平台金額</div>
-            <div id="shipment-platform-amount-${idx}" class="font-black text-gray-300">$0.00</div>
+            <div class="mt-1 p-1.5 bg-surface-container rounded border border-outline-variant text-center">
+              <div class="text-[10px] font-bold text-secondary-container mb-0.5">包裝人員金額</div>
+              <div id="shipment-packager-amount-${idx}" class="font-black text-secondary-container">$0</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1577,6 +1587,9 @@
         <input type="number" step="1" min="0" class="shipment-mat-capacity w-full bg-surface-container border border-outline-variant text-cyan-300 font-bold p-1 text-center rounded outline-none text-xs" value="150" oninput="recalcShipmentMaterialRow(${idx}, '${rowId}')" />
       </td>
       <td class="p-1.5 text-right">
+        <input type="number" step="0.0001" readonly class="shipment-mat-unit-cost w-full bg-surface-container border border-outline-variant text-cyan-200 font-bold p-1 text-right rounded outline-none text-xs" value="0.0000" title="加權平均單位成本（自動帶入）" />
+      </td>
+      <td class="p-1.5 text-right">
         <input type="number" step="0.01" readonly class="shipment-mat-cost w-full bg-surface-container border border-outline-variant text-amber-400 font-bold p-1 text-right rounded outline-none text-xs" value="0.00" title="成本 = 消耗容量 × 加權單位成本（自動計算）" />
       </td>
       <td class="p-1.5 text-center">
@@ -1593,8 +1606,9 @@
     const name = tr.querySelector('.shipment-mat-name').value.trim();
     const capacity = parseFloat(tr.querySelector('.shipment-mat-capacity').value || 0);
     const unitCost = materialUnitCosts[name] || 0;
+    tr.querySelector('.shipment-mat-unit-cost').value = unitCost.toFixed(4);
     const cost = capacity * unitCost;
-    tr.querySelector('.shipment-mat-cost').value = cost.toFixed(2);
+    tr.querySelector('.shipment-mat-cost').value = roundInt(cost);
     calculateShipmentNetProfit();
   }
 
@@ -1605,6 +1619,15 @@
   }
 
   function round2(v) { return Math.round((v + Number.EPSILON) * 100) / 100; }
+
+  function roundInt(v) { return Math.round((v + Number.EPSILON)); }
+
+  function roundShipmentInput(el) {
+    if (!el) return;
+    const v = parseFloat(el.value || 0);
+    el.value = roundInt(isNaN(v) ? 0 : v);
+    calculateShipmentNetProfit();
+  }
 
   function calculateShipmentNetProfit() {
     if (!currentShipmentOrder) return;
@@ -1627,18 +1650,18 @@
       const packagerAmount = netProfit * (p.packagerRatio / 100);
       const platformAmount = netProfit * (p.platformRatio / 100);
 
-      p.materialCost = round2(materialCost);
-      p.otherCost = round2(otherCost);
-      p.shippingCost = round2(shippingCost);
-      p.netProfit = round2(netProfit);
-      p.designerAmount = round2(designerAmount);
-      p.packagerAmount = round2(packagerAmount);
-      p.platformAmount = round2(platformAmount);
+      p.materialCost = roundInt(materialCost);
+      p.otherCost = roundInt(otherCost);
+      p.shippingCost = roundInt(shippingCost);
+      p.netProfit = roundInt(netProfit);
+      p.designerAmount = roundInt(designerAmount);
+      p.packagerAmount = roundInt(packagerAmount);
+      p.platformAmount = roundInt(platformAmount);
 
-      document.getElementById('shipment-net-profit-' + idx).textContent = '$' + p.netProfit.toFixed(2);
-      document.getElementById('shipment-designer-amount-' + idx).textContent = '$' + p.designerAmount.toFixed(2);
-      document.getElementById('shipment-packager-amount-' + idx).textContent = '$' + p.packagerAmount.toFixed(2);
-      document.getElementById('shipment-platform-amount-' + idx).textContent = '$' + p.platformAmount.toFixed(2);
+      document.getElementById('shipment-net-profit-' + idx).textContent = '$' + p.netProfit;
+      document.getElementById('shipment-designer-amount-' + idx).textContent = '$' + p.designerAmount;
+      document.getElementById('shipment-packager-amount-' + idx).textContent = '$' + p.packagerAmount;
+      document.getElementById('shipment-platform-amount-' + idx).textContent = '$' + p.platformAmount;
 
       totals.sales += p.salesAmount;
       totals.material += p.materialCost;
@@ -1650,14 +1673,14 @@
       totals.platform += p.platformAmount;
     });
 
-    document.getElementById('shipment-total-sales').textContent = '$' + totals.sales.toFixed(2);
-    document.getElementById('shipment-total-material-cost').textContent = '$' + totals.material.toFixed(2);
-    document.getElementById('shipment-total-other-cost').textContent = '$' + totals.other.toFixed(2);
-    document.getElementById('shipment-total-shipping-cost').textContent = '$' + totals.shipping.toFixed(2);
-    document.getElementById('shipment-total-net-profit').textContent = '$' + totals.net.toFixed(2);
-    document.getElementById('shipment-total-designer').textContent = '$' + totals.designer.toFixed(2);
-    document.getElementById('shipment-total-packager').textContent = '$' + totals.packager.toFixed(2);
-    document.getElementById('shipment-total-platform').textContent = '$' + totals.platform.toFixed(2);
+    document.getElementById('shipment-total-sales').textContent = '$' + roundInt(totals.sales);
+    document.getElementById('shipment-total-material-cost').textContent = '$' + roundInt(totals.material);
+    document.getElementById('shipment-total-other-cost').textContent = '$' + roundInt(totals.other);
+    document.getElementById('shipment-total-shipping-cost').textContent = '$' + roundInt(totals.shipping);
+    document.getElementById('shipment-total-net-profit').textContent = '$' + roundInt(totals.net);
+    document.getElementById('shipment-total-designer').textContent = '$' + roundInt(totals.designer);
+    document.getElementById('shipment-total-packager').textContent = '$' + roundInt(totals.packager);
+    document.getElementById('shipment-total-platform').textContent = '$' + roundInt(totals.platform);
   }
 
   async function submitOrderShipmentConfirm() {
@@ -1722,14 +1745,122 @@
 
   async function cancelAdminOrder(orderId) {
     if (!confirm(`確定取消訂單 #${orderId}？取消後會釋放庫存。`)) return;
-    const res = await fetch(`/api/admin/orders/${orderId}/cancel`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: '{}'
-    });
-    const json = await res.json();
-    alert(json.message || (json.status === 'success' ? '訂單已取消' : '取消失敗'));
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: '{}'
+      });
+      const json = await res.json();
+      alert(json.message || (json.status === 'success' ? '訂單已取消' : '取消失敗'));
+    } catch(e) {
+      alert(`取消訂單失敗：${e.message || e}`);
+    }
     loadAdminOrdersList();
+  }
+
+  // --- 修改訂單 ---
+  let currentEditOrder = null;
+  let currentEditOrderItems = [];
+
+  function editAdminOrder(orderId) {
+    const order = adminOrdersList.find(o => String(o.id) === String(orderId));
+    if (!order) return;
+    currentEditOrder = order;
+    document.getElementById('order-edit-id').textContent = order.id;
+
+    let items = [];
+    try {
+      items = typeof order.items_json === 'string' ? JSON.parse(order.items_json || '[]') : (order.items_json || []);
+    } catch(e) { items = []; }
+    if (!Array.isArray(items) || items.length === 0) {
+      items = [{ id: null, name: `訂單作品 #${order.id}`, price: parseFloat(order.total_amount || 0), qty: 1, variant_name: '' }];
+    }
+
+    currentEditOrderItems = items.map((itm, i) => {
+      const qty = parseInt(itm.qty || 1, 10) || 1;
+      const price = parseFloat(itm.price !== undefined ? itm.price : ((order.total_amount || 0) / qty));
+      return {
+        idx: i,
+        id: itm.id || itm.product_id || null,
+        name: itm.name || itm.product_name || '-',
+        variantName: itm.variant_name || itm.item_name || '',
+        price: round2(isNaN(price) ? 0 : price),
+        qty: qty
+      };
+    });
+
+    renderOrderEditItems();
+    document.getElementById('modal-order-edit').classList.remove('hidden');
+  }
+
+  function renderOrderEditItems() {
+    const container = document.getElementById('order-edit-items-container');
+    if (!container) return;
+    container.innerHTML = currentEditOrderItems.map((itm, i) => `
+      <div class="border border-outline-variant rounded-lg bg-surface-container-low p-3 grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+        <div class="md:col-span-2">
+          <label class="block text-[10px] font-bold text-gray-300 mb-1">商品名稱 / 款式</label>
+          <div class="text-white text-xs font-bold p-2 bg-surface-container rounded border border-outline-variant">${itm.name}${itm.variantName ? ' (' + itm.variantName + ')' : ''}</div>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-primary-fixed mb-1">單價金額 ($)</label>
+          <input type="number" step="0.01" min="0" value="${itm.price}" oninput="updateEditOrderItemPrice(${i}, this.value)" onchange="roundShipmentInput(this)" class="w-full bg-surface-container border border-outline-variant text-primary-fixed font-bold p-2 rounded text-xs outline-none" />
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-secondary-container mb-1">數量</label>
+          <input type="number" step="1" min="1" value="${itm.qty}" oninput="updateEditOrderItemQty(${i}, this.value)" class="w-full bg-surface-container border border-outline-variant text-secondary-container font-bold p-2 rounded text-xs outline-none" />
+        </div>
+      </div>
+    `).join('');
+    recalcOrderEditTotal();
+  }
+
+  function updateEditOrderItemPrice(idx, v) {
+    if (currentEditOrderItems[idx]) currentEditOrderItems[idx].price = round2(parseFloat(v || 0));
+    recalcOrderEditTotal();
+  }
+
+  function updateEditOrderItemQty(idx, v) {
+    if (currentEditOrderItems[idx]) currentEditOrderItems[idx].qty = parseInt(v || 1, 10) || 1;
+    recalcOrderEditTotal();
+  }
+
+  function recalcOrderEditTotal() {
+    const total = currentEditOrderItems.reduce((sum, itm) => sum + itm.price * itm.qty, 0);
+    const el = document.getElementById('order-edit-total');
+    if (el) el.textContent = '$' + round2(total).toFixed(2);
+  }
+
+  async function saveOrderEditSubmit() {
+    if (!currentEditOrder) return;
+    const payload = {
+      items: currentEditOrderItems.map(itm => ({
+        id: itm.id,
+        name: itm.name,
+        variant_name: itm.variantName,
+        price: itm.price,
+        qty: itm.qty
+      }))
+    };
+    try {
+      const res = await fetch(`/api/admin/orders/${currentEditOrder.id}/update`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert(json.message || '訂單修改成功！');
+        closeModal('modal-order-edit');
+        currentEditOrder = null;
+        loadAdminOrdersList();
+      } else {
+        alert(json.message || '修改訂單失敗');
+      }
+    } catch(e) {
+      alert(`修改訂單失敗：${e.message || e}`);
+    }
   }
 
   // --- Bonus 獎金統計 ---
@@ -1807,7 +1938,4 @@
     document.getElementById('modal-bonus-detail').classList.remove('hidden');
   }
 
-  function editAdminOrder(orderId) {
-    alert(`[修改訂單機能]\n已載入訂單 #${orderId} 狀態，可手動更新相關資訊。`);
-  }
 </script>

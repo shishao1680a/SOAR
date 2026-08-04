@@ -455,35 +455,35 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div class="p-2 bg-surface-container rounded border border-outline-variant">
             <div class="text-[10px] text-gray-400 font-bold mb-0.5">總銷售金額</div>
-            <div id="shipment-total-sales" class="font-black text-primary-fixed">$0.00</div>
+            <div id="shipment-total-sales" class="font-black text-primary-fixed">$0</div>
           </div>
           <div class="p-2 bg-surface-container rounded border border-outline-variant">
             <div class="text-[10px] text-amber-400 font-bold mb-0.5">總耗材成本</div>
-            <div id="shipment-total-material-cost" class="font-black text-amber-400">$0.00</div>
+            <div id="shipment-total-material-cost" class="font-black text-amber-400">$0</div>
           </div>
           <div class="p-2 bg-surface-container rounded border border-outline-variant">
             <div class="text-[10px] text-gray-300 font-bold mb-0.5">總其它成本</div>
-            <div id="shipment-total-other-cost" class="font-black text-white">$0.00</div>
+            <div id="shipment-total-other-cost" class="font-black text-white">$0</div>
           </div>
           <div class="p-2 bg-surface-container rounded border border-outline-variant">
             <div class="text-[10px] text-gray-300 font-bold mb-0.5">總郵寄成本</div>
-            <div id="shipment-total-shipping-cost" class="font-black text-white">$0.00</div>
+            <div id="shipment-total-shipping-cost" class="font-black text-white">$0</div>
           </div>
           <div class="p-2 bg-line-green/10 rounded border border-line-green/60">
             <div class="text-[10px] text-line-green font-bold mb-0.5">總淨利潤</div>
-            <div id="shipment-total-net-profit" class="font-black text-line-green">$0.00</div>
+            <div id="shipment-total-net-profit" class="font-black text-line-green">$0</div>
           </div>
           <div class="p-2 bg-surface-container rounded border border-outline-variant">
             <div class="text-[10px] text-primary-fixed font-bold mb-0.5">設計者總額</div>
-            <div id="shipment-total-designer" class="font-black text-primary-fixed">$0.00</div>
+            <div id="shipment-total-designer" class="font-black text-primary-fixed">$0</div>
           </div>
           <div class="p-2 bg-surface-container rounded border border-outline-variant">
             <div class="text-[10px] text-secondary-container font-bold mb-0.5">包裝人員總額</div>
-            <div id="shipment-total-packager" class="font-black text-secondary-container">$0.00</div>
+            <div id="shipment-total-packager" class="font-black text-secondary-container">$0</div>
           </div>
           <div class="p-2 bg-surface-container rounded border border-outline-variant">
             <div class="text-[10px] text-gray-400 font-bold mb-0.5">平台抽取金總額</div>
-            <div id="shipment-total-platform" class="font-black text-gray-300">$0.00</div>
+            <div id="shipment-total-platform" class="font-black text-gray-300">$0</div>
           </div>
         </div>
       </div>
@@ -496,6 +496,39 @@
       <button type="button" onclick="submitOrderShipmentConfirm()" class="flex-1 py-2 bg-line-green hover:bg-line-green/80 text-white font-label-caps text-xs font-bold italic rounded shadow transition-all flex items-center justify-center gap-1">
         <span class="material-symbols-outlined text-sm">mark_email_read</span> 確認計算並執行寄送
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Edit Order (修改訂單) -->
+<div id="modal-order-edit" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
+  <div class="bg-surface-container border-2 border-primary-fixed max-w-2xl w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[85vh]">
+    <div class="px-5 py-3.5 bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
+      <h4 class="font-headline-md italic text-base font-bold text-white flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary-fixed text-lg">edit_note</span> 修改訂單
+      </h4>
+      <button type="button" onclick="closeModal('modal-order-edit')" class="text-gray-400 hover:text-white font-bold text-base">✕</button>
+    </div>
+
+    <div class="p-5 space-y-4 text-xs overflow-y-auto flex-grow">
+      <div>
+        <div class="text-[10px] font-bold text-gray-400 mb-1">訂單編號</div>
+        <div id="order-edit-id" class="font-mono text-cyan-300 font-bold text-sm"></div>
+      </div>
+
+      <div id="order-edit-items-container" class="space-y-2"></div>
+
+      <div class="bg-surface-container-high border border-primary-fixed/60 rounded-xl p-4 flex justify-between items-center">
+        <span class="font-bold text-white text-sm">總計金額</span>
+        <span id="order-edit-total" class="font-black text-primary-fixed text-lg">$0.00</span>
+      </div>
+
+      <p class="text-[10px] text-amber-400/90">已寄送或已取消的訂單無法修改；修改數量會同步調整庫存扣減。</p>
+    </div>
+
+    <div class="px-5 py-3 bg-surface-container-high border-t border-outline-variant flex gap-2">
+      <button type="button" onclick="closeModal('modal-order-edit')" class="py-2 px-4 bg-surface-container border border-outline-variant text-on-surface-variant font-label-caps text-xs font-bold rounded">取消</button>
+      <button type="button" onclick="saveOrderEditSubmit()" class="flex-1 py-2 bg-primary-fixed hover:bg-primary-fixed/80 text-on-primary-fixed font-label-caps text-xs font-bold italic rounded shadow transition-all">儲存修改</button>
     </div>
   </div>
 </div>

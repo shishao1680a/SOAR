@@ -531,6 +531,35 @@ def api_admin_orders_cancel(order_id):
         return jsonify({"status": "success", "message": msg})
     return jsonify({"status": "error", "message": msg}), 400
 
+
+@app.route('/api/admin/orders/<order_id>/update', methods=['POST'])
+@admin_or_coach_required
+def api_admin_orders_update(order_id):
+    """修改訂單明細（數量/單價）：伺服器端重算總額，並同步調整庫存扣減。"""
+    data = request.get_json() or {}
+    items = data.get('items')
+    if not isinstance(items, list) or not items:
+        return jsonify({"status": "error", "message": "請至少保留一筆商品"}), 400
+
+    for it in items:
+        if not isinstance(it, dict):
+            return jsonify({"status": "error", "message": "商品資料格式錯誤"}), 400
+        try:
+            qty = int(it.get('qty') or 0)
+            price = float(it.get('price') or 0)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "商品數量或單價格式錯誤"}), 400
+        if qty <= 0:
+            return jsonify({"status": "error", "message": "商品數量需大於 0"}), 400
+        if price < 0:
+            return jsonify({"status": "error", "message": "單價不可為負數"}), 400
+
+    ok, msg = db_service.update_order_items(str(order_id), items)
+    if ok:
+        return jsonify({"status": "success", "message": msg})
+    return jsonify({"status": "error", "message": msg}), 400
+
+
 @app.route('/api/admin/bonuses', methods=['GET'])
 @admin_or_coach_required
 def api_admin_bonuses():
