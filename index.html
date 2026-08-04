@@ -851,7 +851,7 @@
 
       grid.innerHTML = filtered.map(p => `
         <div class="bg-surface-container-low border border-outline-variant group hover:glow-primary transition-all duration-300 flex flex-col">
-          <div class="aspect-square bg-surface-dim relative overflow-hidden ${p.is_uv || p.isUv ? 'uv-trigger' : ''}">
+          <div onclick="openProductModal('${p.id}')" class="aspect-square bg-surface-dim relative overflow-hidden cursor-pointer ${p.is_uv || p.isUv ? 'uv-trigger' : ''}">
             <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${p.image_url || p.image}" alt="${p.name}"/>
             
             ${p.is_uv || p.isUv ? `
@@ -958,39 +958,115 @@
       alert(`[LINE API Notification Simulated]\n已成功將公告「${b.title}」推送至社團 LINE 官方群組！`);
     }
 
+    let currentSelectedVariantIdx = 0;
+
     function openProductModal(id) {
       const p = productsData.find(item => item.id === id);
+      if (!p) return;
+
+      currentSelectedVariantIdx = 0;
+      let itemsArr = [];
+      try {
+        itemsArr = typeof p.items_json === 'string' ? JSON.parse(p.items_json || '[]') : (p.items_json || []);
+      } catch(e) { itemsArr = []; }
+
       const content = document.getElementById("product-modal-content");
       
-      content.innerHTML = `
-        <div class="flex flex-col md:flex-row gap-6">
-          <div class="w-full md:w-1/2 aspect-square bg-surface-container overflow-hidden relative">
-            <img class="w-full h-full object-cover" src="${p.image_url || p.image}" alt="${p.name}"/>
-            <div class="absolute top-2 left-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs px-2 py-1 font-bold">
-              ${p.badge}
+      const renderModalBody = () => {
+        let activeImg = p.image_url || p.image;
+        let activePrice = parseFloat(p.price || 0);
+        let activeItemName = '';
+
+        if (itemsArr.length > 0 && itemsArr[currentSelectedVariantIdx]) {
+          const selItem = itemsArr[currentSelectedVariantIdx];
+          if (selItem.image_url) activeImg = selItem.image_url;
+          if (selItem.price) activePrice = parseFloat(selItem.price);
+          activeItemName = selItem.item_name || '';
+        }
+
+        content.innerHTML = `
+          <div class="flex flex-col md:flex-row gap-6">
+            <div class="w-full md:w-1/2 aspect-square bg-surface-container overflow-hidden relative border border-outline-variant">
+              <img id="modal-main-img" class="w-full h-full object-cover transition-all duration-300" src="${activeImg}" alt="${p.name}"/>
+              <div class="absolute top-2 left-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs px-2 py-1 font-bold">
+                ${p.badge}
+              </div>
             </div>
-          </div>
-          <div class="w-full md:w-1/2 flex flex-col justify-between space-y-4">
-            <div>
-              <span class="font-label-caps text-xs text-primary-fixed font-bold">[${p.category.toUpperCase()}] // ${p.material}</span>
-              <h2 class="font-headline-md text-xl italic font-bold text-white mt-1 mb-2">${p.name}</h2>
-              <p class="text-2xl font-label-caps text-primary-fixed font-black mb-4">$${parseFloat(p.price).toFixed(2)}</p>
-              
-              <div class="space-y-2 text-xs text-on-surface-variant font-label-caps mb-4">
-                <p>⚙️ 建議印製層高: <span class="text-white">0.12mm - 0.16mm</span></p>
-                <p>🔥 耐溫特性: <span class="text-white">高抗衝擊 / 100°C 變形溫度</span></p>
-                <p>🎨 質感說明: <span class="text-white">${p.is_uv || p.isUv ? '高解析 UV 浮雕金屬感多層噴印' : '幾何交錯結構 / 高密度減震細節'}</span></p>
+
+            <div class="w-full md:w-1/2 flex flex-col justify-between space-y-4">
+              <div>
+                <span class="font-label-caps text-xs text-primary-fixed font-bold">[${(p.category || '').toUpperCase()}] // ${p.material}</span>
+                <h2 class="font-headline-md text-xl italic font-bold text-white mt-1 mb-1">${p.name}</h2>
+                <p id="modal-display-price" class="text-2xl font-label-caps text-primary-fixed font-black mb-3">$${activePrice.toFixed(2)}</p>
+                
+                ${itemsArr.length > 0 ? `
+                  <div class="p-3 bg-surface-container-low border border-line-green/40 rounded mb-4">
+                    <label class="block font-label-caps text-xs text-line-green font-bold mb-2 flex items-center gap-1">
+                      <span class="material-symbols-outlined text-sm">palette</span> 項目規格 / 顏色款式選擇：
+                    </label>
+                    <div class="flex flex-wrap gap-2">
+                      ${itemsArr.map((itm, idx) => `
+                        <button type="button" onclick="selectModalVariant(${idx})" class="px-2.5 py-1.5 font-label-caps text-xs rounded transition-all flex items-center gap-1.5 ${idx === currentSelectedVariantIdx ? 'bg-primary-fixed text-on-primary-fixed font-bold shadow-md ring-2 ring-primary-fixed' : 'bg-surface-container-high text-on-surface-variant border border-outline-variant hover:text-white'}">
+                          ${itm.image_url ? `<img src="${itm.image_url}" class="w-4 h-4 object-cover rounded-full" />` : ''}
+                          ${itm.item_name || '款式 #' + (idx + 1)} ($${parseFloat(itm.price || p.price).toFixed(2)})
+                        </button>
+                      `).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+
+                <div class="space-y-1 text-xs text-on-surface-variant font-label-caps mb-3">
+                  <p>⚙️ 建議印製層高: <span class="text-white">0.12mm - 0.16mm</span></p>
+                  <p>🔥 耐溫特性: <span class="text-white">高抗衝擊 / 100°C 變形溫度</span></p>
+                  <p>🎨 質感說明: <span class="text-white">${p.is_uv || p.isUv ? '高解析 UV 浮雕金屬感多層噴印' : '幾何交錯結構 / 高密度減震細節'}</span></p>
+                </div>
+
+                <p class="text-xs text-on-surface-variant leading-relaxed border-t border-outline-variant pt-2">${p.description || ''}</p>
               </div>
 
-              <p class="text-xs text-on-surface-variant leading-relaxed border-t border-outline-variant pt-3">${p.description}</p>
-            </div>
+              <!-- 數量欄位 (Qty) 與 加入購物車區塊 -->
+              <div class="space-y-3 pt-2 border-t border-outline-variant">
+                <div class="flex items-center justify-between">
+                  <label class="font-label-caps text-xs text-white font-bold flex items-center gap-1">
+                    <span class="material-symbols-outlined text-sm text-primary-fixed">numbers</span> 購買數量 (QTY)：
+                  </label>
+                  <div class="flex items-center border border-outline-variant rounded bg-surface-container-high overflow-hidden">
+                    <button type="button" onclick="adjustModalQty(-1)" class="px-3 py-1 bg-surface-container hover:bg-surface-container-highest text-white font-bold text-sm transition-colors">-</button>
+                    <input type="number" id="modal-qty-input" value="1" min="1" class="w-12 text-center bg-transparent text-primary-fixed font-bold text-xs p-1 outline-none" />
+                    <button type="button" onclick="adjustModalQty(1)" class="px-3 py-1 bg-surface-container hover:bg-surface-container-highest text-white font-bold text-sm transition-colors">+</button>
+                  </div>
+                </div>
 
-            <button onclick="addToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-2.5 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm">
-              <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車並設定規格
-            </button>
+                <button onclick="submitModalAddToCart('${p.id}')" class="w-full bg-primary-fixed text-on-primary-fixed py-2.5 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg">
+                  <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      };
+
+      window.selectModalVariant = (idx) => {
+        currentSelectedVariantIdx = idx;
+        renderModalBody();
+      };
+
+      window.adjustModalQty = (delta) => {
+        const inp = document.getElementById('modal-qty-input');
+        if (!inp) return;
+        let val = parseInt(inp.value || 1) + delta;
+        if (val < 1) val = 1;
+        inp.value = val;
+      };
+
+      window.submitModalAddToCart = (productId) => {
+        const qtyInp = document.getElementById('modal-qty-input');
+        const qty = parseInt(qtyInp ? qtyInp.value : 1) || 1;
+        addToCartWithVariant(productId, currentSelectedVariantIdx, qty);
+        closeProductModal();
+      };
+
+      renderModalBody();
       document.getElementById("product-modal").classList.remove("hidden");
     }
 
@@ -998,18 +1074,49 @@
       document.getElementById("product-modal").classList.add("hidden");
     }
 
-    function addToCart(id) {
+    function addToCartWithVariant(id, variantIdx = 0, qty = 1) {
       const p = productsData.find(item => item.id === id);
-      const existing = cart.find(item => item.id === id);
+      if (!p) return;
+
+      let itemsArr = [];
+      try {
+        itemsArr = typeof p.items_json === 'string' ? JSON.parse(p.items_json || '[]') : (p.items_json || []);
+      } catch(e) { itemsArr = []; }
+
+      let selItemName = '-';
+      let price = parseFloat(p.price || 0);
+      let img = p.image_url || p.image;
+
+      if (itemsArr.length > 0 && itemsArr[variantIdx]) {
+        const selItem = itemsArr[variantIdx];
+        selItemName = selItem.item_name || ('款式 #' + (variantIdx + 1));
+        if (selItem.price) price = parseFloat(selItem.price);
+        if (selItem.image_url) img = selItem.image_url;
+      }
+
+      const cartKey = `${id}_${selItemName}`;
+      const existing = cart.find(item => item.cartKey === cartKey);
       if (existing) {
-        existing.qty += 1;
+        existing.qty += qty;
       } else {
-        cart.push({ ...p, qty: 1 });
+        cart.push({
+          cartKey: cartKey,
+          id: p.id,
+          name: p.name,
+          itemName: selItemName,
+          price: price,
+          image: img,
+          qty: qty
+        });
       }
       updateCartUI();
       const badge = document.getElementById("cart-count-badge");
       badge.classList.add("animate-bounce");
       setTimeout(() => badge.classList.remove("animate-bounce"), 1000);
+    }
+
+    function addToCart(id) {
+      addToCartWithVariant(id, 0, 1);
     }
 
     function updateCartUI() {

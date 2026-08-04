@@ -747,6 +747,18 @@ class DBService:
             print(f"Error fetching unique material names: {e}")
             return []
 
+    def get_unique_material_suppliers(self):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT DISTINCT supplier FROM material_purchases WHERE supplier IS NOT NULL AND supplier != '' ORDER BY supplier ASC")
+            rows = cursor.fetchall()
+            conn.close()
+            return [r[0] if isinstance(r, (tuple, list)) else r['supplier'] for r in rows]
+        except Exception as e:
+            print(f"Error fetching unique material suppliers: {e}")
+            return []
+
     def update_material_purchase(self, log_id, material_name, purchase_cost, purchase_qty, supplier='', remark='', operator_name='管理員', purchase_date=None, total_capacity=''):
         try:
             conn = self._get_connection()
@@ -785,6 +797,45 @@ class DBService:
             return True
         except Exception as e:
             print(f"Error deleting material purchase {log_id}: {e}")
+            return False
+
+    # --- Orders Admin Methods ---
+    def get_all_orders(self):
+        try:
+            conn = self._get_connection()
+            if self.use_sqlite:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM orders ORDER BY id DESC")
+                rows = cursor.fetchall()
+                conn.close()
+                return [dict(r) for r in rows]
+            else:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("SELECT * FROM orders ORDER BY id DESC")
+                orders = cursor.fetchall()
+                conn.close()
+                return [dict(o) for o in orders]
+        except Exception as e:
+            print(f"Error fetching orders: {e}")
+            return []
+
+    def update_order_status_and_profit(self, order_id, status='SHIPPED', other_cost=0, shipping_cost=60, net_profit=0):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            if self.use_sqlite:
+                cursor.execute('''
+                    UPDATE orders SET status = ? WHERE id = ?
+                ''', (status, str(order_id)))
+            else:
+                cursor.execute('''
+                    UPDATE orders SET status = %s WHERE id = %s
+                ''', (status, str(order_id)))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error updating order {order_id}: {e}")
             return False
 
     # --- LINE Groups & Bulletins ---

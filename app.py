@@ -388,6 +388,12 @@ def api_admin_material_names():
     names = db_service.get_unique_material_names()
     return jsonify({"status": "success", "data": names})
 
+@app.route('/api/admin/material-suppliers', methods=['GET'])
+@admin_or_coach_required
+def api_admin_material_suppliers():
+    suppliers = db_service.get_unique_material_suppliers()
+    return jsonify({"status": "success", "data": suppliers})
+
 @app.route('/api/admin/material-purchases/<int:log_id>', methods=['PUT', 'DELETE'])
 @admin_or_coach_required
 def api_admin_material_purchases_detail(log_id):
@@ -413,6 +419,26 @@ def api_admin_material_purchases_detail(log_id):
         if deleted:
             return jsonify({"status": "success", "message": "耗材進貨紀錄已成功刪除！"})
         return jsonify({"status": "error", "message": "刪除失敗"}), 500
+
+@app.route('/api/admin/orders', methods=['GET'])
+@admin_or_coach_required
+def api_admin_orders():
+    orders = db_service.get_all_orders()
+    return jsonify({"status": "success", "data": orders})
+
+@app.route('/api/admin/orders/<order_id>/ship', methods=['POST'])
+@admin_or_coach_required
+def api_admin_orders_ship(order_id):
+    data = request.get_json() or {}
+    status = data.get('status', 'SHIPPED')
+    other_cost = float(data.get('other_cost', 0))
+    shipping_cost = float(data.get('shipping_cost', 60))
+    net_profit = float(data.get('net_profit', 0))
+
+    success = db_service.update_order_status_and_profit(order_id, status, other_cost, shipping_cost, net_profit)
+    if success:
+        return jsonify({"status": "success", "message": f"訂單 #{order_id} 已成功執行寄送，利潤結算已存檔！"})
+    return jsonify({"status": "error", "message": "處理訂單寄送失敗"}), 500
 
 # --- LINE Group & Broadcast APIs (PDF 自動轉圖 + 每 5 張圖片一則訊息分批推播) ---
 
