@@ -64,10 +64,25 @@
     } else if (secId === 'orders' && !dataLoaded.orders) {
       dataLoaded.orders = true;
       loadAdminOrdersList();
-    } else if (secId === 'bonuses' && !dataLoaded.bonuses) {
-      dataLoaded.bonuses = true;
-      defaultBonusRange();
-      loadBonusSummary();
+    } else if (secId === 'bonuses') {
+      if (!dataLoaded.users) {
+        dataLoaded.users = true;
+        loadUsers().then(() => {
+          populateBonusMemberFilter();
+          if (!dataLoaded.bonuses) {
+            dataLoaded.bonuses = true;
+            defaultBonusRange();
+            loadBonusSummary();
+          }
+        });
+      } else {
+        populateBonusMemberFilter();
+        if (!dataLoaded.bonuses) {
+          dataLoaded.bonuses = true;
+          defaultBonusRange();
+          loadBonusSummary();
+        }
+      }
     } else if ((secId === 'line-groups' || secId === 'line-send') && !dataLoaded.lineGroups) {
       dataLoaded.lineGroups = true;
       loadLineGroups();
@@ -1287,6 +1302,27 @@
   // --- Orders Management & Shipment Calculator JS ---
   let adminOrdersList = [];
   let currentShipmentOrder = null;
+  let ordersStatusFilter = 'all';
+
+  function setOrdersStatusFilter(f) {
+    ordersStatusFilter = f || 'all';
+    const tabs = [
+      ['orders-tab-all', 'all'],
+      ['orders-tab-pending', 'pending'],
+      ['orders-tab-shipped', 'shipped'],
+      ['orders-tab-cancelled', 'cancelled']
+    ];
+    tabs.forEach(([id, key]) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      if (key === ordersStatusFilter) {
+        btn.className = "px-4 py-2 rounded-t font-bold italic text-xs transition-all bg-primary-fixed text-on-primary-fixed";
+      } else {
+        btn.className = "px-4 py-2 rounded-t font-bold italic text-xs transition-all bg-surface-container-high border border-outline-variant text-gray-300 hover:text-white";
+      }
+    });
+    renderAdminOrdersTable();
+  }
 
   async function loadAdminOrdersList() {
     try {
@@ -1311,7 +1347,25 @@
       return;
     }
 
-    tbody.innerHTML = adminOrdersList.map(o => {
+    let filtered = adminOrdersList;
+    if (ordersStatusFilter === 'pending') {
+      filtered = adminOrdersList.filter(o => !['SHIPPED', 'COMPLETED', 'CANCELLED'].includes(o.status));
+    } else if (ordersStatusFilter === 'shipped') {
+      filtered = adminOrdersList.filter(o => o.status === 'SHIPPED' || o.status === 'COMPLETED');
+    } else if (ordersStatusFilter === 'cancelled') {
+      filtered = adminOrdersList.filter(o => o.status === 'CANCELLED');
+    }
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" class="p-6 text-center text-gray-400 italic">此狀態目前沒有訂單。</td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(o => {
       let itemsSummary = '';
       let unitPriceLines = '';
       try {
@@ -1875,10 +1929,22 @@
     if (toEl) toEl.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   }
 
+  function populateBonusMemberFilter() {
+    const sel = document.getElementById('bonus-member-filter');
+    if (!sel) return;
+    const users = (usersList || []).filter(u => u.role === 'admin' || u.role === 'assistant_coach');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">全部同仁</option>' + users.map(u =>
+      `<option value="${u.id}">${u.name} (${u.role === 'admin' ? '最高管理員' : '助理教練'})</option>`
+    ).join('');
+    sel.value = current;
+  }
+
   async function loadBonusSummary() {
     const from = document.getElementById('bonus-from').value;
     const to = document.getElementById('bonus-to').value;
     if (!from || !to) return alert('請選擇開始與結束日期');
+    populateBonusMemberFilter();
     try {
       const res = await fetch(`/api/admin/bonuses?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       const json = await res.json();
@@ -1891,18 +1957,28 @@
 
   function renderBonusSummary() {
     const d = bonusSummaryData;
+    const filterUserId = document.getElementById('bonus-member-filter') ? document.getElementById('bonus-member-filter').value : '';
+    let members = d.members || [];
+    let entries = d.entries || [];
+    if (filterUserId) {
+      members = members.filter(m => m.user_id === filterUserId);
+      entries = entries.filter(e => e.user_id === filterUserId);
+    }
     document.getElementById('bonus-platform-total').textContent = '$' + parseFloat(d.platform_total || 0).toFixed(2);
-    const membersTotal = (d.members || []).reduce((a, m) => a + parseFloat(m.total || 0), 0);
+    const membersTotal = members.reduce((a, m) => a + parseFloat(m.total || 0), 0);
     document.getElementById('bonus-members-total').textContent = '$' + membersTotal.toFixed(2);
-    document.getElementById('bonus-entries-count').textContent = (d.entries || []).length;
+    const settlementCount = filterUserId
+      ? new Set(entries.map(e => e.order_id)).size
+      : (d.settlement_count !== undefined ? d.settlement_count : new Set((d.entries || []).map(e => e.order_id)).size);
+    document.getElementById('bonus-entries-count').textContent = settlementCount;
 
     const tbody = document.getElementById('bonus-members-tbody');
     if (!tbody) return;
-    if (!d.members || d.members.length === 0) {
+    if (members.length === 0) {
       tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-gray-400 italic">此期間沒有結算獎金</td></tr>`;
       return;
     }
-    tbody.innerHTML = d.members.map(m => `
+    tbody.innerHTML = members.map(m => `
       <tr class="hover:bg-surface-container/50">
         <td class="p-3 font-bold text-white">${m.name}</td>
         <td class="p-3 text-right text-primary-fixed font-bold">$${parseFloat(m.designer_amount || 0).toFixed(2)}</td>

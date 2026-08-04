@@ -12,6 +12,13 @@
     </button>
   </div>
 
+  <div class="flex flex-wrap gap-2 border-b border-outline-variant pb-3">
+    <button type="button" id="orders-tab-all" onclick="setOrdersStatusFilter('all')" class="px-4 py-2 rounded-t font-bold italic text-xs transition-all bg-primary-fixed text-on-primary-fixed">全部</button>
+    <button type="button" id="orders-tab-pending" onclick="setOrdersStatusFilter('pending')" class="px-4 py-2 rounded-t font-bold italic text-xs transition-all bg-surface-container-high border border-outline-variant text-gray-300 hover:text-white">待處理</button>
+    <button type="button" id="orders-tab-shipped" onclick="setOrdersStatusFilter('shipped')" class="px-4 py-2 rounded-t font-bold italic text-xs transition-all bg-surface-container-high border border-outline-variant text-gray-300 hover:text-white">已寄送</button>
+    <button type="button" id="orders-tab-cancelled" onclick="setOrdersStatusFilter('cancelled')" class="px-4 py-2 rounded-t font-bold italic text-xs transition-all bg-surface-container-high border border-outline-variant text-gray-300 hover:text-white">已取消</button>
+  </div>
+
   <div class="bg-surface-container-low border border-outline-variant overflow-x-auto shadow-2xl">
     <table class="w-full text-left font-label-caps text-xs">
       <thead class="bg-surface-container border-b border-outline-variant text-primary-fixed">

@@ -14,6 +14,12 @@
       <label class="block text-xs font-bold text-gray-300 mb-1">結束日期</label>
       <input type="date" id="bonus-to" class="bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded" />
     </div>
+    <div>
+      <label class="block text-xs font-bold text-gray-300 mb-1">同仁</label>
+      <select id="bonus-member-filter" onchange="renderBonusSummary()" class="bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded">
+        <option value="">全部同仁</option>
+      </select>
+    </div>
     <button onclick="loadBonusSummary()" class="px-4 py-2 bg-line-green hover:bg-line-green-hover text-white font-label-caps text-xs font-bold italic rounded shadow flex items-center gap-1">
       <span class="material-symbols-outlined text-sm">search</span> 查詢獎金
     </button>

@@ -864,7 +864,7 @@ class DBService:
 
     def get_all_orders(self):
         try:
-            return self._fetch_dicts("SELECT * FROM orders ORDER BY id DESC")
+            return self._fetch_dicts("SELECT * FROM orders ORDER BY created_at DESC NULLS LAST, id DESC")
         except Exception as e:
             print(f"Error fetching orders: {e}")
             return []
@@ -1192,6 +1192,12 @@ class DBService:
                 ORDER BY s.settled_at ASC
             """, {"date_from": date_from, "date_to": date_to})
 
+            settlement_row = self._fetch_one("""
+                SELECT COUNT(DISTINCT order_id) AS c FROM order_settlements
+                WHERE settled_at >= :date_from AND settled_at <= :date_to
+            """, {"date_from": date_from, "date_to": date_to})
+            settlement_count = int((settlement_row or {}).get('c') or 0)
+
             users = {u['id']: u['name'] for u in self.get_all_users()}
             members = {}
             entries = []
@@ -1239,6 +1245,7 @@ class DBService:
                 "platform_total": round(platform_total, 2),
                 "members": members_list,
                 "entries": entries,
+                "settlement_count": settlement_count,
             }
         except Exception as e:
             print(f"Error fetching bonus summary: {e}")
