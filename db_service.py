@@ -999,7 +999,7 @@ class DBService:
                 ).first()
                 if not row:
                     return False, "訂單不存在"
-                if row["status"] in ("SHIPPED", "COMPLETED", "CANCELLED"):
+                if row._mapping["status"] in ("SHIPPED", "COMPLETED", "CANCELLED"):
                     return False, "已寄送或已取消的訂單無法取消"
                 conn.execute(text("DELETE FROM sales_logs WHERE order_id = :id"), {"id": str(order_id)})
                 conn.execute(text("UPDATE orders SET status = 'CANCELLED' WHERE id = :id"), {"id": str(order_id)})
@@ -1025,7 +1025,7 @@ class DBService:
                 ).first()
                 if not row:
                     return False, "訂單不存在"
-                if row["status"] in ("SHIPPED", "COMPLETED", "CANCELLED"):
+                if row._mapping["status"] in ("SHIPPED", "COMPLETED", "CANCELLED"):
                     return False, "已寄送或已取消的訂單無法修改"
 
                 # 先移除舊銷售紀錄（釋放庫存），再依新明細重新扣減
@@ -1045,7 +1045,7 @@ class DBService:
                         ).first()
                         if not prod_row:
                             raise StockError(f"商品「{name}」不存在或已刪除，請先修正再儲存")
-                        pname = prod_row["name"]
+                        pname = prod_row._mapping["name"]
 
                         purchased = conn.execute(text("""
                             SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
