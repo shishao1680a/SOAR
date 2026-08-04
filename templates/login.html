@@ -4,35 +4,10 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
   <title>UX-PRINT // 會員登入與註冊</title>
-  
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <!-- Tailwind CSS（本地建置，取代 CDN） -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind-login.css') }}">
   <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,400;0,700;0,800;0,900;1,400;1,700;1,800;1,900&family=Hanken+Grotesk:wght@400;700&family=JetBrains+Mono:wght@700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-
-  <script id="tailwind-config">
-    tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: {
-            "surface-dim": "#131313",
-            "background": "#0f1419",
-            "primary-green": "#0f5238",
-            "primary-green-hover": "#0c412c",
-            "line-green": "#06C755",
-            "line-green-hover": "#05b34c",
-            "text-main": "#181c20",
-            "primary-fixed": "#c3f400"
-          },
-          fontFamily: {
-            "body-md": ["Hanken Grotesk", "Noto Sans TC", "sans-serif"],
-            "label-caps": ["JetBrains Mono", "monospace"],
-            "display-lg": ["Anybody", "Noto Sans TC", "sans-serif"]
-          }
-        }
-      }
-    }
-  </script>
 
   <style>
     body {

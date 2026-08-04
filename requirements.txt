@@ -4,5 +4,6 @@ python-dotenv
 requests
 gunicorn
 psycopg2-binary
+sqlalchemy>=2.0
 pytz
 PyMuPDF

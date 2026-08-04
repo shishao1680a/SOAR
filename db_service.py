@@ -1,146 +1,93 @@
 import os
 import json
-import sqlite3
-import psycopg2
-import psycopg2.extras
+import uuid
 from datetime import datetime, timezone, timedelta
 
-class DBService:
-    def __init__(self, db_url=None):
-        url = (db_url or 
-               os.getenv("DATABASE_URL") or 
-               os.getenv("DATABASE_PRIVATE_URL") or 
-               os.getenv("DATABASE_PUBLIC_URL") or 
-               os.getenv("POSTGRES_URL"))
+from sqlalchemy import create_engine, text
+from werkzeug.security import generate_password_hash, check_password_hash
 
-        if url and url.startswith("postgres://"):
+
+class DBService:
+    """PostgreSQL 資料存取層（SQLAlchemy Core + 連線池）。
+
+    - 使用 SQLAlchemy engine / QueuePool，避免每個請求重新建立連線
+    - 密碼以 werkzeug 雜湊儲存，登入時自動將舊明文密碼升級為雜湊
+    - 啟動時若資料庫無法連線會直接失敗（fail-fast），不做 SQLite 降級
+    """
+
+    POOL_SIZE = 5
+    MAX_OVERFLOW = 10
+    POOL_RECYCLE = 1800
+
+    def __init__(self, db_url=None):
+        url = (
+            db_url
+            or os.getenv("DATABASE_URL")
+            or os.getenv("DATABASE_PRIVATE_URL")
+            or os.getenv("DATABASE_PUBLIC_URL")
+            or os.getenv("POSTGRES_URL")
+        )
+        if not url:
+            raise RuntimeError("DATABASE_URL 未設定，無法初始化資料庫連線！")
+        if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
 
         self.db_url = url
-        self.use_sqlite = False
-        self.sqlite_file = os.path.join(os.path.dirname(__file__), "uxprint_fallback.db")
+        self.engine = create_engine(
+            url,
+            pool_size=self.POOL_SIZE,
+            max_overflow=self.MAX_OVERFLOW,
+            pool_pre_ping=True,
+            pool_recycle=self.POOL_RECYCLE,
+        )
 
-        print(f"DEBUG: Initializing DBService (PG URL: {self.db_url})")
+        self._log_db_target()
         self._ensure_tables_exist()
 
-    def _get_connection(self):
-        if self.use_sqlite:
-            conn = sqlite3.connect(self.sqlite_file)
-            conn.row_factory = sqlite3.Row
-            return conn
+        # gunicorn --preload：啟動時完成建表/種子後釋放連線池，
+        # 避免 fork 出的 worker 共用父程序建立的連線
+        self.engine.dispose()
+
+    # ---------- 連線管理 ----------
+
+    def _log_db_target(self):
+        """只輸出 host/db，避免把連線字串（含密碼）寫進 log。"""
         try:
-            return psycopg2.connect(self.db_url)
-        except Exception as e:
-            print(f"WARNING: PostgreSQL Connection failed ({e}). Switching to local SQLite fallback database.")
-            self.use_sqlite = True
-            conn = sqlite3.connect(self.sqlite_file)
-            conn.row_factory = sqlite3.Row
-            self._ensure_tables_exist()
-            return conn
+            rest = self.db_url.split("@", 1)[1]
+            host_part, _, db_part = rest.partition("/")
+            dbname = db_part.split("?", 1)[0]
+            print(f"DEBUG: Initializing DBService (host={host_part}, db={dbname or '-'})")
+        except Exception:
+            print("DEBUG: Initializing DBService")
+
+    def _fetch_dicts(self, sql, params=None):
+        """執行查詢並回傳 list[dict]。"""
+        with self.engine.connect() as conn:
+            result = conn.execute(text(sql), params or {})
+            return [dict(row._mapping) for row in result]
+
+    def _fetch_one(self, sql, params=None):
+        """執行查詢並回傳單筆 dict 或 None。"""
+        with self.engine.connect() as conn:
+            row = conn.execute(text(sql), params or {}).first()
+            return dict(row._mapping) if row else None
+
+    def _execute(self, sql, params=None):
+        """執行寫入並自動 commit（失敗自動 rollback）。"""
+        with self.engine.begin() as conn:
+            conn.execute(text(sql), params or {})
 
     def _get_taiwan_now_str(self):
         tw_now = datetime.now(timezone.utc) + timedelta(hours=8)
         return tw_now.strftime("%Y-%m-%d %H:%M:%S")
 
+    # ---------- 建表 / 遷移 / 種子資料 ----------
+
     def _ensure_tables_exist(self):
-        """建立資料庫與備用 SQLite 資料表"""
+        """建立 PostgreSQL 資料表、補欄位遷移與常用索引。"""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            if self.use_sqlite:
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS users (
-                        id TEXT PRIMARY KEY,
-                        username TEXT UNIQUE,
-                        password TEXT,
-                        name TEXT,
-                        line_id TEXT,
-                        avatar_url TEXT,
-                        phone TEXT,
-                        role TEXT DEFAULT 'user',
-                        register_date TEXT
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS products (
-                        id TEXT PRIMARY KEY,
-                        name TEXT NOT NULL,
-                        category TEXT NOT NULL,
-                        material TEXT NOT NULL,
-                        price REAL NOT NULL,
-                        cost_price REAL DEFAULT 0.00,
-                        stock_qty INTEGER DEFAULT 50,
-                        badge TEXT,
-                        image_url TEXT,
-                        images_json TEXT,
-                        description TEXT,
-                        is_uv INTEGER DEFAULT 0,
-                        created_at TEXT
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS inventory_logs (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        product_id TEXT,
-                        product_name TEXT,
-                        item_name TEXT DEFAULT '-',
-                        purchase_qty INTEGER,
-                        purchase_cost REAL,
-                        supplier TEXT,
-                        purchase_date TEXT,
-                        remark TEXT,
-                        operator_name TEXT DEFAULT '管理員'
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS material_purchases (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        material_name TEXT NOT NULL,
-                        total_capacity TEXT,
-                        purchase_cost REAL NOT NULL,
-                        purchase_qty INTEGER NOT NULL,
-                        supplier TEXT,
-                        purchase_date TEXT,
-                        remark TEXT,
-                        operator_name TEXT DEFAULT '管理員'
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS line_groups (
-                        id TEXT PRIMARY KEY,
-                        name TEXT NOT NULL,
-                        description TEXT,
-                        created_at TEXT
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS bulletins (
-                        id TEXT PRIMARY KEY,
-                        title TEXT NOT NULL,
-                        date_str TEXT,
-                        tag TEXT,
-                        is_pinned INTEGER DEFAULT 0,
-                        summary TEXT,
-                        content TEXT,
-                        line_broadcasted INTEGER DEFAULT 1,
-                        created_at TEXT
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS orders (
-                        id TEXT PRIMARY KEY,
-                        user_id TEXT,
-                        user_name TEXT,
-                        user_line_id TEXT,
-                        items_json TEXT,
-                        total_amount REAL,
-                        status TEXT DEFAULT 'PENDING',
-                        created_at TEXT
-                    )
-                ''')
-            else:
-                cursor.execute('''
+            with self.engine.begin() as conn:
+                conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS users (
                         id VARCHAR(255) PRIMARY KEY,
                         username VARCHAR(255) UNIQUE,
@@ -152,8 +99,8 @@ class DBService:
                         role VARCHAR(50) DEFAULT 'user',
                         register_date VARCHAR(100)
                     )
-                ''')
-                cursor.execute('''
+                """))
+                conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS products (
                         id VARCHAR(100) PRIMARY KEY,
                         name VARCHAR(255) NOT NULL,
@@ -171,22 +118,22 @@ class DBService:
                         is_uv BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
-                ''')
-                cursor.execute('''
+                """))
+                conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS product_categories (
                         id SERIAL PRIMARY KEY,
                         code VARCHAR(100) UNIQUE,
                         name VARCHAR(255) NOT NULL
                     )
-                ''')
-                cursor.execute('''
+                """))
+                conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS product_materials (
                         id SERIAL PRIMARY KEY,
                         code VARCHAR(100) UNIQUE,
                         name VARCHAR(255) NOT NULL
                     )
-                ''')
-                cursor.execute('''
+                """))
+                conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS inventory_logs (
                         id SERIAL PRIMARY KEY,
                         product_id VARCHAR(100),
@@ -199,8 +146,8 @@ class DBService:
                         remark TEXT,
                         operator_name VARCHAR(100) DEFAULT '管理員'
                     )
-                ''')
-                cursor.execute('''
+                """))
+                conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS material_purchases (
                         id SERIAL PRIMARY KEY,
                         material_name VARCHAR(255) NOT NULL,
@@ -212,16 +159,16 @@ class DBService:
                         remark TEXT,
                         operator_name VARCHAR(100) DEFAULT '管理員'
                     )
-                ''')
-                cursor.execute('''
+                """))
+                conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS line_groups (
                         id VARCHAR(255) PRIMARY KEY,
                         name VARCHAR(255) NOT NULL,
                         description TEXT,
                         created_at VARCHAR(100)
                     )
-                ''')
-                cursor.execute('''
+                """))
+                conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS bulletins (
                         id VARCHAR(100) PRIMARY KEY,
                         title VARCHAR(255) NOT NULL,
@@ -233,8 +180,8 @@ class DBService:
                         line_broadcasted BOOLEAN DEFAULT TRUE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
-                ''')
-                cursor.execute('''
+                """))
+                conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS orders (
                         id VARCHAR(100) PRIMARY KEY,
                         user_id VARCHAR(255),
@@ -243,119 +190,106 @@ class DBService:
                         items_json TEXT,
                         total_amount NUMERIC(10, 2),
                         status VARCHAR(50) DEFAULT 'PENDING',
+                        other_cost NUMERIC(10, 2) DEFAULT 0,
+                        shipping_cost NUMERIC(10, 2) DEFAULT 60,
+                        net_profit NUMERIC(10, 2) DEFAULT 0,
                         created_at VARCHAR(100)
                     )
-                ''')
+                """))
 
-            # 數據表欄位自動補全與檢核遷移 (Migration)
-            try:
-                if self.use_sqlite:
-                    cursor.execute("PRAGMA table_info(products)")
-                    p_cols = [r[1] for r in cursor.fetchall()]
-                    if 'uv_cost_price' not in p_cols:
-                        cursor.execute("ALTER TABLE products ADD COLUMN uv_cost_price REAL DEFAULT 0.0")
-                    if 'items_json' not in p_cols:
-                        cursor.execute("ALTER TABLE products ADD COLUMN items_json TEXT DEFAULT '[]'")
+                # 欄位補全遷移（舊資料庫）
+                conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS uv_cost_price NUMERIC(10, 2) DEFAULT 0.00"))
+                conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS items_json TEXT DEFAULT '[]'"))
+                conn.execute(text("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS item_name VARCHAR(255) DEFAULT '-'"))
+                conn.execute(text("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS operator_name VARCHAR(255) DEFAULT '管理員'"))
+                conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS total_capacity VARCHAR(255) DEFAULT ''"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS other_cost NUMERIC(10, 2) DEFAULT 0"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(10, 2) DEFAULT 60"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS net_profit NUMERIC(10, 2) DEFAULT 0"))
 
-                    cursor.execute("PRAGMA table_info(inventory_logs)")
-                    inv_cols = [r[1] for r in cursor.fetchall()]
-                    if 'item_name' not in inv_cols:
-                        cursor.execute("ALTER TABLE inventory_logs ADD COLUMN item_name TEXT DEFAULT '-'")
-                    if 'operator_name' not in inv_cols:
-                        cursor.execute("ALTER TABLE inventory_logs ADD COLUMN operator_name TEXT DEFAULT '管理員'")
+                # 常用索引
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_id ON inventory_logs (product_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_name ON inventory_logs (product_name)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_material_purchases_material_name ON material_purchases (material_name)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_line_id ON users (line_id)"))
 
-                    cursor.execute("PRAGMA table_info(material_purchases)")
-                    mat_cols = [r[1] for r in cursor.fetchall()]
-                    if 'total_capacity' not in mat_cols:
-                        cursor.execute("ALTER TABLE material_purchases ADD COLUMN total_capacity TEXT DEFAULT ''")
-                else:
-                    cursor.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS uv_cost_price NUMERIC(10, 2) DEFAULT 0.00")
-                    cursor.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS items_json TEXT DEFAULT '[]'")
-                    cursor.execute("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS item_name VARCHAR(255) DEFAULT '-'")
-                    cursor.execute("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS operator_name VARCHAR(255) DEFAULT '管理員'")
-                    cursor.execute("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS total_capacity VARCHAR(255) DEFAULT ''")
-            except Exception as mig_err:
-                print(f"Migration notice: {mig_err}")
-
-            conn.commit()
-            conn.close()
             self._seed_initial_data()
         except Exception as e:
             print(f"ERROR: Table initialization failed: {e}")
+            raise
 
     def _seed_initial_data(self):
-        """播種三種角色的範例帳號與初始資料"""
+        """播種三種角色的範例帳號與初始資料（密碼一律存雜湊）。"""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
+            with self.engine.begin() as conn:
+                count = conn.execute(text("SELECT COUNT(*) FROM users")).scalar() or 0
 
-            cursor.execute("SELECT COUNT(*) FROM users")
-            row = cursor.fetchone()
-            count = row[0] if row else 0
+                if count == 0:
+                    now_str = self._get_taiwan_now_str()
+                    initial_users = [
+                        ("u_admin", "admin", generate_password_hash("admin123"), "系統超級管理員",
+                         "U84920491823901",
+                         "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+                         "0912345678", "admin", now_str),
+                        ("u_coach", "coach1", generate_password_hash("coach123"), "陳教練 (助理教練)",
+                         "U22345678901234",
+                         "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
+                         "0922334455", "assistant_coach", now_str),
+                        ("u_user1", "alex88", generate_password_hash("123456"), "賽車選手 Alex #88",
+                         "U12345678901234",
+                         "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80",
+                         "0987654321", "user", now_str),
+                    ]
+                    for u in initial_users:
+                        conn.execute(text("""
+                            INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
+                            VALUES (:id, :username, :password, :name, :line_id, :avatar_url, :phone, :role, :register_date)
+                        """), {
+                            "id": u[0], "username": u[1], "password": u[2], "name": u[3],
+                            "line_id": u[4], "avatar_url": u[5], "phone": u[6],
+                            "role": u[7], "register_date": u[8],
+                        })
 
-            if count == 0:
-                now_str = self._get_taiwan_now_str()
-                initial_users = [
-                    ("u_admin", "admin", "admin123", "系統超級管理員", "U84920491823901", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80", "0912345678", "admin", now_str),
-                    ("u_coach", "coach1", "coach123", "陳教練 (助理教練)", "U22345678901234", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80", "0922334455", "assistant_coach", now_str),
-                    ("u_user1", "alex88", "123456", "賽車選手 Alex #88", "U12345678901234", "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80", "0987654321", "user", now_str)
-                ]
-                for u in initial_users:
-                    cursor.execute('''
-                        INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ''' if not self.use_sqlite else '''
-                        INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', u)
+                p_count = conn.execute(text("SELECT COUNT(*) FROM products")).scalar() or 0
 
-            cursor.execute("SELECT COUNT(*) FROM products")
-            row = cursor.fetchone()
-            p_count = row[0] if row else 0
-
-            if p_count == 0:
-                initial_products = [
-                    ("p1", "VORTEX H-BLOCK 避震套件", "3d-print", "TPU_95A", 45.00, 18.00, 50, "TPU HIGH-IMPACT", 
-                     "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80",
-                     json.dumps(["https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80"]),
-                     "Reinforced lattice structure for maximum sliding speed and impact absorption. 高密度 TPU 3D 列印套件。", False),
-                    ("p2", "GLITCH DECAL UV炫彩貼紙包", "uv-print", "UV_RESIN", 18.00, 5.00, 120, "UV REACTIVE", 
-                     "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80",
-                     json.dumps(["https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80"]),
-                     "Ultra-durable UV resin prints. Scuff-resistant and glow-active under city lights. 高精度 UV 浮雕圖騰貼紙。", True)
-                ]
-                for p in initial_products:
-                    cursor.execute('''
-                        INSERT INTO products (id, name, category, material, price, cost_price, stock_qty, badge, image_url, images_json, description, is_uv)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ''' if not self.use_sqlite else '''
-                        INSERT INTO products (id, name, category, material, price, cost_price, stock_qty, badge, image_url, images_json, description, is_uv)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', p)
-
-            conn.commit()
-            conn.close()
+                if p_count == 0:
+                    initial_products = [
+                        ("p1", "VORTEX H-BLOCK 避震套件", "3d-print", "TPU_95A", 45.00, 18.00, 50,
+                         "TPU HIGH-IMPACT",
+                         "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80",
+                         json.dumps(["https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80"]),
+                         "Reinforced lattice structure for maximum sliding speed and impact absorption. 高密度 TPU 3D 列印套件。",
+                         False),
+                        ("p2", "GLITCH DECAL UV炫彩貼紙包", "uv-print", "UV_RESIN", 18.00, 5.00, 120,
+                         "UV REACTIVE",
+                         "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80",
+                         json.dumps(["https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80"]),
+                         "Ultra-durable UV resin prints. Scuff-resistant and glow-active under city lights. 高精度 UV 浮雕圖騰貼紙。",
+                         True),
+                    ]
+                    for p in initial_products:
+                        conn.execute(text("""
+                            INSERT INTO products (id, name, category, material, price, cost_price, stock_qty, badge,
+                                                  image_url, images_json, description, is_uv)
+                            VALUES (:id, :name, :category, :material, :price, :cost_price, :stock_qty, :badge,
+                                    :image_url, :images_json, :description, :is_uv)
+                        """), {
+                            "id": p[0], "name": p[1], "category": p[2], "material": p[3],
+                            "price": p[4], "cost_price": p[5], "stock_qty": p[6], "badge": p[7],
+                            "image_url": p[8], "images_json": p[9], "description": p[10], "is_uv": p[11],
+                        })
         except Exception as e:
             print(f"ERROR: Initial seed failed: {e}")
+
+    # ---------- 使用者 / 認證 ----------
 
     def get_user_by_line_id(self, line_id):
         """根據 LINE User ID 尋找已綁定之使用者"""
         if not line_id:
             return None
         try:
-            conn = self._get_connection()
-            if self.use_sqlite:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM users WHERE line_id = ?", (line_id,))
-                row = cursor.fetchone()
-                conn.close()
-                return dict(row) if row else None
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM users WHERE line_id = %s", (line_id,))
-                user = cursor.fetchone()
-                conn.close()
-                return dict(user) if user else None
+            return self._fetch_one("SELECT * FROM users WHERE line_id = :line_id", {"line_id": line_id})
         except Exception as e:
             print(f"Error fetching user by LINE ID: {e}")
             return None
@@ -367,87 +301,81 @@ class DBService:
             return False, "查無此帳號或密碼錯誤，請確認輸入資料或前往【建立會員帳號】！", None
 
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            query = "UPDATE users SET line_id = %s, avatar_url = CASE WHEN %s <> '' THEN %s ELSE avatar_url END WHERE id = %s" if not self.use_sqlite else "UPDATE users SET line_id = ?, avatar_url = CASE WHEN ? <> '' THEN ? ELSE avatar_url END WHERE id = ?"
-            cursor.execute(query, (line_id, avatar_url, avatar_url, user['id']))
-            conn.commit()
-            conn.close()
+            self._execute("""
+                UPDATE users SET line_id = :line_id,
+                    avatar_url = CASE WHEN :avatar_url <> '' THEN :avatar_url ELSE avatar_url END
+                WHERE id = :id
+            """, {"line_id": line_id, "avatar_url": avatar_url, "id": user['id']})
 
             user['line_id'] = line_id
             if avatar_url:
                 user['avatar_url'] = avatar_url
             return True, "LINE 帳號成功綁定！", user
         except Exception as e:
+            print(f"Error binding LINE account: {e}")
             return False, f"綁定失敗: {str(e)}", None
 
     def register_user(self, username, password, name, phone, role='user', line_id='', avatar_url=''):
-        """註冊新使用者 (預設角色為 user)"""
+        """註冊新使用者（密碼存雜湊，ID 用 uuid 避免撞號）"""
         try:
             now_str = self._get_taiwan_now_str()
-            user_id = f"u_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            user_id = f"u_{uuid.uuid4().hex[:12]}"
             avatar = avatar_url or "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
-            
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            query_check = "SELECT COUNT(*) FROM users WHERE username = %s" if not self.use_sqlite else "SELECT COUNT(*) FROM users WHERE username = ?"
-            cursor.execute(query_check, (username,))
-            row = cursor.fetchone()
-            if row and row[0] > 0:
-                conn.close()
-                return False, "該電話/帳號已註冊過，請直接進行帳號綁定或登入！"
+            password_hash = generate_password_hash(password)
 
-            query_ins = '''
-                INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''' if not self.use_sqlite else '''
-                INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            '''
-            cursor.execute(query_ins, (user_id, username, password, name, line_id, avatar, phone, role, now_str))
-            conn.commit()
-            conn.close()
+            with self.engine.begin() as conn:
+                count = conn.execute(
+                    text("SELECT COUNT(*) FROM users WHERE username = :username"),
+                    {"username": username},
+                ).scalar() or 0
+                if count > 0:
+                    return False, "該帳號已註冊過，請直接進行帳號綁定或登入！"
+
+                conn.execute(text("""
+                    INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
+                    VALUES (:id, :username, :password, :name, :line_id, :avatar_url, :phone, :role, :register_date)
+                """), {
+                    "id": user_id, "username": username, "password": password_hash,
+                    "name": name, "line_id": line_id, "avatar_url": avatar,
+                    "phone": phone, "role": role, "register_date": now_str,
+                })
             return True, "註冊成功！"
         except Exception as e:
             print(f"Error registering user: {e}")
             return False, f"註冊失敗: {str(e)}"
 
     def authenticate_user(self, username, password):
-        """一般帳/密 登入驗證"""
+        """帳號/密碼登入驗證（支援舊明文密碼自動升級為雜湊）"""
         try:
-            conn = self._get_connection()
-            if self.use_sqlite:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-                row = cursor.fetchone()
-                conn.close()
-                return dict(row) if row else None
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
-                user = cursor.fetchone()
-                conn.close()
-                return dict(user) if user else None
+            with self.engine.begin() as conn:
+                row = conn.execute(
+                    text("SELECT * FROM users WHERE username = :username"),
+                    {"username": username},
+                ).first()
+                if not row:
+                    return None
+
+                user = dict(row._mapping)
+                stored = user['password'] or ''
+                is_hash = stored.startswith(("pbkdf2:", "scrypt:", "sha256:", "md5:"))
+                ok = check_password_hash(stored, password) if is_hash else (stored == password)
+
+                if ok and not is_hash:
+                    # 舊版明文密碼：登入成功後升級為雜湊
+                    conn.execute(
+                        text("UPDATE users SET password = :password WHERE id = :id"),
+                        {"password": generate_password_hash(password), "id": user['id']},
+                    )
+                if ok:
+                    return user
+                return None
         except Exception as e:
             print(f"Error authenticating user: {e}")
             return None
 
     def get_all_users(self):
         try:
-            conn = self._get_connection()
-            if self.use_sqlite:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM users ORDER BY register_date DESC")
-                rows = cursor.fetchall()
-                conn.close()
-                return [dict(r) for r in rows]
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM users ORDER BY register_date DESC")
-                users = cursor.fetchall()
-                conn.close()
-                return [dict(u) for u in users]
+            return self._fetch_dicts("SELECT * FROM users ORDER BY register_date DESC")
         except Exception as e:
             print(f"Error fetching users: {e}")
             return []
@@ -455,29 +383,26 @@ class DBService:
     def save_or_update_user(self, user_id, username, password, name, line_id, avatar_url, phone, role):
         try:
             now_str = self._get_taiwan_now_str()
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            if self.use_sqlite:
-                cursor.execute('''
-                    INSERT OR REPLACE INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (user_id, username, password, name, line_id, avatar_url, phone, role, now_str))
-            else:
-                cursor.execute('''
-                    INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (id) DO UPDATE SET
-                        username = EXCLUDED.username,
-                        password = CASE WHEN EXCLUDED.password <> '' THEN EXCLUDED.password ELSE users.password END,
-                        name = EXCLUDED.name,
-                        line_id = EXCLUDED.line_id,
-                        avatar_url = EXCLUDED.avatar_url,
-                        phone = EXCLUDED.phone,
-                        role = EXCLUDED.role
-                ''', (user_id, username, password, name, line_id, avatar_url, phone, role, now_str))
-            conn.commit()
-            conn.close()
+            # 密碼為空表示保留原密碼；非空且不是雜湊時才重新雜湊
+            if password and not password.startswith(("pbkdf2:", "scrypt:", "sha256:", "md5:")):
+                password = generate_password_hash(password)
+
+            self._execute("""
+                INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
+                VALUES (:id, :username, :password, :name, :line_id, :avatar_url, :phone, :role, :register_date)
+                ON CONFLICT (id) DO UPDATE SET
+                    username = EXCLUDED.username,
+                    password = CASE WHEN EXCLUDED.password <> '' THEN EXCLUDED.password ELSE users.password END,
+                    name = EXCLUDED.name,
+                    line_id = EXCLUDED.line_id,
+                    avatar_url = EXCLUDED.avatar_url,
+                    phone = EXCLUDED.phone,
+                    role = EXCLUDED.role
+            """, {
+                "id": user_id, "username": username, "password": password,
+                "name": name, "line_id": line_id, "avatar_url": avatar_url,
+                "phone": phone, "role": role, "register_date": now_str,
+            })
             return True
         except Exception as e:
             print(f"Error saving user: {e}")
@@ -485,91 +410,92 @@ class DBService:
 
     def delete_user(self, user_id):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM users WHERE id = %s" if not self.use_sqlite else "DELETE FROM users WHERE id = ?", (user_id,))
-            conn.commit()
-            conn.close()
+            self._execute("DELETE FROM users WHERE id = :id", {"id": user_id})
             return True
         except Exception as e:
+            print(f"Error deleting user {user_id}: {e}")
             return False
 
-    # --- Products & Inventory ---
-    def get_products(self):
-        try:
-            conn = self._get_connection()
-            if self.use_sqlite:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM products ORDER BY id ASC")
-                rows = cursor.fetchall()
-                prods = [dict(r) for r in rows]
-                try:
-                    cursor.execute("SELECT * FROM inventory_logs")
-                    logs = [dict(r) for r in cursor.fetchall()]
-                except Exception: logs = []
-                conn.close()
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM products ORDER BY id ASC")
-                prods = [dict(p) for p in cursor.fetchall()]
-                try:
-                    cursor.execute("SELECT * FROM inventory_logs")
-                    logs = [dict(l) for l in cursor.fetchall()]
-                except Exception: logs = []
-                conn.close()
+    # ---------- 商品與庫存 ----------
 
-            # 動態算庫存
+    def get_products(self):
+        """取得商品列表，並以單一 SQL 聚合計算庫存（避免在 Python 做 O(P×L) 巢狀迴圈）"""
+        try:
+            rows = self._fetch_dicts("""
+                SELECT p.*, l.item_name AS log_item_name,
+                       COALESCE(SUM(l.purchase_qty), 0) AS log_qty
+                FROM products p
+                LEFT JOIN inventory_logs l
+                  ON (l.product_id IS NOT NULL AND l.product_id = p.id)
+                  OR (l.product_name IS NOT NULL AND l.product_name = p.name)
+                GROUP BY p.id, l.item_name
+                ORDER BY p.id ASC
+            """)
+
+            prods = []
+            by_id = {}
+            for r in rows:
+                pid = r['id']
+                prod = by_id.get(pid)
+                if prod is None:
+                    prod = dict(r)
+                    prod.pop('log_item_name', None)
+                    prod.pop('log_qty', None)
+                    prod['stock_qty'] = 0
+                    prod['_item_stock'] = {}
+                    by_id[pid] = prod
+                    prods.append(prod)
+
+                item_name = (r['log_item_name'] or '-').strip()
+                qty = int(r['log_qty'] or 0)
+                if item_name:
+                    prod['stock_qty'] += qty
+                    prod['_item_stock'][item_name] = prod['_item_stock'].get(item_name, 0) + qty
+
             for p in prods:
                 try:
-                    prod_id = str(p.get('id', '')).strip()
-                    prod_name = (p.get('name') or '').strip()
-
-                    prod_logs = [l for l in logs if (l.get('product_id') and str(l['product_id']).strip() == prod_id) or (l.get('product_name') and str(l['product_name']).strip() == prod_name)]
-                    total_stock = sum(int(l.get('purchase_qty') or 0) for l in prod_logs)
-                    p['stock_qty'] = total_stock
-
-                    items_arr = json.loads(p.get('items_json') or '[]') if isinstance(p.get('items_json'), str) else (p.get('items_json') or [])
+                    raw = p.get('items_json') or '[]'
+                    items_arr = json.loads(raw) if isinstance(raw, str) else (raw or [])
                     if isinstance(items_arr, list):
                         for itm in items_arr:
                             itm_name = (itm.get('name') or itm.get('item_name') or '').strip()
-                            item_purchased = 0
-                            for l in prod_logs:
-                                log_item = (l.get('item_name') or '-').strip()
-                                if log_item == itm_name or log_item == '-' or log_item == '-- 全品項預設/主商品 --':
-                                    item_purchased += int(l.get('purchase_qty') or 0)
+                            item_purchased = sum(
+                                qty for key, qty in p['_item_stock'].items()
+                                if key == itm_name or key == '-' or key == '-- 全品項預設/主商品 --'
+                            )
                             itm['stock_qty'] = item_purchased
                         p['items_json'] = json.dumps(items_arr, ensure_ascii=False)
                 except Exception as ex:
-                    print(f"Error calculating stock for product {p.get('id')}: {ex}")
-                    p['stock_qty'] = p.get('stock_qty') or 0
+                    print(f"Error calculating item stock for product {p.get('id')}: {ex}")
+                p.pop('_item_stock', None)
 
             return prods
         except Exception as e:
             print(f"Error fetching products: {e}")
             return []
 
-    def save_product(self, prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, description, is_uv, items_json='[]'):
+    def save_product(self, prod_id, name, category, material, price, cost_price, uv_cost_price,
+                     stock_qty, badge, image_url, images_json, description, is_uv, items_json='[]'):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute('''
-                    INSERT OR REPLACE INTO products (id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, items_json, description, is_uv)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, items_json, description, 1 if is_uv else 0))
-            else:
-                cursor.execute('''
-                    INSERT INTO products (id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, items_json, description, is_uv)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (id) DO UPDATE SET
-                        name = EXCLUDED.name, category = EXCLUDED.category, material = EXCLUDED.material,
-                        price = EXCLUDED.price, cost_price = EXCLUDED.cost_price, uv_cost_price = EXCLUDED.uv_cost_price,
-                        stock_qty = EXCLUDED.stock_qty, badge = EXCLUDED.badge, image_url = EXCLUDED.image_url,
-                        images_json = EXCLUDED.images_json, items_json = EXCLUDED.items_json,
-                        description = EXCLUDED.description, is_uv = EXCLUDED.is_uv
-                ''', (prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, items_json, description, is_uv))
-            conn.commit()
-            conn.close()
+            self._execute("""
+                INSERT INTO products (id, name, category, material, price, cost_price, uv_cost_price, stock_qty,
+                                      badge, image_url, images_json, items_json, description, is_uv)
+                VALUES (:id, :name, :category, :material, :price, :cost_price, :uv_cost_price, :stock_qty,
+                        :badge, :image_url, :images_json, :items_json, :description, :is_uv)
+                ON CONFLICT (id) DO UPDATE SET
+                    name = EXCLUDED.name, category = EXCLUDED.category, material = EXCLUDED.material,
+                    price = EXCLUDED.price, cost_price = EXCLUDED.cost_price,
+                    uv_cost_price = EXCLUDED.uv_cost_price, stock_qty = EXCLUDED.stock_qty,
+                    badge = EXCLUDED.badge, image_url = EXCLUDED.image_url,
+                    images_json = EXCLUDED.images_json, items_json = EXCLUDED.items_json,
+                    description = EXCLUDED.description, is_uv = EXCLUDED.is_uv
+            """, {
+                "id": prod_id, "name": name, "category": category, "material": material,
+                "price": price, "cost_price": cost_price, "uv_cost_price": uv_cost_price,
+                "stock_qty": stock_qty, "badge": badge, "image_url": image_url,
+                "images_json": images_json, "items_json": items_json,
+                "description": description, "is_uv": is_uv,
+            })
             return True
         except Exception as e:
             print(f"Error saving product: {e}")
@@ -577,26 +503,17 @@ class DBService:
 
     def get_custom_categories(self):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute("SELECT * FROM product_categories ORDER BY id ASC")
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM product_categories ORDER BY id ASC")
-            rows = cursor.fetchall()
-            conn.close()
-            return [dict(r) for r in rows]
-        except Exception:
+            return self._fetch_dicts("SELECT * FROM product_categories ORDER BY id ASC")
+        except Exception as e:
+            print(f"Error fetching custom categories: {e}")
             return []
 
     def add_custom_category(self, code, name):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO product_categories (code, name) VALUES (%s, %s)" if not self.use_sqlite else "INSERT INTO product_categories (code, name) VALUES (?, ?)", (code, name))
-            conn.commit()
-            conn.close()
+            self._execute(
+                "INSERT INTO product_categories (code, name) VALUES (:code, :name)",
+                {"code": code, "name": name},
+            )
             return True
         except Exception as e:
             print(f"Error adding custom category: {e}")
@@ -604,26 +521,17 @@ class DBService:
 
     def get_custom_materials(self):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute("SELECT * FROM product_materials ORDER BY id ASC")
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM product_materials ORDER BY id ASC")
-            rows = cursor.fetchall()
-            conn.close()
-            return [dict(r) for r in rows]
-        except Exception:
+            return self._fetch_dicts("SELECT * FROM product_materials ORDER BY id ASC")
+        except Exception as e:
+            print(f"Error fetching custom materials: {e}")
             return []
 
     def add_custom_material(self, code, name):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO product_materials (code, name) VALUES (%s, %s)" if not self.use_sqlite else "INSERT INTO product_materials (code, name) VALUES (?, ?)", (code, name))
-            conn.commit()
-            conn.close()
+            self._execute(
+                "INSERT INTO product_materials (code, name) VALUES (:code, :name)",
+                {"code": code, "name": name},
+            )
             return True
         except Exception as e:
             print(f"Error adding custom material: {e}")
@@ -631,40 +539,33 @@ class DBService:
 
     def delete_product(self, prod_id):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM products WHERE id = %s" if not self.use_sqlite else "DELETE FROM products WHERE id = ?", (prod_id,))
-            conn.commit()
-            conn.close()
+            self._execute("DELETE FROM products WHERE id = :id", {"id": prod_id})
             return True
         except Exception as e:
+            print(f"Error deleting product {prod_id}: {e}")
             return False
 
-    def add_inventory_log(self, product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name='管理員'):
+    def add_inventory_log(self, product_id, product_name, item_name, purchase_qty, purchase_cost,
+                          supplier, remark, operator_name='管理員'):
         try:
             now_str = self._get_taiwan_now_str()
             item_name = item_name or '-'
             operator_name = operator_name or '管理員'
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute('''
-                    INSERT INTO inventory_logs (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, purchase_date, remark, operator_name)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, now_str, remark, operator_name))
-                cursor.execute('''
-                    UPDATE products SET stock_qty = stock_qty + ?, cost_price = ? WHERE id = ?
-                ''', (purchase_qty, purchase_cost, product_id))
-            else:
-                cursor.execute('''
-                    INSERT INTO inventory_logs (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, purchase_date, remark, operator_name)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ''', (product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, now_str, remark, operator_name))
-                cursor.execute('''
-                    UPDATE products SET stock_qty = stock_qty + %s, cost_price = %s WHERE id = %s
-                ''', (purchase_qty, purchase_cost, product_id))
-            conn.commit()
-            conn.close()
+            with self.engine.begin() as conn:
+                conn.execute(text("""
+                    INSERT INTO inventory_logs (product_id, product_name, item_name, purchase_qty, purchase_cost,
+                                                supplier, purchase_date, remark, operator_name)
+                    VALUES (:product_id, :product_name, :item_name, :purchase_qty, :purchase_cost,
+                            :supplier, :purchase_date, :remark, :operator_name)
+                """), {
+                    "product_id": product_id, "product_name": product_name, "item_name": item_name,
+                    "purchase_qty": purchase_qty, "purchase_cost": purchase_cost,
+                    "supplier": supplier, "purchase_date": now_str,
+                    "remark": remark, "operator_name": operator_name,
+                })
+                conn.execute(text("""
+                    UPDATE products SET stock_qty = stock_qty + :qty, cost_price = :cost WHERE id = :pid
+                """), {"qty": purchase_qty, "cost": purchase_cost, "pid": product_id})
             return True
         except Exception as e:
             print(f"Error adding inventory log: {e}")
@@ -672,40 +573,24 @@ class DBService:
 
     def get_inventory_logs(self):
         try:
-            conn = self._get_connection()
-            if self.use_sqlite:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM inventory_logs ORDER BY id DESC")
-                rows = cursor.fetchall()
-                conn.close()
-                return [dict(r) for r in rows]
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM inventory_logs ORDER BY id DESC")
-                logs = cursor.fetchall()
-                conn.close()
-                return [dict(l) for l in logs]
+            return self._fetch_dicts("SELECT * FROM inventory_logs ORDER BY id DESC")
         except Exception as e:
+            print(f"Error fetching inventory logs: {e}")
             return []
 
-    def update_inventory_log(self, log_id, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name='管理員'):
+    def update_inventory_log(self, log_id, item_name, purchase_qty, purchase_cost, supplier,
+                             remark, operator_name='管理員'):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute('''
-                    UPDATE inventory_logs 
-                    SET item_name = ?, purchase_qty = ?, purchase_cost = ?, supplier = ?, remark = ?, operator_name = ?
-                    WHERE id = ?
-                ''', (item_name, purchase_qty, purchase_cost, supplier, remark, operator_name, log_id))
-            else:
-                cursor.execute('''
-                    UPDATE inventory_logs 
-                    SET item_name = %s, purchase_qty = %s, purchase_cost = %s, supplier = %s, remark = %s, operator_name = %s
-                    WHERE id = %s
-                ''', (item_name, purchase_qty, purchase_cost, supplier, remark, operator_name, log_id))
-            conn.commit()
-            conn.close()
+            self._execute("""
+                UPDATE inventory_logs
+                SET item_name = :item_name, purchase_qty = :purchase_qty, purchase_cost = :purchase_cost,
+                    supplier = :supplier, remark = :remark, operator_name = :operator_name
+                WHERE id = :id
+            """, {
+                "item_name": item_name, "purchase_qty": purchase_qty,
+                "purchase_cost": purchase_cost, "supplier": supplier,
+                "remark": remark, "operator_name": operator_name, "id": log_id,
+            })
             return True
         except Exception as e:
             print(f"Error updating inventory log {log_id}: {e}")
@@ -713,39 +598,31 @@ class DBService:
 
     def delete_inventory_log(self, log_id):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute("DELETE FROM inventory_logs WHERE id = ?", (int(log_id),))
-            else:
-                cursor.execute("DELETE FROM inventory_logs WHERE id = %s", (int(log_id),))
-            conn.commit()
-            conn.close()
+            self._execute("DELETE FROM inventory_logs WHERE id = :id", {"id": int(log_id)})
             return True
         except Exception as e:
             print(f"Error deleting inventory log {log_id}: {e}")
             return False
 
-    # --- Material Purchases Methods ---
-    def add_material_purchase(self, material_name, purchase_cost, purchase_qty, supplier='', remark='', operator_name='管理員', purchase_date=None, total_capacity=''):
+    # ---------- 耗材進貨 ----------
+
+    def add_material_purchase(self, material_name, purchase_cost, purchase_qty, supplier='', remark='',
+                              operator_name='管理員', purchase_date=None, total_capacity=''):
         try:
             now_str = purchase_date or self._get_taiwan_now_str()
             operator_name = operator_name or '管理員'
             total_capacity = total_capacity or ''
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute('''
-                    INSERT INTO material_purchases (material_name, total_capacity, purchase_cost, purchase_qty, supplier, purchase_date, remark, operator_name)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (material_name, total_capacity, purchase_cost, purchase_qty, supplier, now_str, remark, operator_name))
-            else:
-                cursor.execute('''
-                    INSERT INTO material_purchases (material_name, total_capacity, purchase_cost, purchase_qty, supplier, purchase_date, remark, operator_name)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ''', (material_name, total_capacity, purchase_cost, purchase_qty, supplier, now_str, remark, operator_name))
-            conn.commit()
-            conn.close()
+            self._execute("""
+                INSERT INTO material_purchases (material_name, total_capacity, purchase_cost, purchase_qty,
+                                                supplier, purchase_date, remark, operator_name)
+                VALUES (:material_name, :total_capacity, :purchase_cost, :purchase_qty,
+                        :supplier, :purchase_date, :remark, :operator_name)
+            """, {
+                "material_name": material_name, "total_capacity": total_capacity,
+                "purchase_cost": purchase_cost, "purchase_qty": purchase_qty,
+                "supplier": supplier, "purchase_date": now_str,
+                "remark": remark, "operator_name": operator_name,
+            })
             return True
         except Exception as e:
             print(f"Error adding material purchase: {e}")
@@ -753,67 +630,53 @@ class DBService:
 
     def get_material_purchases(self):
         try:
-            conn = self._get_connection()
-            if self.use_sqlite:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM material_purchases ORDER BY id DESC")
-                rows = cursor.fetchall()
-                conn.close()
-                return [dict(r) for r in rows]
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM material_purchases ORDER BY id DESC")
-                logs = cursor.fetchall()
-                conn.close()
-                return [dict(l) for l in logs]
+            return self._fetch_dicts("SELECT * FROM material_purchases ORDER BY id DESC")
         except Exception as e:
             print(f"Error fetching material purchases: {e}")
             return []
 
     def get_unique_material_names(self):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT material_name FROM material_purchases WHERE material_name IS NOT NULL AND material_name != '' ORDER BY material_name ASC")
-            rows = cursor.fetchall()
-            conn.close()
-            return [r[0] if isinstance(r, (tuple, list)) else r['material_name'] for r in rows]
+            rows = self._fetch_dicts("""
+                SELECT DISTINCT material_name FROM material_purchases
+                WHERE material_name IS NOT NULL AND material_name != ''
+                ORDER BY material_name ASC
+            """)
+            return [r['material_name'] for r in rows]
         except Exception as e:
             print(f"Error fetching unique material names: {e}")
             return []
 
     def get_unique_material_suppliers(self):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT supplier FROM material_purchases WHERE supplier IS NOT NULL AND supplier != '' ORDER BY supplier ASC")
-            rows = cursor.fetchall()
-            conn.close()
-            return [r[0] if isinstance(r, (tuple, list)) else r['supplier'] for r in rows]
+            rows = self._fetch_dicts("""
+                SELECT DISTINCT supplier FROM material_purchases
+                WHERE supplier IS NOT NULL AND supplier != ''
+                ORDER BY supplier ASC
+            """)
+            return [r['supplier'] for r in rows]
         except Exception as e:
             print(f"Error fetching unique material suppliers: {e}")
             return []
 
-    def update_material_purchase(self, log_id, material_name, purchase_cost, purchase_qty, supplier='', remark='', operator_name='管理員', purchase_date=None, total_capacity=''):
+    def update_material_purchase(self, log_id, material_name, purchase_cost, purchase_qty, supplier='',
+                                 remark='', operator_name='管理員', purchase_date=None, total_capacity=''):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
             now_str = purchase_date or self._get_taiwan_now_str()
             total_capacity = total_capacity or ''
-            if self.use_sqlite:
-                cursor.execute('''
-                    UPDATE material_purchases 
-                    SET material_name = ?, total_capacity = ?, purchase_cost = ?, purchase_qty = ?, supplier = ?, remark = ?, operator_name = ?, purchase_date = ?
-                    WHERE id = ?
-                ''', (material_name, total_capacity, purchase_cost, purchase_qty, supplier, remark, operator_name, now_str, int(log_id)))
-            else:
-                cursor.execute('''
-                    UPDATE material_purchases 
-                    SET material_name = %s, total_capacity = %s, purchase_cost = %s, purchase_qty = %s, supplier = %s, remark = %s, operator_name = %s, purchase_date = %s
-                    WHERE id = %s
-                ''', (material_name, total_capacity, purchase_cost, purchase_qty, supplier, remark, operator_name, now_str, int(log_id)))
-            conn.commit()
-            conn.close()
+            self._execute("""
+                UPDATE material_purchases
+                SET material_name = :material_name, total_capacity = :total_capacity,
+                    purchase_cost = :purchase_cost, purchase_qty = :purchase_qty,
+                    supplier = :supplier, remark = :remark, operator_name = :operator_name,
+                    purchase_date = :purchase_date
+                WHERE id = :id
+            """, {
+                "material_name": material_name, "total_capacity": total_capacity,
+                "purchase_cost": purchase_cost, "purchase_qty": purchase_qty,
+                "supplier": supplier, "remark": remark, "operator_name": operator_name,
+                "purchase_date": now_str, "id": int(log_id),
+            })
             return True
         except Exception as e:
             print(f"Error updating material purchase {log_id}: {e}")
@@ -821,177 +684,118 @@ class DBService:
 
     def delete_material_purchase(self, log_id):
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute("DELETE FROM material_purchases WHERE id = ?", (int(log_id),))
-            else:
-                cursor.execute("DELETE FROM material_purchases WHERE id = %s", (int(log_id),))
-            conn.commit()
-            conn.close()
+            self._execute("DELETE FROM material_purchases WHERE id = :id", {"id": int(log_id)})
             return True
         except Exception as e:
             print(f"Error deleting material purchase {log_id}: {e}")
             return False
 
-    # --- Orders Admin Methods ---
+    # ---------- 訂單 ----------
+
     def get_all_orders(self):
         try:
-            conn = self._get_connection()
-            if self.use_sqlite:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM orders ORDER BY id DESC")
-                rows = cursor.fetchall()
-                conn.close()
-                return [dict(r) for r in rows]
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM orders ORDER BY id DESC")
-                orders = cursor.fetchall()
-                conn.close()
-                return [dict(o) for o in orders]
+            return self._fetch_dicts("SELECT * FROM orders ORDER BY id DESC")
         except Exception as e:
             print(f"Error fetching orders: {e}")
             return []
 
-    def update_order_status_and_profit(self, order_id, status='SHIPPED', other_cost=0, shipping_cost=60, net_profit=0):
+    def update_order_status_and_profit(self, order_id, status='SHIPPED', other_cost=0,
+                                       shipping_cost=60, net_profit=0):
+        """更新訂單狀態並實際寫入運費/其他成本/淨利潤"""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute('''
-                    UPDATE orders SET status = ? WHERE id = ?
-                ''', (status, str(order_id)))
-            else:
-                cursor.execute('''
-                    UPDATE orders SET status = %s WHERE id = %s
-                ''', (status, str(order_id)))
-            conn.commit()
-            conn.close()
+            self._execute("""
+                UPDATE orders
+                SET status = :status, other_cost = :other_cost,
+                    shipping_cost = :shipping_cost, net_profit = :net_profit
+                WHERE id = :id
+            """, {
+                "status": status, "other_cost": other_cost,
+                "shipping_cost": shipping_cost, "net_profit": net_profit,
+                "id": str(order_id),
+            })
             return True
         except Exception as e:
             print(f"Error updating order {order_id}: {e}")
-            return False
-
-    # --- LINE Groups & Bulletins ---
-    def get_line_groups(self):
-        try:
-            conn = self._get_connection()
-            if self.use_sqlite:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM line_groups ORDER BY created_at DESC")
-                rows = cursor.fetchall()
-                conn.close()
-                return [dict(r) for r in rows]
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM line_groups ORDER BY created_at DESC")
-                groups = cursor.fetchall()
-                conn.close()
-                return [dict(g) for g in groups]
-        except Exception as e:
-            return []
-
-    def save_line_group(self, group_id, name, description):
-        try:
-            now_str = self._get_taiwan_now_str()
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute('''
-                    INSERT OR REPLACE INTO line_groups (id, name, description, created_at) VALUES (?, ?, ?, ?)
-                ''', (group_id, name, description, now_str))
-            else:
-                cursor.execute('''
-                    INSERT INTO line_groups (id, name, description, created_at) VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description
-                ''', (group_id, name, description, now_str))
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            return False
-
-    def delete_line_group(self, group_id):
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM line_groups WHERE id = %s" if not self.use_sqlite else "DELETE FROM line_groups WHERE id = ?", (group_id,))
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            return False
-
-    def get_bulletins(self):
-        try:
-            conn = self._get_connection()
-            if self.use_sqlite:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM bulletins ORDER BY is_pinned DESC, date_str DESC")
-                rows = cursor.fetchall()
-                conn.close()
-                return [dict(r) for r in rows]
-            else:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM bulletins ORDER BY is_pinned DESC, date_str DESC")
-                b = cursor.fetchall()
-                conn.close()
-                return [dict(item) for item in b]
-        except Exception as e:
-            return []
-
-    def save_bulletin(self, b_id, title, date_str, tag, is_pinned, summary, content, line_broadcasted):
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute('''
-                    INSERT OR REPLACE INTO bulletins (id, title, date_str, tag, is_pinned, summary, content, line_broadcasted)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (b_id, title, date_str, tag, 1 if is_pinned else 0, summary, content, 1 if line_broadcasted else 0))
-            else:
-                cursor.execute('''
-                    INSERT INTO bulletins (id, title, date_str, tag, is_pinned, summary, content, line_broadcasted)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, date_str = EXCLUDED.date_str, tag = EXCLUDED.tag,
-                    is_pinned = EXCLUDED.is_pinned, summary = EXCLUDED.summary, content = EXCLUDED.content, line_broadcasted = EXCLUDED.line_broadcasted
-                ''', (b_id, title, date_str, tag, is_pinned, summary, content, line_broadcasted))
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            return False
-
-    def delete_bulletin(self, b_id):
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM bulletins WHERE id = %s" if not self.use_sqlite else "DELETE FROM bulletins WHERE id = ?", (b_id,))
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
             return False
 
     def save_order(self, order_id, user_id, user_name, user_line_id, items, total_amount):
         try:
             now_str = self._get_taiwan_now_str()
             items_json = json.dumps(items, ensure_ascii=False)
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            if self.use_sqlite:
-                cursor.execute('''
-                    INSERT INTO orders (id, user_id, user_name, user_line_id, items_json, total_amount, status, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?)
-                ''', (order_id, user_id, user_name, user_line_id, items_json, total_amount, now_str))
-            else:
-                cursor.execute('''
-                    INSERT INTO orders (id, user_id, user_name, user_line_id, items_json, total_amount, status, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, 'PENDING', %s)
-                ''', (order_id, user_id, user_name, user_line_id, items_json, total_amount, now_str))
-            conn.commit()
-            conn.close()
+            self._execute("""
+                INSERT INTO orders (id, user_id, user_name, user_line_id, items_json, total_amount,
+                                    status, created_at)
+                VALUES (:id, :user_id, :user_name, :user_line_id, :items_json, :total_amount, 'PENDING', :created_at)
+            """, {
+                "id": order_id, "user_id": user_id, "user_name": user_name,
+                "user_line_id": user_line_id, "items_json": items_json,
+                "total_amount": total_amount, "created_at": now_str,
+            })
             return True
         except Exception as e:
+            print(f"Error saving order: {e}")
+            return False
+
+    # ---------- LINE 群組與公告 ----------
+
+    def get_line_groups(self):
+        try:
+            return self._fetch_dicts("SELECT * FROM line_groups ORDER BY created_at DESC")
+        except Exception as e:
+            print(f"Error fetching line groups: {e}")
+            return []
+
+    def save_line_group(self, group_id, name, description):
+        try:
+            now_str = self._get_taiwan_now_str()
+            self._execute("""
+                INSERT INTO line_groups (id, name, description, created_at)
+                VALUES (:id, :name, :description, :created_at)
+                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description
+            """, {"id": group_id, "name": name, "description": description, "created_at": now_str})
+            return True
+        except Exception as e:
+            print(f"Error saving line group: {e}")
+            return False
+
+    def delete_line_group(self, group_id):
+        try:
+            self._execute("DELETE FROM line_groups WHERE id = :id", {"id": group_id})
+            return True
+        except Exception as e:
+            print(f"Error deleting line group {group_id}: {e}")
+            return False
+
+    def get_bulletins(self):
+        try:
+            return self._fetch_dicts("SELECT * FROM bulletins ORDER BY is_pinned DESC, date_str DESC")
+        except Exception as e:
+            print(f"Error fetching bulletins: {e}")
+            return []
+
+    def save_bulletin(self, b_id, title, date_str, tag, is_pinned, summary, content, line_broadcasted):
+        try:
+            self._execute("""
+                INSERT INTO bulletins (id, title, date_str, tag, is_pinned, summary, content, line_broadcasted)
+                VALUES (:id, :title, :date_str, :tag, :is_pinned, :summary, :content, :line_broadcasted)
+                ON CONFLICT (id) DO UPDATE SET
+                    title = EXCLUDED.title, date_str = EXCLUDED.date_str, tag = EXCLUDED.tag,
+                    is_pinned = EXCLUDED.is_pinned, summary = EXCLUDED.summary,
+                    content = EXCLUDED.content, line_broadcasted = EXCLUDED.line_broadcasted
+            """, {
+                "id": b_id, "title": title, "date_str": date_str, "tag": tag,
+                "is_pinned": is_pinned, "summary": summary,
+                "content": content, "line_broadcasted": line_broadcasted,
+            })
+            return True
+        except Exception as e:
+            print(f"Error saving bulletin: {e}")
+            return False
+
+    def delete_bulletin(self, b_id):
+        try:
+            self._execute("DELETE FROM bulletins WHERE id = :id", {"id": b_id})
+            return True
+        except Exception as e:
+            print(f"Error deleting bulletin {b_id}: {e}")
             return False

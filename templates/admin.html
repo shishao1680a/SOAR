@@ -9,40 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,600;0,700;1,700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            'surface': '#0b0f17',
-            'surface-container': '#131924',
-            'surface-container-low': '#1a2232',
-            'surface-container-high': '#222d42',
-            'surface-container-highest': '#2b3852',
-            'primary-fixed': '#00F0FF',
-            'on-primary-fixed': '#00363a',
-            'secondary-container': '#fe6b00',
-            'outline-variant': '#2d3b54',
-            'on-surface-variant': '#94a3b8',
-            'error': '#ff4655',
-            'line-green': '#06C755',
-            'line-green-hover': '#05b34c',
-            'primary-green': '#06C755',
-            'primary-green-hover': '#05b34c'
-          },
-          fontFamily: {
-            'display-lg': ['Chakra Petch', 'Noto Sans TC', 'sans-serif'],
-            'headline-md': ['Chakra Petch', 'Noto Sans TC', 'sans-serif'],
-            'label-caps': ['Chakra Petch', 'Noto Sans TC', 'sans-serif'],
-            'body-md': ['Noto Sans TC', 'sans-serif']
-          }
-        }
-      }
-    }
-  </script>
+  <!-- Tailwind CSS???????? CDN? -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind-admin.css') }}">
 </head>
 <body class="bg-surface text-white font-body-md min-h-screen flex flex-col antialiased selection:bg-primary-fixed selection:text-black">
 

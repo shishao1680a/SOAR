@@ -1,8 +1,7 @@
 import os
-import json
 import requests
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, ImageSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from linebot.exceptions import LineBotApiError, InvalidSignatureError
 
 class LineService:
@@ -56,45 +55,22 @@ class LineService:
                     print("⚠️ Cannot reply FLBR command because LINE_CHANNEL_ACCESS_TOKEN is missing on Railway!")
 
     def handle_webhook(self, body, signature):
-        """處理 LINE Webhook 簽章驗證與事件派發，包含備援 JSON 解析"""
-        print(f"[LINE Webhook] Received webhook payload: {body}")
-        
-        if self.handler:
-            try:
-                self.handler.handle(body, signature)
-                return True
-            except InvalidSignatureError:
-                print("❌ LINE Webhook Signature Validation Failed. Attempting fallback payload parsing...")
-            except Exception as e:
-                print(f"❌ LINE Webhook Handler Error: {e}")
+        """處理 LINE Webhook 簽章驗證與事件派發。
 
+        簽章驗證失敗一律回傳 False（對應 400），不處理 payload、不記錄訊息內容。
+        """
+        if not self.handler:
+            print("WARNING: LINE_CHANNEL_SECRET 未設定，無法驗證 Webhook 簽章")
+            return False
         try:
-            payload = json.loads(body)
-            events = payload.get('events', [])
-            for event in events:
-                if event.get('type') == 'message' and event.get('message', {}).get('type') == 'text':
-                    msg_text = event['message'].get('text', '').strip().lower()
-                    reply_token = event.get('replyToken')
-                    source = event.get('source', {})
-                    source_id = source.get('groupId') or source.get('roomId') or source.get('userId')
-
-                    if msg_text == 'flbr' and reply_token and self.access_token:
-                        reply_text = f"【UX-PRINT 群組 ID 通知】\n本群組的 GID 為：\n{source_id}\n\n請複製上方 GID 貼至管理員後台【LINE 群組維護】即可完成設定！"
-                        headers = {
-                            "Content-Type": "application/json",
-                            "Authorization": f"Bearer {self.access_token}"
-                        }
-                        data = {
-                            "replyToken": reply_token,
-                            "messages": [{"type": "text", "text": reply_text}]
-                        }
-                        res = requests.post("https://api.line.me/v2/bot/message/reply", headers=headers, json=data)
-                        print(f"✅ Direct HTTP Reply FLBR response: {res.status_code} - {res.text}")
-                        return True
-        except Exception as fallback_err:
-            print(f"Fallback parsing failed: {fallback_err}")
-
-        return True
+            self.handler.handle(body, signature)
+            return True
+        except InvalidSignatureError:
+            print("❌ LINE Webhook Signature Validation Failed")
+            return False
+        except Exception as e:
+            print(f"❌ LINE Webhook Handler Error: {e}")
+            return False
 
     def push_text_message(self, group_id, text_content):
         """發送單筆文字訊息至 LINE 群組"""

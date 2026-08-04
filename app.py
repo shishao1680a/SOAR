@@ -1,9 +1,9 @@
 import os
 import uuid
 import json
+import threading
 from urllib.parse import quote
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory
-from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from db_service import DBService
 from line_service import LineService
@@ -14,13 +14,56 @@ from functools import wraps
 load_dotenv(override=False)
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
-app.secret_key = os.getenv("SECRET_KEY", "ux_print_club_secret_key_2026")
+app.secret_key = os.getenv("SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError("SECRET_KEY 環境變數未設定！請在 .env 或 Railway 環境變數中設定 SECRET_KEY")
 
 UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db_service = DBService()
 line_service = LineService()
+
+MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # 20MB
+ALLOWED_IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+ALLOWED_UPLOAD_EXTS = ALLOWED_IMAGE_EXTS | {'.pdf'}
+
+
+def _validate_upload(file, allowed_exts):
+    """檢查上傳檔案：必填、副檔名、非空、大小上限。回傳 (ok, message, ext)。"""
+    if not file or not file.filename:
+        return False, "無上傳檔案", None
+    raw_name = file.filename.replace("\\", "/").split("/")[-1]
+    ext = os.path.splitext(raw_name)[1].lower()
+    if not ext:
+        mime = (file.mimetype or "").lower()
+        if mime.startswith("image/"):
+            ext = ".jpg"
+        elif mime == "application/pdf":
+            ext = ".pdf"
+        else:
+            ext = ""
+    if ext not in allowed_exts:
+        return False, f"不支援的檔案類型：{ext or '（無法判斷）'}", None
+    try:
+        file.stream.seek(0, os.SEEK_END)
+        size = file.stream.tell()
+        file.stream.seek(0)
+    except (OSError, AttributeError) as e:
+        print(f"Error checking upload size: {e}")
+        return False, "無法讀取檔案內容", None
+    if size <= 0:
+        return False, "檔案內容為空", None
+    if size > MAX_UPLOAD_SIZE:
+        return False, "檔案大小超過 20MB 上限", None
+    return True, "", ext
+
+
+def _run_in_background(target_fn, *args, **kwargs):
+    """在背景執行緒執行外部呼叫（LINE 推播、PDF 轉圖），避免阻塞 HTTP 請求。"""
+    t = threading.Thread(target=target_fn, args=args, kwargs=kwargs, daemon=True)
+    t.start()
+
 
 def admin_or_coach_required(f):
     @wraps(f)
@@ -126,6 +169,7 @@ def api_line_bind_account():
 @app.route('/api/line/login-url', methods=['GET'])
 def api_line_login_url():
     state = uuid.uuid4().hex
+    session['oauth_state'] = state
     redirect_uri = os.getenv('LINE_LOGIN_REDIRECT_URI', f"{request.host_url.rstrip('/')}/api/line/callback")
     url = line_service.get_login_url(state, redirect_uri=redirect_uri)
     if url:
@@ -140,6 +184,10 @@ def api_line_callback():
 
     if error or not code:
         return f"LINE Login 取消授權或失敗: {error}", 400
+
+    expected_state = session.pop('oauth_state', None)
+    if not expected_state or state != expected_state:
+        return "LINE Login 授權驗證失敗（state 不符），請重新登入！", 400
 
     redirect_uri = os.getenv('LINE_LOGIN_REDIRECT_URI', f"{request.host_url.rstrip('/')}/api/line/callback")
     token_data = line_service.exchange_code_for_token(code, redirect_uri=redirect_uri)
@@ -254,11 +302,10 @@ def api_admin_add_material():
 @admin_or_coach_required
 def api_admin_upload_image():
     file = request.files.get('file') or request.files.get('image')
-    if not file or not file.filename:
-        return jsonify({"status": "error", "message": "無上傳圖片檔案"}), 400
+    ok, msg, ext = _validate_upload(file, ALLOWED_IMAGE_EXTS)
+    if not ok:
+        return jsonify({"status": "error", "message": msg}), 400
 
-    orig_filename = secure_filename(file.filename) or f"img_{uuid.uuid4().hex[:6]}.jpg"
-    ext = os.path.splitext(orig_filename)[1].lower() or ".jpg"
     unique_name = f"item_{uuid.uuid4().hex[:12]}{ext}"
     file_path = os.path.join(UPLOAD_FOLDER, unique_name)
     file.save(file_path)
@@ -470,7 +517,7 @@ def api_admin_delete_line_group(group_id):
 @app.route('/api/admin/line/broadcast', methods=['POST'])
 @admin_or_coach_required
 def api_admin_line_broadcast():
-    """廣播推播：支援文字、圖片與 PDF 自動轉圖片 (每 5 則訊息一包分批發送)"""
+    """廣播推播：支援文字、圖片與 PDF 自動轉圖片（背景處理，避免請求逾時）"""
     group_ids = []
     message_text = ""
     uploaded_files = []
@@ -492,33 +539,37 @@ def api_admin_line_broadcast():
     if host_base.startswith('http://'):
         host_base = 'https://' + host_base[7:]
 
-    message_objects = []
-
-    # 1. 如果有文字內容，加入第一則訊息
-    if message_text:
-        message_objects.append(TextSendMessage(text=message_text))
-
-    # 2. 處理檔案 (圖片 / PDF / 一般文件)
-    pdf_count = 0
-    image_count = 0
-
+    # 同步只做「快速磁碟寫入」；PDF 轉圖與 LINE 推播移到背景執行緒
+    saved_files = []  # (abs_path, ext, public_url)
+    skipped = 0
     for file in uploaded_files:
-        if file and file.filename:
-            orig_filename = secure_filename(file.filename) or f"doc_{uuid.uuid4().hex[:6]}"
-            ext = os.path.splitext(orig_filename)[1].lower()
-            if not ext:
-                ext = ".jpg" if "image" in file.mimetype else ".pdf"
+        if not file or not file.filename:
+            continue
+        ok, msg, ext = _validate_upload(file, ALLOWED_UPLOAD_EXTS)
+        if not ok:
+            print(f"Broadcast skipped file {file.filename}: {msg}")
+            skipped += 1
+            continue
+        unique_id = uuid.uuid4().hex[:12]
+        saved_filename = f"{unique_id}{ext}"
+        file_path = os.path.join(UPLOAD_FOLDER, saved_filename)
+        file.save(file_path)
+        saved_files.append((file_path, ext, f"{host_base}/uploads/{saved_filename}"))
 
-            unique_id = uuid.uuid4().hex[:12]
-            saved_filename = f"{unique_id}{ext}"
-            file_path = os.path.join(UPLOAD_FOLDER, saved_filename)
-            file.save(file_path)
+    if not message_text and not saved_files:
+        return jsonify({"status": "error", "message": "發送內容不能為空，請輸入文字或選擇檔案！"}), 400
 
-            file_public_url = f"{host_base}/uploads/{saved_filename}"
+    def _broadcast_job():
+        message_objects = []
+        image_count = 0
+        pdf_count = 0
 
+        if message_text:
+            message_objects.append(TextSendMessage(text=message_text))
+
+        for file_path, ext, public_url in saved_files:
             if ext == '.pdf':
                 pdf_count += 1
-                # 轉 PDF 各頁為圖片 (.jpg)
                 try:
                     converted_imgs = convert_pdf_to_images(file_path, output_folder=UPLOAD_FOLDER)
                     for img_fname in converted_imgs:
@@ -527,28 +578,34 @@ def api_admin_line_broadcast():
                         image_count += 1
                 except Exception as pdf_err:
                     print(f"Error converting PDF to images: {pdf_err}")
-
-                # 附上原始 PDF 下載網址
-                message_objects.append(TextSendMessage(text=f"📎 原始 PDF 檔案下載網址: {file_public_url}"))
-            elif ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
+                message_objects.append(TextSendMessage(text=f"📎 原始 PDF 檔案下載網址: {public_url}"))
+            elif ext in ALLOWED_IMAGE_EXTS:
                 image_count += 1
-                message_objects.append(ImageSendMessage(original_content_url=file_public_url, preview_image_url=file_public_url))
+                message_objects.append(ImageSendMessage(original_content_url=public_url, preview_image_url=public_url))
             else:
-                message_objects.append(TextSendMessage(text=f"📎 檔案下載網址: {file_public_url}"))
+                message_objects.append(TextSendMessage(text=f"📎 檔案下載網址: {public_url}"))
 
-    if not message_objects:
-        return jsonify({"status": "error", "message": "發送內容不能為空，請輸入文字或選擇檔案！"}), 400
+        if not message_objects:
+            print("Broadcast job: no messages to send")
+            return
 
-    # 3. 呼叫 line_service 進行每 5 則訊息一包的分批發送 (push_messages_chunked)
-    success_count = 0
-    for gid in group_ids:
-        ok = line_service.push_messages_chunked(gid, message_objects)
-        if ok:
-            success_count += 1
+        success_count = 0
+        for gid in group_ids:
+            if line_service.push_messages_chunked(gid, message_objects):
+                success_count += 1
+        print(f"Broadcast job done: {success_count}/{len(group_ids)} groups, "
+              f"{image_count} images, {pdf_count} pdfs")
+
+    _run_in_background(_broadcast_job)
+
+    pdf_file_count = sum(1 for _, ext, _ in saved_files if ext == '.pdf')
+    extra_note = f"（{skipped} 個檔案因類型/大小不符被略過）" if skipped else ""
 
     return jsonify({
         "status": "success",
-        "message": f"成功推播至 {success_count} 個 LINE 群組！（共傳送 {len(message_objects)} 則訊息包，包含 {image_count} 張圖片及 {pdf_count} 份 PDF 下載連結）"
+        "message": f"已開始背景推播至 {len(group_ids)} 個 LINE 群組："
+                   f"{len(message_text)} 字元文字、{len(saved_files)} 個檔案"
+                   f"（含 {pdf_file_count} 份 PDF）。{extra_note}"
     })
 
 # --- Bulletin APIs ---
@@ -574,7 +631,11 @@ def api_admin_save_bulletin():
     saved = db_service.save_bulletin(b_id, title, date_str, tag, is_pinned, summary, content, line_broadcasted)
     if saved:
         if line_broadcasted:
-            line_service.push_text_message(None, f"📢 【社團最新公告】\n{title}\n\n{summary}\n\n詳情請至 UX-PRINT 首頁查看！")
+            _run_in_background(
+                line_service.push_text_message,
+                None,
+                f"📢 【社團最新公告】\n{title}\n\n{summary}\n\n詳情請至 UX-PRINT 首頁查看！"
+            )
         return jsonify({"status": "success", "message": "公告已成功發佈！"})
     return jsonify({"status": "error", "message": "發佈失敗"}), 500
 
@@ -590,18 +651,82 @@ def api_admin_delete_bulletin(b_id):
 def api_create_order():
     data = request.get_json() or {}
     cart_items = data.get('cart', [])
-    user_name = data.get('user_name', '社團會員')
-    user_line_id = data.get('user_line_id', 'GUEST')
-    total_amount = data.get('total_amount', 0)
+    user_name = (data.get('user_name') or '社團會員').strip()[:60]
+    user_line_id = (data.get('user_line_id') or 'GUEST').strip()[:100]
 
-    if not cart_items:
+    if not isinstance(cart_items, list) or not cart_items:
         return jsonify({"status": "error", "message": "Cart is empty"}), 400
 
+    # 伺服器端以資料庫價格重新計算，不信任客戶端傳來的價格/總額
+    products = {p['id']: p for p in db_service.get_products()}
+    validated_items = []
+    total_amount = 0.0
+
+    for item in cart_items:
+        if not isinstance(item, dict):
+            return jsonify({"status": "error", "message": "購物車內容格式錯誤"}), 400
+        pid = str(item.get('id') or '').strip()
+        try:
+            qty = int(item.get('qty'))
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "購買數量格式錯誤"}), 400
+        if not pid or qty <= 0 or qty > 999:
+            return jsonify({"status": "error", "message": "購買數量必須介於 1~999"}), 400
+
+        prod = products.get(pid)
+        if not prod:
+            return jsonify({"status": "error", "message": "商品不存在或已下架，請重新整理頁面"}), 400
+
+        unit_price = float(prod.get('price') or 0)
+        available = int(prod.get('stock_qty') or 0)
+        variant_name = (item.get('variant_name') or '').strip()
+
+        items_arr = []
+        try:
+            raw = prod.get('items_json') or '[]'
+            items_arr = json.loads(raw) if isinstance(raw, str) else (raw or [])
+        except (ValueError, TypeError):
+            items_arr = []
+
+        matched_variant = None
+        if variant_name and isinstance(items_arr, list):
+            for v in items_arr:
+                if (v.get('name') or '').strip() == variant_name:
+                    matched_variant = v
+                    break
+        if variant_name and not matched_variant:
+            return jsonify({
+                "status": "error",
+                "message": f"商品「{prod.get('name')}」的規格「{variant_name}」不存在，請重新整理頁面"
+            }), 400
+        if matched_variant:
+            unit_price = float(matched_variant.get('price', prod.get('price') or 0))
+            available = int(matched_variant.get('stock_qty', available) or 0)
+
+        if qty > available:
+            return jsonify({
+                "status": "error",
+                "message": f"商品「{prod.get('name')}」庫存不足（剩餘 {available} 件）"
+            }), 400
+
+        validated_items.append({
+            "id": pid,
+            "name": item.get('name') or prod.get('name'),
+            "price": unit_price,
+            "qty": qty,
+            "variant_name": variant_name,
+        })
+        total_amount += unit_price * qty
+
+    total_amount = round(total_amount, 2)
     order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
-    saved = db_service.save_order(order_id, 'USER_TEMP', user_name, user_line_id, cart_items, total_amount)
+    saved = db_service.save_order(order_id, 'USER_TEMP', user_name, user_line_id, validated_items, total_amount)
 
     if saved:
-        order_details = "\n".join([f"• {item.get('name')} x{item.get('qty', 1)} (${item.get('price')})" for item in cart_items])
+        order_details = "\n".join([
+            f"• {it.get('name')} x{it.get('qty', 1)} (${float(it.get('price')):.2f})"
+            for it in validated_items
+        ])
         line_msg = (
             f"🛒 【UX-PRINT 3D/UV 新訂單通知】\n"
             f"----------------------------\n"
@@ -612,12 +737,12 @@ def api_create_order():
             f"總計金額: ${total_amount:.2f}\n\n"
             f"訂單已儲存至 PostgreSQL，請工程團隊進行 3D 切片與印刷排單！"
         )
-        push_success = line_service.push_text_message(None, line_msg)
+        _run_in_background(line_service.push_text_message, None, line_msg)
 
         return jsonify({
             "status": "success",
             "order_id": order_id,
-            "line_pushed": push_success,
+            "line_pushed": True,
             "message": "Order created successfully"
         })
     return jsonify({"status": "error", "message": "Failed to save order"}), 500
@@ -633,4 +758,5 @@ def line_webhook():
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    debug = os.getenv('FLASK_DEBUG', '').strip().lower() in ('1', 'true', 'yes', 'on')
+    app.run(host='0.0.0.0', port=port, debug=debug)

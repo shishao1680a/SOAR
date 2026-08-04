@@ -1,12 +1,9 @@
 <!-- Application Logic JavaScript -->
 <script>
+  const dataLoaded = { users: false, products: false, materials: false, lineGroups: false, bulletins: false, orders: false };
+
   document.addEventListener("DOMContentLoaded", () => {
-    loadUsers();
-    loadProducts();
-    loadInventoryLogs();
-    loadMaterialPurchases();
-    loadLineGroups();
-    loadBulletins();
+    // 儀表板不需預載資料；進入各分頁時才 lazy load，減少進入後台的請求數
   });
 
   // 頁籤 Tab 切換選單
@@ -51,10 +48,27 @@
       activeBtn.className = "w-full text-left p-3 rounded font-bold italic flex items-center gap-2 bg-primary-fixed text-on-primary-fixed";
     }
 
-    if (secId === 'orders') {
+    if (secId === 'users' && !dataLoaded.users) {
+      dataLoaded.users = true;
+      loadUsers();
+    } else if (secId === 'products') {
+      if (!dataLoaded.products) {
+        dataLoaded.products = true;
+        loadProducts();
+      }
+      if (!dataLoaded.materials) {
+        dataLoaded.materials = true;
+        loadMaterialPurchases();
+      }
+    } else if (secId === 'orders' && !dataLoaded.orders) {
+      dataLoaded.orders = true;
       loadAdminOrdersList();
-    } else if (secId === 'line-send') {
-      renderLineSendGroupCards();
+    } else if ((secId === 'line-groups' || secId === 'line-send') && !dataLoaded.lineGroups) {
+      dataLoaded.lineGroups = true;
+      loadLineGroups();
+    } else if (secId === 'bulletins' && !dataLoaded.bulletins) {
+      dataLoaded.bulletins = true;
+      loadBulletins();
     }
   }
 
