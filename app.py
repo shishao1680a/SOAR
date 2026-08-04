@@ -392,7 +392,12 @@ def api_admin_inventory_detail(log_id):
         item_name = data.get('item_name', '-').strip() or '-'
         purchase_qty = int(data.get('purchase_qty', 0))
         purchase_cost = float(data.get('purchase_cost', 0))
-        supplier = data.get('supplier', '')
+        supplier = data.get('supplier')
+        if supplier is None:
+            existing = db_service._fetch_one(
+                "SELECT supplier FROM inventory_logs WHERE id = :id", {"id": log_id}
+            )
+            supplier = (existing or {}).get('supplier') or ''
         remark = data.get('remark', '')
 
         session_user = session.get('user', {}) or {}

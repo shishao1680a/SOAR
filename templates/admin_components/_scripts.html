@@ -836,7 +836,6 @@
     setVal('inv-edit-item-name', log.item_name || '-');
     setVal('inv-edit-qty', log.purchase_qty);
     setVal('inv-edit-cost', log.purchase_cost);
-    setVal('inv-edit-supplier', log.supplier);
     setVal('inv-edit-remark', log.remark);
     const modal = document.getElementById('modal-inventory-log-edit');
     if (modal) modal.classList.remove('hidden');
@@ -848,7 +847,6 @@
       item_name: document.getElementById('inv-edit-item-name').value.trim() || '-',
       purchase_qty: parseInt(document.getElementById('inv-edit-qty').value || 0),
       purchase_cost: parseFloat(document.getElementById('inv-edit-cost').value || 0),
-      supplier: document.getElementById('inv-edit-supplier').value.trim(),
       remark: document.getElementById('inv-edit-remark').value.trim()
     };
 
@@ -950,7 +948,6 @@
       item_name: itemName,
       purchase_qty: parseInt(document.getElementById('inv-qty').value || 0),
       purchase_cost: parseFloat(document.getElementById('inv-cost').value || 0),
-      supplier: document.getElementById('inv-supplier').value.trim(),
       remark: document.getElementById('inv-remark').value.trim()
     };
 
