@@ -354,6 +354,58 @@ def api_admin_inventory_detail(log_id):
             return jsonify({"status": "success", "message": "進貨紀錄已成功刪除！"})
         return jsonify({"status": "error", "message": "刪除失敗"}), 500
 
+@app.route('/api/admin/material-purchases', methods=['GET', 'POST'])
+@admin_or_coach_required
+def api_admin_material_purchases():
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        material_name = data.get('material_name', '').strip()
+        purchase_cost = float(data.get('purchase_cost', 0))
+        purchase_qty = int(data.get('purchase_qty', 0))
+        supplier = data.get('supplier', '預設進貨廠商').strip()
+        remark = data.get('remark', '').strip()
+        purchase_date = data.get('purchase_date', '').strip() or None
+
+        if not material_name:
+            return jsonify({"status": "error", "message": "耗材名稱為必填欄位！"}), 400
+
+        session_user = session.get('user', {}) or {}
+        current_name = session_user.get('name') or session_user.get('username') or '管理員'
+        operator_name = data.get('operator_name', '').strip() or current_name
+
+        success = db_service.add_material_purchase(material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date)
+        if success:
+            return jsonify({"status": "success", "message": "耗材進貨紀錄已成功儲存！"})
+        return jsonify({"status": "error", "message": "儲存耗材進貨紀錄失敗"}), 500
+    else:
+        logs = db_service.get_material_purchases()
+        return jsonify({"status": "success", "data": logs})
+
+@app.route('/api/admin/material-purchases/<int:log_id>', methods=['PUT', 'DELETE'])
+@admin_or_coach_required
+def api_admin_material_purchases_detail(log_id):
+    if request.method == 'PUT':
+        data = request.get_json() or {}
+        material_name = data.get('material_name', '').strip()
+        purchase_cost = float(data.get('purchase_cost', 0))
+        purchase_qty = int(data.get('purchase_qty', 0))
+        supplier = data.get('supplier', '').strip()
+        remark = data.get('remark', '').strip()
+        purchase_date = data.get('purchase_date', '').strip() or None
+
+        session_user = session.get('user', {}) or {}
+        operator_name = session_user.get('name') or session_user.get('username') or '管理員'
+
+        updated = db_service.update_material_purchase(log_id, material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date)
+        if updated:
+            return jsonify({"status": "success", "message": "耗材進貨紀錄已成功修改！"})
+        return jsonify({"status": "error", "message": "修改耗材進貨紀錄失敗"}), 500
+    else:
+        deleted = db_service.delete_material_purchase(log_id)
+        if deleted:
+            return jsonify({"status": "success", "message": "耗材進貨紀錄已成功刪除！"})
+        return jsonify({"status": "error", "message": "刪除失敗"}), 500
+
 # --- LINE Group & Broadcast APIs (PDF 自動轉圖 + 每 5 張圖片一則訊息分批推播) ---
 
 @app.route('/api/admin/line-groups', methods=['GET', 'POST'])

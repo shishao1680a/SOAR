@@ -278,46 +278,68 @@
 
       <!-- SECTION 3: PRODUCT & INVENTORY MANAGEMENT (商品與進貨維護) -->
       <div id="sec-products" class="hidden space-y-6">
-        <div class="flex justify-between items-center flex-wrap gap-3">
-          <div>
-            <h2 class="font-display-lg text-2xl italic font-black text-white">商品與進貨維護</h2>
-            <p class="font-label-caps text-xs text-on-surface-variant">商品多圖相簿上傳、3D設計成本 (cost_price) 紀錄與商品進貨單服務</p>
+        <div>
+          <h2 class="font-display-lg text-2xl italic font-black text-white">商品與進貨維護</h2>
+          <p class="font-label-caps text-xs text-on-surface-variant">包含商品作品維護、商品進貨歷程服務紀錄與獨立耗材進貨維護服務</p>
+        </div>
+
+        <!-- 水平頁籤列 (Tab Nav Buttons) -->
+        <div class="border-b-2 border-outline-variant flex gap-2 font-label-caps text-xs" id="product-tab-bar">
+          <button onclick="switchProductSubTab('products')" id="prod-tab-products" class="px-5 py-3 font-bold italic border-b-4 border-primary-fixed text-primary-fixed bg-surface-container-high transition-all flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">inventory_2</span> 📦 商品
+          </button>
+          <button onclick="switchProductSubTab('inventory')" id="prod-tab-inventory" class="px-5 py-3 font-bold italic border-b-4 border-transparent text-gray-400 hover:text-white hover:bg-surface-container transition-all flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">local_shipping</span> 🚚 商品進貨
+          </button>
+          <button onclick="switchProductSubTab('materials')" id="prod-tab-materials" class="px-5 py-3 font-bold italic border-b-4 border-transparent text-gray-400 hover:text-white hover:bg-surface-container transition-all flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">science</span> 🧪 耗材進貨
+          </button>
+        </div>
+
+        <!-- TAB 1: 商品維護與列表 -->
+        <div id="prod-subtab-products" class="space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary-fixed text-lg">format_list_bulleted</span> 商品與作品清單
+            </h3>
+            <button onclick="openProductModal()" class="px-3.5 py-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs font-bold italic flex items-center gap-1 shadow hover:glow-primary transition-all">
+              <span class="material-symbols-outlined text-sm">add_circle</span> + 新增商品作品
+            </button>
           </div>
-          <div class="flex gap-2">
-            <button onclick="openInventoryModal()" class="px-3 py-2 bg-secondary-container text-white font-label-caps text-xs font-bold italic flex items-center gap-1">
-              <span class="material-symbols-outlined text-sm">add_box</span> 商品進貨服務
-            </button>
-            <button onclick="openProductModal()" class="px-3 py-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs font-bold italic flex items-center gap-1">
-              <span class="material-symbols-outlined text-sm">add_circle</span> 新增商品作品
-            </button>
+
+          <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
+            <table class="w-full text-left font-label-caps text-xs">
+              <thead class="bg-surface-container border-b border-outline-variant text-primary-fixed">
+                <tr>
+                  <th class="p-3">商品圖片 (主圖/多圖)</th>
+                  <th class="p-3">商品名稱</th>
+                  <th class="p-3">分類 / 材質/小分類</th>
+                  <th class="p-3 text-line-green font-bold">項目名稱</th>
+                  <th class="p-3">銷售價 (PRICE)</th>
+                  <th class="p-3">3D列印成本</th>
+                  <th class="p-3">UV列印成本</th>
+                  <th class="p-3">目前庫存</th>
+                  <th class="p-3 text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody id="product-table-body" class="divide-y divide-outline-variant/40">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <!-- Products Table -->
-        <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
-          <table class="w-full text-left font-label-caps text-xs">
-            <thead class="bg-surface-container border-b border-outline-variant text-primary-fixed">
-              <tr>
-                <th class="p-3">商品圖片 (主圖/多圖)</th>
-                <th class="p-3">商品名稱</th>
-                <th class="p-3">分類 / 材質/小分類</th>
-                <th class="p-3 text-line-green font-bold">項目名稱</th>
-                <th class="p-3">銷售價 (PRICE)</th>
-                <th class="p-3">3D列印成本</th>
-                <th class="p-3">UV列印成本</th>
-                <th class="p-3">目前庫存</th>
-                <th class="p-3 text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody id="product-table-body" class="divide-y divide-outline-variant/40">
-              <!-- Dynamically rendered -->
-            </tbody>
-          </table>
-        </div>
+        <!-- TAB 2: 商品進貨服務與歷程紀錄 -->
+        <div id="prod-subtab-inventory" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-2">
+              <span class="material-symbols-outlined text-secondary-container text-lg">history</span> 商品進貨歷程服務紀錄
+            </h3>
+            <button onclick="openInventoryModal()" class="px-3.5 py-2 bg-secondary-container text-white font-label-caps text-xs font-bold italic flex items-center gap-1 shadow hover:shadow-[0_0_12px_rgba(254,107,0,0.5)] transition-all">
+              <span class="material-symbols-outlined text-sm">add_box</span> 📦 商品進貨服務
+            </button>
+          </div>
 
-        <!-- Inventory Logs Table (進貨紀錄) -->
-        <div class="pt-6 border-t border-outline-variant">
-          <h3 class="font-headline-md text-lg italic font-bold text-white mb-3">📦 商品進貨歷程服務紀錄</h3>
           <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
             <table class="w-full text-left font-label-caps text-xs">
               <thead class="bg-surface-container border-b border-outline-variant text-secondary">
@@ -326,7 +348,6 @@
                   <th class="p-3">商品名稱</th>
                   <th class="p-3 text-line-green font-bold">項目名稱</th>
                   <th class="p-3">進貨數量</th>
-                  <th class="p-3">進貨單價成本</th>
                   <th class="p-3 text-primary-fixed font-bold">進貨人員</th>
                   <th class="p-3">供應商 / 備註</th>
                   <th class="p-3 text-right">操作</th>
@@ -338,6 +359,38 @@
             </table>
           </div>
         </div>
+
+        <!-- TAB 3: 耗材進貨服務與歷程紀錄 -->
+        <div id="prod-subtab-materials" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-2">
+              <span class="material-symbols-outlined text-cyan-400 text-lg">science</span> 耗材進貨歷程服務紀錄
+            </h3>
+            <button onclick="openMaterialPurchaseModal()" class="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-label-caps text-xs font-bold italic flex items-center gap-1 shadow transition-all">
+              <span class="material-symbols-outlined text-sm">add_box</span> 🧪 耗材進貨服務
+            </button>
+          </div>
+
+          <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
+            <table class="w-full text-left font-label-caps text-xs">
+              <thead class="bg-surface-container border-b border-outline-variant text-cyan-400">
+                <tr>
+                  <th class="p-3">進貨日期</th>
+                  <th class="p-3">耗材名稱</th>
+                  <th class="p-3 text-amber-400">進貨成本</th>
+                  <th class="p-3">進貨數量</th>
+                  <th class="p-3 text-primary-fixed font-bold">進貨人員</th>
+                  <th class="p-3">供應商 / 備註</th>
+                  <th class="p-3 text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody id="material-inventory-table-body" class="divide-y divide-outline-variant/40">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
       <!-- SECTION 4: LINE GROUPS (LINE 群組維護 - 對齊圖1雙欄獨立卡片) -->
@@ -619,18 +672,15 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-1 gap-2">
           <div>
             <label class="block font-bold text-primary-fixed mb-1">銷售價格 ($ PRICE)</label>
             <input type="number" step="0.01" id="prod-edit-price" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-primary-fixed" />
           </div>
-          <div>
-            <label class="block font-bold text-secondary-container mb-1">3D列印成本 ($ COST)</label>
-            <input type="number" step="0.01" id="prod-edit-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-primary-fixed" />
-          </div>
-          <div>
-            <label class="block font-bold text-amber-400 mb-1">UV列印成本 ($ COST)</label>
-            <input type="number" step="0.01" id="prod-edit-uv-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-primary-fixed" />
+          <!-- 隱藏 3D列印成本與 UV列印成本欄位 -->
+          <div class="hidden">
+            <input type="number" step="0.01" id="prod-edit-cost" value="0.00" />
+            <input type="number" step="0.01" id="prod-edit-uv-cost" value="0.00" />
           </div>
         </div>
 
@@ -691,18 +741,15 @@
           <input type="text" id="item-edit-name" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2.5 rounded outline-none focus:border-line-green" placeholder="例如: 黑色-HELLO純棉款" />
         </div>
 
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-1 gap-2">
           <div>
             <label class="block font-bold text-primary-fixed mb-1">銷售價格 ($)</label>
             <input type="number" step="0.01" id="item-edit-price" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
           </div>
-          <div>
-            <label class="block font-bold text-secondary-container mb-1">3D列印成本 ($)</label>
-            <input type="number" step="0.01" id="item-edit-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
-          </div>
-          <div>
-            <label class="block font-bold text-amber-400 mb-1">UV列印成本 ($)</label>
-            <input type="number" step="0.01" id="item-edit-uv-cost" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
+          <!-- 隱藏 3D 與 UV 列印成本 -->
+          <div class="hidden">
+            <input type="number" step="0.01" id="item-edit-cost" value="0.00" />
+            <input type="number" step="0.01" id="item-edit-uv-cost" value="0.00" />
           </div>
         </div>
 
@@ -758,15 +805,11 @@
         </select>
       </div>
 
-      <div class="grid grid-cols-2 gap-2">
-        <div>
-          <label class="block text-xs font-label-caps text-on-surface-variant mb-1">進貨數量</label>
-          <input type="number" id="inv-qty" value="50" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
-        </div>
-        <div>
-          <label class="block text-xs font-label-caps text-on-surface-variant mb-1">進貨單價成本 ($)</label>
-          <input type="number" step="0.01" id="inv-cost" value="15.00" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
-        </div>
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">進貨數量</label>
+        <input type="number" id="inv-qty" value="50" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2" />
+        <!-- 隱藏單價成本，後端自動由商品成本帶入 -->
+        <input type="hidden" id="inv-cost" value="0.00" />
       </div>
 
       <div>
@@ -805,15 +848,10 @@
           <label class="block font-bold text-line-green mb-1">項目名稱 (規格/款式)</label>
           <input type="text" id="inv-edit-item-name" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-line-green" />
         </div>
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block font-bold text-gray-200 mb-1">進貨數量 (件)</label>
-            <input type="number" id="inv-edit-qty" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-secondary-container" />
-          </div>
-          <div>
-            <label class="block font-bold text-gray-200 mb-1">進貨單價成本 ($)</label>
-            <input type="number" step="0.01" id="inv-edit-cost" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-secondary-container" />
-          </div>
+        <div>
+          <label class="block font-bold text-gray-200 mb-1">進貨數量 (件)</label>
+          <input type="number" id="inv-edit-qty" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-secondary-container" />
+          <input type="hidden" id="inv-edit-cost" value="0.00" />
         </div>
         <div>
           <label class="block font-bold text-gray-200 mb-1">供應商 / 廠商名稱</label>
@@ -829,6 +867,109 @@
           取消
         </button>
         <button type="button" onclick="saveInventoryLogEditSubmit()" class="flex-1 py-2 bg-secondary-container hover:bg-secondary-container/80 text-white font-label-caps text-xs font-bold italic rounded transition-all shadow flex items-center justify-center gap-1">
+          💾 儲存修改紀錄
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Material Purchase Modal (耗材進貨服務對話框) -->
+  <div id="modal-material-purchase" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+    <div class="bg-surface-container border-2 border-cyan-500 max-w-md w-full p-6 space-y-4 rounded-xl shadow-2xl">
+      <h3 class="font-headline-md italic text-lg font-bold text-white flex items-center gap-2">
+        <span class="material-symbols-outlined text-cyan-400">science</span> 🧪 耗材進貨服務紀錄
+      </h3>
+      
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">進貨日期</label>
+        <input type="datetime-local" id="mat-date" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-cyan-400" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-cyan-400 mb-1 font-bold">耗材名稱</label>
+        <input type="text" id="mat-name" placeholder="例如: TPU-95A 耗材線材 / UV墨水" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-cyan-400" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-label-caps text-amber-400 mb-1 font-bold">進貨成本 ($)</label>
+          <input type="number" step="0.01" id="mat-cost" value="10.00" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-amber-400" />
+        </div>
+        <div>
+          <label class="block text-xs font-label-caps text-on-surface-variant mb-1">進貨數量</label>
+          <input type="number" id="mat-qty" value="10" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-cyan-400" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-primary-fixed mb-1 font-bold">進貨人員</label>
+        <input type="text" id="mat-operator" placeholder="例如: 小龍" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">供應商 / 廠商名稱</label>
+        <input type="text" id="mat-supplier" value="3D 資材原廠" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">備註說明</label>
+        <input type="text" id="mat-remark" placeholder="進貨批號或單據" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none" />
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('modal-material-purchase')" class="flex-1 py-2 bg-surface-container-high text-on-surface-variant font-label-caps text-xs rounded">取消</button>
+        <button onclick="saveMaterialPurchaseSubmit()" class="flex-1 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-label-caps text-xs font-bold italic rounded shadow">儲存耗材紀錄</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Material Log (修改耗材紀錄對話框) -->
+  <div id="modal-material-log-edit" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
+    <div class="bg-surface-container border-2 border-cyan-500 max-w-md w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col">
+      <div class="px-5 py-3.5 bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
+        <h4 class="font-headline-md italic text-base font-bold text-white flex items-center gap-2">
+          <span class="material-symbols-outlined text-cyan-400 text-lg">edit_note</span> 修改耗材紀錄
+        </h4>
+        <button type="button" onclick="closeModal('modal-material-log-edit')" class="text-gray-400 hover:text-white font-bold text-base">✕</button>
+      </div>
+      <div class="p-5 space-y-4 text-xs">
+        <input type="hidden" id="mat-edit-log-id" />
+        <div>
+          <label class="block font-bold text-gray-200 mb-1">進貨日期</label>
+          <input type="text" id="mat-edit-date" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
+        </div>
+        <div>
+          <label class="block font-bold text-cyan-400 mb-1">耗材名稱</label>
+          <input type="text" id="mat-edit-name" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-amber-400 mb-1">進貨成本 ($)</label>
+            <input type="number" step="0.01" id="mat-edit-cost" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-amber-400" />
+          </div>
+          <div>
+            <label class="block font-bold text-gray-200 mb-1">進貨數量</label>
+            <input type="number" id="mat-edit-qty" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
+          </div>
+        </div>
+        <div>
+          <label class="block font-bold text-primary-fixed mb-1">進貨人員</label>
+          <input type="text" id="mat-edit-operator" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
+        </div>
+        <div>
+          <label class="block font-bold text-gray-200 mb-1">供應商 / 廠商名稱</label>
+          <input type="text" id="mat-edit-supplier" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
+        </div>
+        <div>
+          <label class="block font-bold text-gray-200 mb-1">備註說明</label>
+          <input type="text" id="mat-edit-remark" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
+        </div>
+      </div>
+      <div class="px-5 py-3 bg-surface-container-high border-t border-outline-variant flex gap-2">
+        <button type="button" onclick="closeModal('modal-material-log-edit')" class="py-2 px-4 bg-surface-container border border-outline-variant text-on-surface-variant font-label-caps text-xs font-bold rounded hover:bg-surface-container-lowest">
+          取消
+        </button>
+        <button type="button" onclick="saveMaterialLogEditSubmit()" class="flex-1 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-label-caps text-xs font-bold italic rounded transition-all shadow flex items-center justify-center gap-1">
           💾 儲存修改紀錄
         </button>
       </div>
@@ -889,9 +1030,35 @@
       loadUsers();
       loadProducts();
       loadInventoryLogs();
+      loadMaterialPurchases();
       loadLineGroups();
       loadBulletins();
     });
+
+    // 頁籤 Tab 切換選單
+    function switchProductSubTab(subTabId) {
+      ['products', 'inventory', 'materials'].forEach(tab => {
+        const contentEl = document.getElementById(`prod-subtab-${tab}`);
+        const btnEl = document.getElementById(`prod-tab-${tab}`);
+        if (contentEl) contentEl.classList.add('hidden');
+        if (btnEl) {
+          btnEl.className = "px-5 py-3 font-bold italic border-b-4 border-transparent text-gray-400 hover:text-white hover:bg-surface-container transition-all flex items-center gap-2";
+        }
+      });
+
+      const activeContent = document.getElementById(`prod-subtab-${subTabId}`);
+      const activeBtn = document.getElementById(`prod-tab-${subTabId}`);
+      if (activeContent) activeContent.classList.remove('hidden');
+      if (activeBtn) {
+        if (subTabId === 'products') {
+          activeBtn.className = "px-5 py-3 font-bold italic border-b-4 border-primary-fixed text-primary-fixed bg-surface-container-high transition-all flex items-center gap-2";
+        } else if (subTabId === 'inventory') {
+          activeBtn.className = "px-5 py-3 font-bold italic border-b-4 border-secondary-container text-secondary-container bg-surface-container-high transition-all flex items-center gap-2";
+        } else if (subTabId === 'materials') {
+          activeBtn.className = "px-5 py-3 font-bold italic border-b-4 border-cyan-400 text-cyan-400 bg-surface-container-high transition-all flex items-center gap-2";
+        }
+      }
+    }
 
     function switchAdminSection(secId) {
       ['dashboard', 'users', 'products', 'line-groups', 'line-send', 'bulletins'].forEach(s => {
@@ -1584,7 +1751,6 @@
           <td class="p-3 font-bold text-white">${l.product_name}</td>
           <td class="p-3 text-line-green font-bold">${l.item_name || '-'}</td>
           <td class="p-3 text-line-green font-bold">+${l.purchase_qty} 件</td>
-          <td class="p-3 text-secondary-container font-bold">$${parseFloat(l.purchase_cost).toFixed(2)}</td>
           <td class="p-3 text-primary-fixed font-bold">${l.operator_name || '管理員'}</td>
           <td class="p-3">${l.supplier} / ${l.remark || '-'}</td>
           <td class="p-3 text-right whitespace-nowrap">
@@ -1593,6 +1759,144 @@
           </td>
         </tr>
       `).join('');
+    }
+
+    // --- Material Purchases JS ---
+    let materialPurchasesList = [];
+
+    async function loadMaterialPurchases() {
+      try {
+        const res = await fetch('/api/admin/material-purchases');
+        const json = await res.json();
+        if (json.status === 'success') {
+          materialPurchasesList = json.data || [];
+          renderMaterialPurchasesTable();
+        }
+      } catch(e){ console.error("Error loading material purchases:", e); }
+    }
+
+    function renderMaterialPurchasesTable() {
+      const tbody = document.getElementById('material-inventory-table-body');
+      if (!tbody) return;
+      if (materialPurchasesList.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="p-4 text-center text-gray-400 italic">尚無耗材進貨紀錄。請點擊右上角【🧪 耗材進貨服務】新增進貨單。</td>
+          </tr>
+        `;
+        return;
+      }
+      tbody.innerHTML = materialPurchasesList.map(m => `
+        <tr class="hover:bg-surface-container/50">
+          <td class="p-3 text-on-surface-variant">${m.purchase_date || '-'}</td>
+          <td class="p-3 font-bold text-white">${m.material_name}</td>
+          <td class="p-3 text-amber-400 font-bold">$${parseFloat(m.purchase_cost || 0).toFixed(2)}</td>
+          <td class="p-3 text-cyan-400 font-bold">+${m.purchase_qty}</td>
+          <td class="p-3 text-primary-fixed font-bold">${m.operator_name || '管理員'}</td>
+          <td class="p-3">${m.supplier || '-'} / ${m.remark || '-'}</td>
+          <td class="p-3 text-right whitespace-nowrap">
+            <button onclick="editMaterialLog(${m.id})" class="text-primary-fixed hover:underline mr-2 font-bold">修改</button>
+            <button onclick="deleteMaterialLog(${m.id})" class="text-error hover:underline font-bold">刪除</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function openMaterialPurchaseModal() {
+      const now = new Date();
+      const localIso = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+      setVal('mat-date', localIso);
+      setVal('mat-name', '');
+      setVal('mat-cost', '10.00');
+      setVal('mat-qty', '10');
+      setVal('mat-operator', '管理員');
+      setVal('mat-supplier', '3D 資材原廠');
+      setVal('mat-remark', '');
+      const modal = document.getElementById('modal-material-purchase');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    async function saveMaterialPurchaseSubmit() {
+      const material_name = document.getElementById('mat-name').value.trim();
+      if (!material_name) {
+        alert('請輸入耗材名稱！');
+        return;
+      }
+
+      const rawDate = document.getElementById('mat-date').value;
+      const formattedDate = rawDate ? rawDate.replace('T', ' ') + ':00' : '';
+
+      const payload = {
+        material_name: material_name,
+        purchase_cost: parseFloat(document.getElementById('mat-cost').value || 0),
+        purchase_qty: parseInt(document.getElementById('mat-qty').value || 0),
+        operator_name: document.getElementById('mat-operator').value.trim() || '管理員',
+        supplier: document.getElementById('mat-supplier').value.trim(),
+        remark: document.getElementById('mat-remark').value.trim(),
+        purchase_date: formattedDate
+      };
+
+      const res = await fetch('/api/admin/material-purchases', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('耗材進貨紀錄已成功儲存！');
+        closeModal('modal-material-purchase');
+        loadMaterialPurchases();
+      } else { alert(json.message); }
+    }
+
+    function editMaterialLog(logId) {
+      const log = materialPurchasesList.find(m => String(m.id) === String(logId));
+      if (!log) return;
+      setVal('mat-edit-log-id', log.id);
+      setVal('mat-edit-date', log.purchase_date || '');
+      setVal('mat-edit-name', log.material_name);
+      setVal('mat-edit-cost', log.purchase_cost);
+      setVal('mat-edit-qty', log.purchase_qty);
+      setVal('mat-edit-operator', log.operator_name || '管理員');
+      setVal('mat-edit-supplier', log.supplier);
+      setVal('mat-edit-remark', log.remark);
+      const modal = document.getElementById('modal-material-log-edit');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    async function saveMaterialLogEditSubmit() {
+      const logId = document.getElementById('mat-edit-log-id').value;
+      const payload = {
+        purchase_date: document.getElementById('mat-edit-date').value.trim(),
+        material_name: document.getElementById('mat-edit-name').value.trim(),
+        purchase_cost: parseFloat(document.getElementById('mat-edit-cost').value || 0),
+        purchase_qty: parseInt(document.getElementById('mat-edit-qty').value || 0),
+        operator_name: document.getElementById('mat-edit-operator').value.trim() || '管理員',
+        supplier: document.getElementById('mat-edit-supplier').value.trim(),
+        remark: document.getElementById('mat-edit-remark').value.trim()
+      };
+
+      const res = await fetch(`/api/admin/material-purchases/${logId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('耗材進貨紀錄已成功修改！');
+        closeModal('modal-material-log-edit');
+        loadMaterialPurchases();
+      } else { alert(json.message); }
+    }
+
+    async function deleteMaterialLog(logId) {
+      if (!confirm('確定要刪除此筆耗材進貨紀錄嗎？')) return;
+      const res = await fetch(`/api/admin/material-purchases/${logId}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert('耗材進貨紀錄已成功刪除！');
+        loadMaterialPurchases();
+      } else { alert(json.message); }
     }
 
     function editInventoryLog(logId) {

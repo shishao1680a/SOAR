@@ -84,11 +84,25 @@ class DBService:
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         product_id TEXT,
                         product_name TEXT,
+                        item_name TEXT DEFAULT '-',
                         purchase_qty INTEGER,
                         purchase_cost REAL,
                         supplier TEXT,
                         purchase_date TEXT,
-                        remark TEXT
+                        remark TEXT,
+                        operator_name TEXT DEFAULT '管理員'
+                    )
+                ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS material_purchases (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        material_name TEXT NOT NULL,
+                        purchase_cost REAL NOT NULL,
+                        purchase_qty INTEGER NOT NULL,
+                        supplier TEXT,
+                        purchase_date TEXT,
+                        remark TEXT,
+                        operator_name TEXT DEFAULT '管理員'
                     )
                 ''')
                 cursor.execute('''
@@ -181,7 +195,20 @@ class DBService:
                         purchase_cost NUMERIC(10, 2),
                         supplier VARCHAR(255),
                         purchase_date VARCHAR(100),
-                        remark TEXT
+                        remark TEXT,
+                        operator_name VARCHAR(100) DEFAULT '管理員'
+                    )
+                ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS material_purchases (
+                        id SERIAL PRIMARY KEY,
+                        material_name VARCHAR(255) NOT NULL,
+                        purchase_cost NUMERIC(10, 2) NOT NULL,
+                        purchase_qty INTEGER NOT NULL,
+                        supplier VARCHAR(255),
+                        purchase_date VARCHAR(100),
+                        remark TEXT,
+                        operator_name VARCHAR(100) DEFAULT '管理員'
                     )
                 ''')
                 cursor.execute('''
@@ -654,6 +681,88 @@ class DBService:
             return True
         except Exception as e:
             print(f"Error deleting inventory log {log_id}: {e}")
+            return False
+
+    # --- Material Purchases Methods ---
+    def add_material_purchase(self, material_name, purchase_cost, purchase_qty, supplier='', remark='', operator_name='管理員', purchase_date=None):
+        try:
+            now_str = purchase_date or self._get_taiwan_now_str()
+            operator_name = operator_name or '管理員'
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            if self.use_sqlite:
+                cursor.execute('''
+                    INSERT INTO material_purchases (material_name, purchase_cost, purchase_qty, supplier, purchase_date, remark, operator_name)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (material_name, purchase_cost, purchase_qty, supplier, now_str, remark, operator_name))
+            else:
+                cursor.execute('''
+                    INSERT INTO material_purchases (material_name, purchase_cost, purchase_qty, supplier, purchase_date, remark, operator_name)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ''', (material_name, purchase_cost, purchase_qty, supplier, now_str, remark, operator_name))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error adding material purchase: {e}")
+            return False
+
+    def get_material_purchases(self):
+        try:
+            conn = self._get_connection()
+            if self.use_sqlite:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM material_purchases ORDER BY id DESC")
+                rows = cursor.fetchall()
+                conn.close()
+                return [dict(r) for r in rows]
+            else:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("SELECT * FROM material_purchases ORDER BY id DESC")
+                logs = cursor.fetchall()
+                conn.close()
+                return [dict(l) for l in logs]
+        except Exception as e:
+            print(f"Error fetching material purchases: {e}")
+            return []
+
+    def update_material_purchase(self, log_id, material_name, purchase_cost, purchase_qty, supplier='', remark='', operator_name='管理員', purchase_date=None):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            now_str = purchase_date or self._get_taiwan_now_str()
+            if self.use_sqlite:
+                cursor.execute('''
+                    UPDATE material_purchases 
+                    SET material_name = ?, purchase_cost = ?, purchase_qty = ?, supplier = ?, remark = ?, operator_name = ?, purchase_date = ?
+                    WHERE id = ?
+                ''', (material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, now_str, int(log_id)))
+            else:
+                cursor.execute('''
+                    UPDATE material_purchases 
+                    SET material_name = %s, purchase_cost = %s, purchase_qty = %s, supplier = %s, remark = %s, operator_name = %s, purchase_date = %s
+                    WHERE id = %s
+                ''', (material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, now_str, int(log_id)))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error updating material purchase {log_id}: {e}")
+            return False
+
+    def delete_material_purchase(self, log_id):
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            if self.use_sqlite:
+                cursor.execute("DELETE FROM material_purchases WHERE id = ?", (int(log_id),))
+            else:
+                cursor.execute("DELETE FROM material_purchases WHERE id = %s", (int(log_id),))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error deleting material purchase {log_id}: {e}")
             return False
 
     # --- LINE Groups & Bulletins ---
