@@ -502,15 +502,45 @@ class DBService:
                 cursor = conn.cursor()
                 cursor.execute("SELECT * FROM products ORDER BY id ASC")
                 rows = cursor.fetchall()
+                prods = [dict(r) for r in rows]
+                cursor.execute("SELECT * FROM inventory_purchases")
+                logs = [dict(r) for r in cursor.fetchall()]
                 conn.close()
-                return [dict(r) for r in rows]
             else:
                 cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cursor.execute("SELECT * FROM products ORDER BY created_at ASC")
-                prods = cursor.fetchall()
+                cursor.execute("SELECT * FROM products ORDER BY id ASC")
+                prods = [dict(p) for p in cursor.fetchall()]
+                cursor.execute("SELECT * FROM inventory_purchases")
+                logs = [dict(l) for l in cursor.fetchall()]
                 conn.close()
-                return [dict(p) for p in prods]
+
+            # 動態算庫存
+            for p in prods:
+                prod_id = str(p['id']).strip() if p.get('id') else ''
+                prod_name = (p.get('name') or '').strip()
+
+                prod_logs = [l for l in logs if (l.get('product_id') and str(l['product_id']).strip() == prod_id) or (l.get('product_name') and str(l['product_name']).strip() == prod_name)]
+                total_stock = sum(int(l.get('purchase_qty') or 0) for l in prod_logs)
+                p['stock_qty'] = total_stock
+
+                try:
+                    items_arr = json.loads(p.get('items_json') or '[]') if isinstance(p.get('items_json'), str) else (p.get('items_json') or [])
+                    if isinstance(items_arr, list):
+                        for itm in items_arr:
+                            itm_name = (itm.get('name') or itm.get('item_name') or '').strip()
+                            item_purchased = 0
+                            for l in prod_logs:
+                                log_item = (l.get('item_name') or '-').strip()
+                                if log_item == itm_name or log_item == '-' or log_item == '-- 全品項預設/主商品 --':
+                                    item_purchased += int(l.get('purchase_qty') or 0)
+                            itm['stock_qty'] = item_purchased
+                        p['items_json'] = json.dumps(items_arr, ensure_ascii=False)
+                except Exception as ex:
+                    print(f"Error parsing items_json for stock: {ex}")
+
+            return prods
         except Exception as e:
+            print(f"Error fetching products: {e}")
             return []
 
     def save_product(self, prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, description, is_uv, items_json='[]'):

@@ -852,7 +852,8 @@
       itemSelect.innerHTML = `<option value="-">-- 全品項預設/主商品 --</option>` + 
         itemsArr.map((item) => {
           const itemStock = calcCalculatedStock(prod.id, item.name);
-          return `<option value="${item.name}">${item.name} (庫存: ${itemStock})</option>`;
+          const itemPrice = parseFloat(item.price !== undefined ? item.price : (prod.price || 0)).toFixed(2);
+          return `<option value="${item.name}">${item.name} ($${itemPrice}) (庫存: ${itemStock})</option>`;
         }).join('');
     } else {
       wrapper.classList.add('hidden');
