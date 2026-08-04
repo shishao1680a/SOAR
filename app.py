@@ -5,7 +5,7 @@ import threading
 from urllib.parse import quote
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory
 from dotenv import load_dotenv
-from db_service import DBService
+from db_service import DBService, StockError
 from line_service import LineService
 from pdf_service import convert_pdf_to_images
 from linebot.models import TextSendMessage, ImageSendMessage
@@ -335,11 +335,18 @@ def api_admin_save_product():
     images_json = json.dumps(images if images else [image_url], ensure_ascii=False)
     description = data.get('description', '')
     is_uv = bool(data.get('is_uv', False))
+    designer_ratio = float(data.get('designer_ratio', 20) or 20)
+    packager_ratio = float(data.get('packager_ratio', 60) or 60)
+    platform_ratio = float(data.get('platform_ratio', 20) or 20)
 
     items = data.get('items', [])
     items_json = json.dumps(items, ensure_ascii=False) if isinstance(items, list) else items
 
-    saved = db_service.save_product(prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty, badge, image_url, images_json, description, is_uv, items_json=items_json)
+    saved = db_service.save_product(
+        prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty,
+        badge, image_url, images_json, description, is_uv, items_json=items_json,
+        designer_ratio=designer_ratio, packager_ratio=packager_ratio, platform_ratio=platform_ratio,
+    )
     if saved:
         return jsonify({"status": "success", "message": "商品儲存成功"})
     return jsonify({"status": "error", "message": "商品儲存失敗"}), 500
@@ -435,6 +442,13 @@ def api_admin_material_names():
     names = db_service.get_unique_material_names()
     return jsonify({"status": "success", "data": names})
 
+@app.route('/api/admin/material-unit-costs', methods=['GET'])
+@admin_or_coach_required
+def api_admin_material_unit_costs():
+    """各耗材加權平均單位成本（Σ進貨總成本 ÷ Σ容量）。"""
+    costs = db_service.get_material_unit_costs()
+    return jsonify({"status": "success", "data": costs})
+
 @app.route('/api/admin/material-suppliers', methods=['GET'])
 @admin_or_coach_required
 def api_admin_material_suppliers():
@@ -476,16 +490,57 @@ def api_admin_orders():
 @app.route('/api/admin/orders/<order_id>/ship', methods=['POST'])
 @admin_or_coach_required
 def api_admin_orders_ship(order_id):
+    """寄送結算：接收逐商品明細（含設計者/包裝人員/耗材），快照寫入並更新訂單狀態。"""
     data = request.get_json() or {}
-    status = data.get('status', 'SHIPPED')
-    other_cost = float(data.get('other_cost', 0))
-    shipping_cost = float(data.get('shipping_cost', 60))
-    net_profit = float(data.get('net_profit', 0))
+    products = data.get('products')
+    if not isinstance(products, list) or not products:
+        return jsonify({"status": "error", "message": "缺少逐商品結算明細"}), 400
 
-    success = db_service.update_order_status_and_profit(order_id, status, other_cost, shipping_cost, net_profit)
+    # 驗證設計者/包裝人員為可分配角色（admin / assistant_coach）
+    eligible = {
+        u['id'] for u in db_service.get_all_users()
+        if u.get('role') in ('admin', 'assistant_coach')
+    }
+    order_totals = {"other_cost": 0.0, "shipping_cost": 0.0, "net_profit": 0.0}
+    for p in products:
+        if not isinstance(p, dict):
+            return jsonify({"status": "error", "message": "結算明細格式錯誤"}), 400
+        if p.get('designer_user_id') not in eligible:
+            return jsonify({"status": "error", "message": "請選擇有效的設計者"}), 400
+        if p.get('packager_user_id') not in eligible:
+            return jsonify({"status": "error", "message": "請選擇有效的包裝人員"}), 400
+        order_totals["other_cost"] += float(p.get('other_cost', 0) or 0)
+        order_totals["shipping_cost"] += float(p.get('shipping_cost', 0) or 0)
+        order_totals["net_profit"] += float(p.get('net_profit', 0) or 0)
+
+    success = db_service.save_order_settlement(str(order_id), products, order_totals)
     if success:
-        return jsonify({"status": "success", "message": f"訂單 #{order_id} 已成功執行寄送，利潤結算已存檔！"})
+        return jsonify({
+            "status": "success",
+            "message": f"訂單 #{order_id} 已成功執行寄送，逐商品利潤結算與分潤已存檔！"
+        })
     return jsonify({"status": "error", "message": "處理訂單寄送失敗"}), 500
+
+
+@app.route('/api/admin/orders/<order_id>/cancel', methods=['POST'])
+@admin_or_coach_required
+def api_admin_orders_cancel(order_id):
+    """取消訂單並釋放庫存。"""
+    ok, msg = db_service.cancel_order(order_id)
+    if ok:
+        return jsonify({"status": "success", "message": msg})
+    return jsonify({"status": "error", "message": msg}), 400
+
+@app.route('/api/admin/bonuses', methods=['GET'])
+@admin_or_coach_required
+def api_admin_bonuses():
+    """獎金統計：依結算時間區間回傳每人設計/包裝獎金、明細與平台收益。"""
+    date_from = request.args.get('from', '').strip()[:10]
+    date_to = request.args.get('to', '').strip()[:10]
+    from_str = f"{date_from} 00:00:00" if date_from else "1970-01-01 00:00:00"
+    to_str = f"{date_to} 23:59:59" if date_to else "9999-12-31 23:59:59"
+    summary = db_service.get_bonus_summary(from_str, to_str)
+    return jsonify({"status": "success", **summary})
 
 # --- LINE Group & Broadcast APIs (PDF 自動轉圖 + 每 5 張圖片一則訊息分批推播) ---
 
@@ -720,7 +775,12 @@ def api_create_order():
 
     total_amount = round(total_amount, 2)
     order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
-    saved = db_service.save_order(order_id, 'USER_TEMP', user_name, user_line_id, validated_items, total_amount)
+    try:
+        saved = db_service.save_order_with_stock(
+            order_id, 'USER_TEMP', user_name, user_line_id, validated_items, total_amount
+        )
+    except StockError as se:
+        return jsonify({"status": "error", "message": str(se)}), 400
 
     if saved:
         order_details = "\n".join([

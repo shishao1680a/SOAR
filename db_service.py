@@ -1,10 +1,15 @@
 import os
 import json
+import re
 import uuid
 from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
+
+
+class StockError(Exception):
+    """下單時庫存不足（在資料庫交易內檢查後拋出）。"""
 
 
 class DBService:
@@ -116,6 +121,9 @@ class DBService:
                         items_json TEXT DEFAULT '[]',
                         description TEXT,
                         is_uv BOOLEAN DEFAULT FALSE,
+                        designer_ratio NUMERIC(5, 2) DEFAULT 20,
+                        packager_ratio NUMERIC(5, 2) DEFAULT 60,
+                        platform_ratio NUMERIC(5, 2) DEFAULT 20,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """))
@@ -193,7 +201,53 @@ class DBService:
                         other_cost NUMERIC(10, 2) DEFAULT 0,
                         shipping_cost NUMERIC(10, 2) DEFAULT 60,
                         net_profit NUMERIC(10, 2) DEFAULT 0,
+                        shipped_at VARCHAR(100),
                         created_at VARCHAR(100)
+                    )
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS sales_logs (
+                        id SERIAL PRIMARY KEY,
+                        order_id VARCHAR(100),
+                        product_id VARCHAR(100),
+                        product_name VARCHAR(255),
+                        item_name VARCHAR(255) DEFAULT '-',
+                        qty INTEGER DEFAULT 0,
+                        created_at VARCHAR(100)
+                    )
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS order_materials (
+                        id SERIAL PRIMARY KEY,
+                        order_id VARCHAR(100),
+                        product_id VARCHAR(100),
+                        item_name VARCHAR(255) DEFAULT '-',
+                        material_name VARCHAR(255),
+                        capacity_used NUMERIC(12, 3) DEFAULT 0,
+                        unit_cost NUMERIC(10, 4) DEFAULT 0,
+                        cost NUMERIC(10, 2) DEFAULT 0
+                    )
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS order_settlements (
+                        id SERIAL PRIMARY KEY,
+                        order_id VARCHAR(100),
+                        product_id VARCHAR(100),
+                        item_name VARCHAR(255) DEFAULT '-',
+                        sales_amount NUMERIC(10, 2) DEFAULT 0,
+                        material_cost NUMERIC(10, 2) DEFAULT 0,
+                        other_cost NUMERIC(10, 2) DEFAULT 0,
+                        shipping_cost NUMERIC(10, 2) DEFAULT 0,
+                        net_profit NUMERIC(10, 2) DEFAULT 0,
+                        designer_user_id VARCHAR(255),
+                        packager_user_id VARCHAR(255),
+                        designer_ratio NUMERIC(5, 2) DEFAULT 20,
+                        packager_ratio NUMERIC(5, 2) DEFAULT 60,
+                        platform_ratio NUMERIC(5, 2) DEFAULT 20,
+                        designer_amount NUMERIC(10, 2) DEFAULT 0,
+                        packager_amount NUMERIC(10, 2) DEFAULT 0,
+                        platform_amount NUMERIC(10, 2) DEFAULT 0,
+                        settled_at VARCHAR(100)
                     )
                 """))
 
@@ -206,6 +260,10 @@ class DBService:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS other_cost NUMERIC(10, 2) DEFAULT 0"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(10, 2) DEFAULT 60"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS net_profit NUMERIC(10, 2) DEFAULT 0"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipped_at VARCHAR(100)"))
+                conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS designer_ratio NUMERIC(5, 2) DEFAULT 20"))
+                conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS packager_ratio NUMERIC(5, 2) DEFAULT 60"))
+                conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS platform_ratio NUMERIC(5, 2) DEFAULT 20"))
 
                 # 常用索引
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_id ON inventory_logs (product_id)"))
@@ -213,8 +271,14 @@ class DBService:
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_material_purchases_material_name ON material_purchases (material_name)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_line_id ON users (line_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sales_logs_product_id ON sales_logs (product_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sales_logs_order_id ON sales_logs (order_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_order_settlements_designer ON order_settlements (designer_user_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_order_settlements_packager ON order_settlements (packager_user_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_order_settlements_settled_at ON order_settlements (settled_at)"))
 
             self._seed_initial_data()
+            self._normalize_material_capacity()
         except Exception as e:
             print(f"ERROR: Table initialization failed: {e}")
             raise
@@ -281,6 +345,47 @@ class DBService:
                         })
         except Exception as e:
             print(f"ERROR: Initial seed failed: {e}")
+
+    @staticmethod
+    def _parse_capacity_number(value):
+        """把容量文字（1kg / 500ml / 1000g / 1000）解析成公克數值；無法解析回傳 None。"""
+        if value is None:
+            return None
+        s = str(value).strip().lower().replace(",", "")
+        if not s:
+            return None
+        m = re.match(r"^([0-9]+(?:\.[0-9]+)?)\s*([a-z]*)$", s)
+        if not m:
+            return None
+        num = float(m.group(1))
+        unit = m.group(2)
+        if unit in ("", "g", "ml", "cc"):
+            return num
+        if unit == "kg":
+            return num * 1000
+        if unit == "l":
+            return num * 1000
+        if unit == "mg":
+            return num / 1000
+        return None
+
+    def _normalize_material_capacity(self):
+        """一次性把 total_capacity 的舊文字值（1kg/500ml...）轉成數字（公克），重複執行安全。"""
+        try:
+            rows = self._fetch_dicts("SELECT id, total_capacity FROM material_purchases")
+            with self.engine.begin() as conn:
+                for r in rows:
+                    cap = self._parse_capacity_number(r.get('total_capacity'))
+                    if cap is None:
+                        continue
+                    new_val = f"{cap:g}"
+                    if str(r.get('total_capacity') or '').strip() != new_val:
+                        conn.execute(
+                            text("UPDATE material_purchases SET total_capacity = :v WHERE id = :id"),
+                            {"v": new_val, "id": r["id"]},
+                        )
+        except Exception as e:
+            print(f"WARNING: normalize material capacity failed: {e}")
 
     # ---------- 使用者 / 認證 ----------
 
@@ -432,6 +537,12 @@ class DBService:
                 ORDER BY p.id ASC
             """)
 
+            sales_rows = self._fetch_dicts("""
+                SELECT product_id, product_name, item_name, SUM(qty) AS sold_qty
+                FROM sales_logs
+                GROUP BY product_id, product_name, item_name
+            """)
+
             prods = []
             by_id = {}
             for r in rows:
@@ -452,8 +563,27 @@ class DBService:
                     prod['stock_qty'] += qty
                     prod['_item_stock'][item_name] = prod['_item_stock'].get(item_name, 0) + qty
 
+            # 以 product_id / product_name 建立索引，避免逐商品掃全部銷售紀錄
+            sales_by_pid = {}
+            sales_by_pname = {}
+            for sg in sales_rows:
+                if sg.get('product_id'):
+                    sales_by_pid.setdefault(str(sg['product_id']).strip(), []).append(sg)
+                if sg.get('product_name'):
+                    sales_by_pname.setdefault(str(sg['product_name']).strip(), []).append(sg)
+
             for p in prods:
                 try:
+                    # 商品級已售數量（以 product_id 或 product_name 對應，同一批只算一次）
+                    pid = str(p['id'])
+                    pname = (p.get('name') or '').strip()
+                    merged_sales = {}
+                    for sg in sales_by_pid.get(pid, []) + sales_by_pname.get(pname, []):
+                        key = (sg.get('product_id'), sg.get('product_name'), sg.get('item_name'))
+                        merged_sales[key] = sg
+                    sold_total = sum(int(sg.get('sold_qty') or 0) for sg in merged_sales.values())
+                    p['stock_qty'] = max(0, int(p['stock_qty']) - sold_total)
+
                     raw = p.get('items_json') or '[]'
                     items_arr = json.loads(raw) if isinstance(raw, str) else (raw or [])
                     if isinstance(items_arr, list):
@@ -463,7 +593,11 @@ class DBService:
                                 qty for key, qty in p['_item_stock'].items()
                                 if key == itm_name or key == '-' or key == '-- 全品項預設/主商品 --'
                             )
-                            itm['stock_qty'] = item_purchased
+                            item_sold = sum(
+                                int(sg.get('sold_qty') or 0) for sg in merged_sales.values()
+                                if (sg.get('item_name') or '-').strip() in (itm_name, '-', '-- 全品項預設/主商品 --')
+                            )
+                            itm['stock_qty'] = max(0, item_purchased - item_sold)
                         p['items_json'] = json.dumps(items_arr, ensure_ascii=False)
                 except Exception as ex:
                     print(f"Error calculating item stock for product {p.get('id')}: {ex}")
@@ -475,26 +609,34 @@ class DBService:
             return []
 
     def save_product(self, prod_id, name, category, material, price, cost_price, uv_cost_price,
-                     stock_qty, badge, image_url, images_json, description, is_uv, items_json='[]'):
+                     stock_qty, badge, image_url, images_json, description, is_uv, items_json='[]',
+                     designer_ratio=20, packager_ratio=60, platform_ratio=20):
         try:
             self._execute("""
                 INSERT INTO products (id, name, category, material, price, cost_price, uv_cost_price, stock_qty,
-                                      badge, image_url, images_json, items_json, description, is_uv)
+                                      badge, image_url, images_json, items_json, description, is_uv,
+                                      designer_ratio, packager_ratio, platform_ratio)
                 VALUES (:id, :name, :category, :material, :price, :cost_price, :uv_cost_price, :stock_qty,
-                        :badge, :image_url, :images_json, :items_json, :description, :is_uv)
+                        :badge, :image_url, :images_json, :items_json, :description, :is_uv,
+                        :designer_ratio, :packager_ratio, :platform_ratio)
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name, category = EXCLUDED.category, material = EXCLUDED.material,
                     price = EXCLUDED.price, cost_price = EXCLUDED.cost_price,
                     uv_cost_price = EXCLUDED.uv_cost_price, stock_qty = EXCLUDED.stock_qty,
                     badge = EXCLUDED.badge, image_url = EXCLUDED.image_url,
                     images_json = EXCLUDED.images_json, items_json = EXCLUDED.items_json,
-                    description = EXCLUDED.description, is_uv = EXCLUDED.is_uv
+                    description = EXCLUDED.description, is_uv = EXCLUDED.is_uv,
+                    designer_ratio = EXCLUDED.designer_ratio,
+                    packager_ratio = EXCLUDED.packager_ratio,
+                    platform_ratio = EXCLUDED.platform_ratio
             """, {
                 "id": prod_id, "name": name, "category": category, "material": material,
                 "price": price, "cost_price": cost_price, "uv_cost_price": uv_cost_price,
                 "stock_qty": stock_qty, "badge": badge, "image_url": image_url,
                 "images_json": images_json, "items_json": items_json,
                 "description": description, "is_uv": is_uv,
+                "designer_ratio": designer_ratio, "packager_ratio": packager_ratio,
+                "platform_ratio": platform_ratio,
             })
             return True
         except Exception as e:
@@ -659,6 +801,34 @@ class DBService:
             print(f"Error fetching unique material suppliers: {e}")
             return []
 
+    def get_material_unit_costs(self):
+        """各耗材的加權平均單位成本 = Σ進貨總成本 ÷ Σ容量（只計可解析且容量 > 0 的批次）。"""
+        try:
+            rows = self._fetch_dicts("""
+                SELECT material_name, purchase_cost, total_capacity
+                FROM material_purchases
+                ORDER BY material_name ASC, purchase_date ASC
+            """)
+            agg = {}
+            for r in rows:
+                name = (r.get('material_name') or '').strip()
+                if not name:
+                    continue
+                cap = self._parse_capacity_number(r.get('total_capacity'))
+                if cap is None or cap <= 0:
+                    continue
+                d = agg.setdefault(name, {"cost": 0.0, "cap": 0.0})
+                d["cost"] += float(r.get('purchase_cost') or 0)
+                d["cap"] += cap
+            result = {}
+            for name, d in agg.items():
+                if d["cap"] > 0:
+                    result[name] = round(d["cost"] / d["cap"], 4)
+            return result
+        except Exception as e:
+            print(f"Error computing material unit costs: {e}")
+            return {}
+
     def update_material_purchase(self, log_id, material_name, purchase_cost, purchase_qty, supplier='',
                                  remark='', operator_name='管理員', purchase_date=None, total_capacity=''):
         try:
@@ -735,6 +905,246 @@ class DBService:
         except Exception as e:
             print(f"Error saving order: {e}")
             return False
+
+    def save_order_with_stock(self, order_id, user_id, user_name, user_line_id, items, total_amount):
+        """原子下單：同一交易內鎖定商品列、檢查庫存並寫入 sales_logs 扣減庫存。
+
+        items: [{id, name, price, qty, variant_name}]
+        庫存不足時拋出 StockError（交易自動 rollback）。
+        """
+        try:
+            now_str = self._get_taiwan_now_str()
+            items_json = json.dumps(items, ensure_ascii=False)
+            with self.engine.begin() as conn:
+                pids = list({str(it['id']) for it in items})
+                prod_rows = conn.execute(
+                    text("SELECT id, name FROM products WHERE id = ANY(:pids) FOR UPDATE"),
+                    {"pids": pids},
+                ).fetchall()
+                prod_map = {dict(r._mapping)['id']: dict(r._mapping)['name'] for r in prod_rows}
+                missing = [pid for pid in pids if pid not in prod_map]
+                if missing:
+                    raise StockError("商品不存在或已下架，請重新整理頁面")
+
+                conn.execute(text("""
+                    INSERT INTO orders (id, user_id, user_name, user_line_id, items_json, total_amount,
+                                        status, created_at)
+                    VALUES (:id, :user_id, :user_name, :user_line_id, :items_json, :total_amount, 'PENDING', :created_at)
+                """), {
+                    "id": order_id, "user_id": user_id, "user_name": user_name,
+                    "user_line_id": user_line_id, "items_json": items_json,
+                    "total_amount": total_amount, "created_at": now_str,
+                })
+
+                for it in items:
+                    pid = str(it['id'])
+                    pname = prod_map[pid]
+                    variant = (it.get('variant_name') or '').strip()
+                    item_key = variant or '-'
+                    qty = int(it.get('qty') or 0)
+
+                    purchased = conn.execute(text("""
+                        SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
+                        WHERE (product_id IS NOT NULL AND product_id = :pid)
+                           OR (product_name IS NOT NULL AND product_name = :pname)
+                    """), {"pid": pid, "pname": pname}).scalar() or 0
+                    sold = conn.execute(text("""
+                        SELECT COALESCE(SUM(qty), 0) FROM sales_logs
+                        WHERE (product_id IS NOT NULL AND product_id = :pid)
+                           OR (product_name IS NOT NULL AND product_name = :pname)
+                    """), {"pid": pid, "pname": pname}).scalar() or 0
+                    available = int(purchased) - int(sold)
+
+                    if variant:
+                        purch_item = conn.execute(text("""
+                            SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
+                            WHERE ((product_id IS NOT NULL AND product_id = :pid)
+                                OR (product_name IS NOT NULL AND product_name = :pname))
+                              AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
+                        """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
+                        sold_item = conn.execute(text("""
+                            SELECT COALESCE(SUM(qty), 0) FROM sales_logs
+                            WHERE ((product_id IS NOT NULL AND product_id = :pid)
+                                OR (product_name IS NOT NULL AND product_name = :pname))
+                              AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
+                        """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
+                        available = min(available, int(purch_item) - int(sold_item))
+
+                    if qty > available:
+                        raise StockError(
+                            f"商品「{it.get('name') or pname}」庫存不足（剩餘 {max(available, 0)} 件）"
+                        )
+
+                    conn.execute(text("""
+                        INSERT INTO sales_logs (order_id, product_id, product_name, item_name, qty, created_at)
+                        VALUES (:order_id, :product_id, :product_name, :item_name, :qty, :created_at)
+                    """), {
+                        "order_id": order_id, "product_id": pid, "product_name": pname,
+                        "item_name": item_key, "qty": qty, "created_at": now_str,
+                    })
+            return True
+        except StockError:
+            raise
+        except Exception as e:
+            print(f"Error saving order with stock: {e}")
+            return False
+
+    def cancel_order(self, order_id):
+        """取消訂單：狀態改 CANCELLED，並刪除 sales_logs 釋放庫存。"""
+        try:
+            with self.engine.begin() as conn:
+                row = conn.execute(
+                    text("SELECT status FROM orders WHERE id = :id FOR UPDATE"),
+                    {"id": str(order_id)},
+                ).first()
+                if not row:
+                    return False, "訂單不存在"
+                if row["status"] in ("SHIPPED", "COMPLETED", "CANCELLED"):
+                    return False, "已寄送或已取消的訂單無法取消"
+                conn.execute(text("DELETE FROM sales_logs WHERE order_id = :id"), {"id": str(order_id)})
+                conn.execute(text("UPDATE orders SET status = 'CANCELLED' WHERE id = :id"), {"id": str(order_id)})
+            return True, "訂單已取消，庫存已釋放"
+        except Exception as e:
+            print(f"Error cancelling order {order_id}: {e}")
+            return False, "取消訂單失敗"
+
+    def save_order_settlement(self, order_id, products, order_totals):
+        """寄送結算：寫入逐商品明細（order_settlements）與耗材消耗（order_materials），並更新訂單狀態。
+
+        products: [{product_id, item_name, sales_amount, material_cost, other_cost, shipping_cost,
+                    net_profit, designer_user_id, packager_user_id, designer_ratio, packager_ratio,
+                    platform_ratio, designer_amount, packager_amount, platform_amount,
+                    materials: [{material_name, capacity_used, unit_cost, cost}]}]
+        """
+        try:
+            now_str = self._get_taiwan_now_str()
+            with self.engine.begin() as conn:
+                conn.execute(text("""
+                    UPDATE orders SET status = 'SHIPPED', other_cost = :oc, shipping_cost = :sc,
+                        net_profit = :np, shipped_at = :shipped_at
+                    WHERE id = :id
+                """), {
+                    "oc": order_totals.get("other_cost", 0),
+                    "sc": order_totals.get("shipping_cost", 0),
+                    "np": order_totals.get("net_profit", 0),
+                    "shipped_at": now_str,
+                    "id": str(order_id),
+                })
+
+                for p in products:
+                    conn.execute(text("""
+                        INSERT INTO order_settlements (order_id, product_id, item_name, sales_amount,
+                            material_cost, other_cost, shipping_cost, net_profit,
+                            designer_user_id, packager_user_id,
+                            designer_ratio, packager_ratio, platform_ratio,
+                            designer_amount, packager_amount, platform_amount, settled_at)
+                        VALUES (:order_id, :product_id, :item_name, :sales_amount,
+                            :material_cost, :other_cost, :shipping_cost, :net_profit,
+                            :designer_user_id, :packager_user_id,
+                            :designer_ratio, :packager_ratio, :platform_ratio,
+                            :designer_amount, :packager_amount, :platform_amount, :settled_at)
+                    """), {
+                        "order_id": str(order_id),
+                        "product_id": p.get("product_id"),
+                        "item_name": p.get("item_name") or '-',
+                        "sales_amount": p.get("sales_amount", 0),
+                        "material_cost": p.get("material_cost", 0),
+                        "other_cost": p.get("other_cost", 0),
+                        "shipping_cost": p.get("shipping_cost", 0),
+                        "net_profit": p.get("net_profit", 0),
+                        "designer_user_id": p.get("designer_user_id") or None,
+                        "packager_user_id": p.get("packager_user_id") or None,
+                        "designer_ratio": p.get("designer_ratio", 20),
+                        "packager_ratio": p.get("packager_ratio", 60),
+                        "platform_ratio": p.get("platform_ratio", 20),
+                        "designer_amount": p.get("designer_amount", 0),
+                        "packager_amount": p.get("packager_amount", 0),
+                        "platform_amount": p.get("platform_amount", 0),
+                        "settled_at": now_str,
+                    })
+
+                    for m in p.get("materials", []):
+                        conn.execute(text("""
+                            INSERT INTO order_materials (order_id, product_id, item_name, material_name,
+                                capacity_used, unit_cost, cost)
+                            VALUES (:order_id, :product_id, :item_name, :material_name,
+                                :capacity_used, :unit_cost, :cost)
+                        """), {
+                            "order_id": str(order_id),
+                            "product_id": p.get("product_id"),
+                            "item_name": p.get("item_name") or '-',
+                            "material_name": m.get("material_name"),
+                            "capacity_used": m.get("capacity_used", 0),
+                            "unit_cost": m.get("unit_cost", 0),
+                            "cost": m.get("cost", 0),
+                        })
+            return True
+        except Exception as e:
+            print(f"Error saving order settlement: {e}")
+            return False
+
+    def get_bonus_summary(self, date_from, date_to):
+        """依結算時間區間回傳獎金統計：每人設計/包裝金額、每筆明細、平台收益總計。"""
+        try:
+            rows = self._fetch_dicts("""
+                SELECT s.*, o.user_name AS order_user_name
+                FROM order_settlements s
+                JOIN orders o ON o.id = s.order_id
+                WHERE s.settled_at >= :date_from AND s.settled_at <= :date_to
+                ORDER BY s.settled_at ASC
+            """, {"date_from": date_from, "date_to": date_to})
+
+            users = {u['id']: u['name'] for u in self.get_all_users()}
+            members = {}
+            entries = []
+            platform_total = 0.0
+
+            for r in rows:
+                platform_total += float(r.get('platform_amount') or 0)
+                for role, uid_key, amt_key, ratio_key in (
+                    ("designer", "designer_user_id", "designer_amount", "designer_ratio"),
+                    ("packager", "packager_user_id", "packager_amount", "packager_ratio"),
+                ):
+                    uid = r.get(uid_key)
+                    amount = float(r.get(amt_key) or 0)
+                    if not uid or amount <= 0:
+                        continue
+                    member = members.setdefault(uid, {
+                        "user_id": uid,
+                        "name": users.get(uid, uid),
+                        "designer_amount": 0.0,
+                        "packager_amount": 0.0,
+                        "total": 0.0,
+                    })
+                    member[f"{role}_amount"] += amount
+                    member["total"] += amount
+                    entries.append({
+                        "user_id": uid,
+                        "user_name": users.get(uid, uid),
+                        "role": role,
+                        "amount": round(amount, 2),
+                        "ratio": float(r.get(ratio_key) or 0),
+                        "order_id": r.get("order_id"),
+                        "product_id": r.get("product_id"),
+                        "item_name": r.get("item_name"),
+                        "settled_at": r.get("settled_at"),
+                        "net_profit": float(r.get("net_profit") or 0),
+                    })
+
+            members_list = sorted(members.values(), key=lambda x: -x["total"])
+            for m in members_list:
+                m["designer_amount"] = round(m["designer_amount"], 2)
+                m["packager_amount"] = round(m["packager_amount"], 2)
+                m["total"] = round(m["total"], 2)
+
+            return {
+                "platform_total": round(platform_total, 2),
+                "members": members_list,
+                "entries": entries,
+            }
+        except Exception as e:
+            print(f"Error fetching bonus summary: {e}")
+            return {"platform_total": 0, "members": [], "entries": []}
 
     # ---------- LINE 群組與公告 ----------
 

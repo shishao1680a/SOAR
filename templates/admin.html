@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,600;0,700;1,700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-  <!-- Tailwind CSS???????? CDN? -->
+  <!-- Tailwind CSS（本地建置，取代 CDN） -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind-admin.css') }}">
 </head>
 <body class="bg-surface text-white font-body-md min-h-screen flex flex-col antialiased selection:bg-primary-fixed selection:text-black">
@@ -56,6 +56,9 @@
 
       <!-- 5. Section 4: Orders (訂單資訊管理模組) -->
       {% include 'admin_components/_sec_orders.html' %}
+
+      <!-- 5.5 Section: Bonus (獎金統計模組) -->
+      {% include 'admin_components/_sec_bonuses.html' %}
 
       <!-- 6. Section 5: LINE Groups & Broadcast (LINE 群組維護與群發模組) -->
       {% include 'admin_components/_sec_line_groups.html' %}

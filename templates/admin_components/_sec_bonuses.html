@@ -1,0 +1,53 @@
+<!-- SECTION: Bonus (獎金統計模組) -->
+<div id="sec-bonuses" class="hidden space-y-6">
+  <div>
+    <h2 class="font-display-lg text-2xl italic font-black text-white">獎金統計</h2>
+    <p class="font-label-caps text-xs text-on-surface-variant">依結算時間計算設計者 / 包裝人員獎金與平台收益</p>
+  </div>
+
+  <div class="bg-surface-container-low border border-outline-variant rounded-xl p-4 flex flex-wrap items-end gap-3">
+    <div>
+      <label class="block text-xs font-bold text-gray-300 mb-1">開始日期</label>
+      <input type="date" id="bonus-from" class="bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded" />
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-gray-300 mb-1">結束日期</label>
+      <input type="date" id="bonus-to" class="bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded" />
+    </div>
+    <button onclick="loadBonusSummary()" class="px-4 py-2 bg-line-green hover:bg-line-green-hover text-white font-label-caps text-xs font-bold italic rounded shadow flex items-center gap-1">
+      <span class="material-symbols-outlined text-sm">search</span> 查詢獎金
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="p-4 bg-line-green/10 border border-line-green/50 rounded-xl">
+      <div class="text-xs font-bold text-line-green mb-1">平台收益總計（此期間）</div>
+      <div id="bonus-platform-total" class="font-black text-2xl text-line-green">$0.00</div>
+    </div>
+    <div class="p-4 bg-primary-fixed/10 border border-primary-fixed/40 rounded-xl">
+      <div class="text-xs font-bold text-primary-fixed mb-1">同仁獎金總計</div>
+      <div id="bonus-members-total" class="font-black text-2xl text-primary-fixed">$0.00</div>
+    </div>
+    <div class="p-4 bg-surface-container-high border border-outline-variant rounded-xl">
+      <div class="text-xs font-bold text-gray-300 mb-1">結算筆數</div>
+      <div id="bonus-entries-count" class="font-black text-2xl text-white">0</div>
+    </div>
+  </div>
+
+  <div class="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden">
+    <table class="w-full text-left text-xs">
+      <thead class="bg-surface-container-high text-gray-300 border-b border-outline-variant">
+        <tr>
+          <th class="p-3">同仁</th>
+          <th class="p-3 text-right">設計者獎金</th>
+          <th class="p-3 text-right">包裝獎金</th>
+          <th class="p-3 text-right">總計</th>
+          <th class="p-3 text-right">明細</th>
+        </tr>
+      </thead>
+      <tbody id="bonus-members-tbody">
+        <tr><td colspan="5" class="p-6 text-center text-gray-400 italic">請選擇時間區間後查詢</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>

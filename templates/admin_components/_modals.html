@@ -115,6 +115,21 @@
         </div>
       </div>
 
+      <div class="grid grid-cols-3 gap-2">
+        <div>
+          <label class="block font-bold text-primary-fixed mb-1">設計者比率 (%)</label>
+          <input type="number" step="0.1" min="0" max="100" id="prod-edit-designer-ratio" value="20" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-primary-fixed" />
+        </div>
+        <div>
+          <label class="block font-bold text-secondary-container mb-1">包裝人員比率 (%)</label>
+          <input type="number" step="0.1" min="0" max="100" id="prod-edit-packager-ratio" value="60" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-secondary-container" />
+        </div>
+        <div>
+          <label class="block font-bold text-gray-300 mb-1">平台抽取金比率 (%)</label>
+          <input type="number" step="0.1" min="0" max="100" id="prod-edit-platform-ratio" value="20" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-gray-400" />
+        </div>
+      </div>
+
       <div>
         <label class="block font-bold text-gray-200 mb-1">商品主圖網址 (IMAGE URL)</label>
         <div class="flex gap-2">
@@ -178,6 +193,21 @@
         <div class="hidden">
           <input type="number" step="0.01" id="item-edit-cost" value="0.00" />
           <input type="number" step="0.01" id="item-edit-uv-cost" value="0.00" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2">
+        <div>
+          <label class="block font-bold text-primary-fixed mb-1">設計者比率 (%)</label>
+          <input type="number" step="0.1" min="0" max="100" id="item-edit-designer-ratio" value="20" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
+        </div>
+        <div>
+          <label class="block font-bold text-secondary-container mb-1">包裝人員比率 (%)</label>
+          <input type="number" step="0.1" min="0" max="100" id="item-edit-packager-ratio" value="60" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
+        </div>
+        <div>
+          <label class="block font-bold text-gray-300 mb-1">平台抽取金比率 (%)</label>
+          <input type="number" step="0.1" min="0" max="100" id="item-edit-platform-ratio" value="20" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
         </div>
       </div>
 
@@ -310,8 +340,8 @@
     </div>
 
     <div>
-      <label class="block text-xs font-label-caps text-cyan-300 mb-1 font-bold">總容量 (例如: 1kg / 500ml / 1000g)</label>
-      <input type="text" id="mat-capacity" placeholder="例如: 1kg / 500ml" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-cyan-400" />
+      <label class="block text-xs font-label-caps text-cyan-300 mb-1 font-bold">總容量 (數字，例如: 1000 公克)</label>
+      <input type="number" step="1" min="0" id="mat-capacity" placeholder="例如: 1000（公克，同一耗材請固定單位）" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-cyan-400" />
     </div>
 
     <div class="grid grid-cols-2 gap-2">
@@ -367,8 +397,8 @@
         <input type="text" id="mat-edit-name" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
       </div>
       <div>
-        <label class="block font-bold text-cyan-300 mb-1">總容量 (例如: 1kg / 500ml)</label>
-        <input type="text" id="mat-edit-capacity" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
+        <label class="block font-bold text-cyan-300 mb-1">總容量 (數字，例如: 1000 公克)</label>
+        <input type="number" step="1" min="0" id="mat-edit-capacity" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
       </div>
       <div class="grid grid-cols-2 gap-2">
         <div>
@@ -403,7 +433,7 @@
 
 <!-- Modal: Order Shipment & Material Cost Calculator (寄送/耗材計算視窗) -->
 <div id="modal-order-shipment" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
-  <div class="bg-surface-container border-2 border-primary-fixed max-w-2xl w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
+  <div class="bg-surface-container border-2 border-primary-fixed max-w-4xl w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
     <div class="px-5 py-3.5 bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
       <h4 class="font-headline-md italic text-base font-bold text-white flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed text-lg">local_shipping</span> 🧪 耗材計算與寄送利潤結算
@@ -414,67 +444,47 @@
     <div class="p-5 space-y-4 text-xs overflow-y-auto flex-grow">
       <input type="hidden" id="shipment-order-id" />
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-surface-container-low p-3 border border-outline-variant rounded">
-        <div>
-          <label class="block font-bold text-gray-400 mb-1">(1) 訂單商品 (下拉選項)：</label>
-          <select id="shipment-product-select" class="w-full bg-surface-container border border-outline-variant text-white p-2 rounded outline-none font-bold">
-            <!-- Dynamically populated -->
-          </select>
-        </div>
-        <div>
-          <label class="block font-bold text-primary-fixed mb-1">(2) 總銷售金額 (單價 × 數量)：</label>
-          <div id="shipment-sales-total" class="p-2 bg-surface-container text-primary-fixed font-black text-base rounded border border-primary-fixed/40">
-            $0.00
+      <!-- 逐商品計算區塊（JS 動態產生，每個商品各自有耗材/成本/設計者/包裝人員） -->
+      <div id="shipment-products-container" class="space-y-4"></div>
+
+      <!-- 總計金額 -->
+      <div class="bg-surface-container-high border-2 border-primary-fixed/60 rounded-xl p-4">
+        <h5 class="font-headline-md italic text-sm font-bold text-white mb-3 flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary-fixed text-base">summarize</span> 總計金額
+        </h5>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="p-2 bg-surface-container rounded border border-outline-variant">
+            <div class="text-[10px] text-gray-400 font-bold mb-0.5">總銷售金額</div>
+            <div id="shipment-total-sales" class="font-black text-primary-fixed">$0.00</div>
           </div>
-        </div>
-      </div>
-
-      <!-- 多耗材動態表格 -->
-      <div class="space-y-2 border border-outline-variant p-3 bg-surface-container-low rounded">
-        <div class="flex justify-between items-center">
-          <span class="font-bold text-cyan-400 flex items-center gap-1">
-            <span class="material-symbols-outlined text-sm">science</span> 耗材消耗明細清單：
-          </span>
-          <button type="button" onclick="addShipmentMaterialRow()" class="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[11px] rounded flex items-center gap-1">
-            + 新增耗材
-          </button>
-        </div>
-
-        <table class="w-full text-left text-xs">
-          <thead class="text-gray-400 border-b border-outline-variant">
-            <tr>
-              <th class="p-1.5">(3) 耗材名稱</th>
-              <th class="p-1.5 text-center">(4) 總消耗容量 (g/ml)</th>
-              <th class="p-1.5 text-right">(5) 成本 ($)</th>
-              <th class="p-1.5 text-center w-10">操作</th>
-            </tr>
-          </thead>
-          <tbody id="shipment-materials-tbody" class="divide-y divide-outline-variant/30">
-            <!-- Rows inserted dynamically -->
-          </tbody>
-        </table>
-      </div>
-
-      <!-- 成本加總與利潤結算區塊 -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div class="p-2.5 bg-surface-container-high border border-outline-variant rounded">
-          <label class="block text-[11px] font-bold text-amber-400 mb-1">(6) 總成本 (耗材加總)</label>
-          <div id="shipment-total-material-cost" class="font-bold text-amber-400 text-sm">$0.00</div>
-        </div>
-
-        <div class="p-2.5 bg-surface-container-high border border-outline-variant rounded">
-          <label class="block text-[11px] font-bold text-gray-300 mb-1">(7) 其它成本 ($)</label>
-          <input type="number" step="0.1" id="shipment-other-cost" value="0" oninput="calculateShipmentNetProfit()" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
-        </div>
-
-        <div class="p-2.5 bg-surface-container-high border border-outline-variant rounded">
-          <label class="block text-[11px] font-bold text-gray-300 mb-1">(8) 郵寄成本 ($)</label>
-          <input type="number" step="0.1" id="shipment-shipping-cost" value="60" oninput="calculateShipmentNetProfit()" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
-        </div>
-
-        <div class="p-2.5 bg-line-green/10 border border-line-green/60 rounded">
-          <label class="block text-[11px] font-bold text-line-green mb-1">(9) 淨利潤 ($)</label>
-          <div id="shipment-net-profit" class="font-black text-line-green text-base">$0.00</div>
+          <div class="p-2 bg-surface-container rounded border border-outline-variant">
+            <div class="text-[10px] text-amber-400 font-bold mb-0.5">總耗材成本</div>
+            <div id="shipment-total-material-cost" class="font-black text-amber-400">$0.00</div>
+          </div>
+          <div class="p-2 bg-surface-container rounded border border-outline-variant">
+            <div class="text-[10px] text-gray-300 font-bold mb-0.5">總其它成本</div>
+            <div id="shipment-total-other-cost" class="font-black text-white">$0.00</div>
+          </div>
+          <div class="p-2 bg-surface-container rounded border border-outline-variant">
+            <div class="text-[10px] text-gray-300 font-bold mb-0.5">總郵寄成本</div>
+            <div id="shipment-total-shipping-cost" class="font-black text-white">$0.00</div>
+          </div>
+          <div class="p-2 bg-line-green/10 rounded border border-line-green/60">
+            <div class="text-[10px] text-line-green font-bold mb-0.5">總淨利潤</div>
+            <div id="shipment-total-net-profit" class="font-black text-line-green">$0.00</div>
+          </div>
+          <div class="p-2 bg-surface-container rounded border border-outline-variant">
+            <div class="text-[10px] text-primary-fixed font-bold mb-0.5">設計者總額</div>
+            <div id="shipment-total-designer" class="font-black text-primary-fixed">$0.00</div>
+          </div>
+          <div class="p-2 bg-surface-container rounded border border-outline-variant">
+            <div class="text-[10px] text-secondary-container font-bold mb-0.5">包裝人員總額</div>
+            <div id="shipment-total-packager" class="font-black text-secondary-container">$0.00</div>
+          </div>
+          <div class="p-2 bg-surface-container rounded border border-outline-variant">
+            <div class="text-[10px] text-gray-400 font-bold mb-0.5">平台抽取金總額</div>
+            <div id="shipment-total-platform" class="font-black text-gray-300">$0.00</div>
+          </div>
         </div>
       </div>
     </div>
@@ -486,6 +496,22 @@
       <button type="button" onclick="submitOrderShipmentConfirm()" class="flex-1 py-2 bg-line-green hover:bg-line-green/80 text-white font-label-caps text-xs font-bold italic rounded shadow transition-all flex items-center justify-center gap-1">
         <span class="material-symbols-outlined text-sm">mark_email_read</span> 確認計算並執行寄送
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Bonus Detail (獎金明細) -->
+<div id="modal-bonus-detail" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
+  <div class="bg-surface-container border-2 border-line-green max-w-2xl w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[85vh]">
+    <div class="px-5 py-3.5 bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
+      <h4 class="font-headline-md italic text-base font-bold text-white flex items-center gap-2">
+        <span class="material-symbols-outlined text-line-green text-lg">payments</span> 獎金明細
+      </h4>
+      <button type="button" onclick="closeModal('modal-bonus-detail')" class="text-gray-400 hover:text-white font-bold text-base">✕</button>
+    </div>
+    <div class="p-5 overflow-y-auto flex-grow">
+      <div id="bonus-detail-summary" class="mb-3 text-xs font-bold text-white"></div>
+      <div id="bonus-detail-list" class="space-y-2"></div>
     </div>
   </div>
 </div>
