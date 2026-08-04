@@ -1011,29 +1011,44 @@
                     <span class="material-symbols-outlined text-primary-fixed text-sm">palette</span> 項目規格 / 顏色款式選單：
                   </label>
                   <div class="flex flex-wrap gap-2" id="modal-variants-selector">
-                    ${itemsList.map((v, idx) => `
-                      <button type="button" onclick="selectProductVariant('${p.id}', ${idx})" id="v-btn-${p.id}-${idx}" class="variant-opt-btn flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${idx === 0 ? 'border-primary-fixed bg-primary-fixed/20 text-primary-fixed shadow-md ring-1 ring-primary-fixed' : 'border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400'}">
-                        ${v.image_url ? `<img src="${v.image_url}" class="w-6 h-6 object-cover rounded border border-white/20" />` : ''}
-                        <span>${v.name || '項目 #' + (idx+1)}</span>
-                        <span class="text-[10px] text-gray-400 font-mono">($${parseFloat(v.price !== undefined ? v.price : p.price).toFixed(2)})</span>
-                      </button>
-                    `).join('')}
+                    ${itemsList.map((v, idx) => {
+                      const itemStk = parseInt(v.stock_qty !== undefined ? v.stock_qty : (p.stock_qty || 0));
+                      return `
+                        <button type="button" onclick="selectProductVariant('${p.id}', ${idx})" id="v-btn-${p.id}-${idx}" class="variant-opt-btn flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${idx === 0 ? 'border-primary-fixed bg-primary-fixed/20 text-primary-fixed shadow-md ring-1 ring-primary-fixed' : 'border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400'}">
+                          ${v.image_url ? `<img src="${v.image_url}" class="w-6 h-6 object-cover rounded border border-white/20" />` : ''}
+                          <span>${v.name || '項目 #' + (idx+1)}</span>
+                          <span class="text-[10px] font-mono opacity-90">($${parseFloat(v.price !== undefined ? v.price : p.price).toFixed(2)})</span>
+                          <span class="text-[10px] font-bold ${itemStk > 0 ? 'text-line-green' : 'text-error'}">(剩餘數量: ${itemStk} 件)</span>
+                        </button>
+                      `;
+                    }).join('')}
                   </div>
                 </div>
               ` : ''}
 
-              <div class="space-y-1.5 text-xs text-on-surface-variant font-label-caps mb-4 bg-surface-container/40 p-3 rounded">
-                <p>⚙️ 建議印製層高: <span class="text-white">0.12mm - 0.16mm</span></p>
-                <p>🔥 耐溫特性: <span class="text-white">高抗衝擊 / 100°C 變形溫度</span></p>
-                <p>🎨 質感說明: <span class="text-white">${p.is_uv || p.isUv ? '高解析 UV 浮雕金屬感多層噴印' : '幾何交錯結構 / 高密度減震細節'}</span></p>
-              </div>
-
-              <p class="text-xs text-on-surface-variant leading-relaxed border-t border-outline-variant pt-3">${p.description}</p>
+              <p class="text-xs text-on-surface-variant leading-relaxed border-t border-outline-variant pt-3">${p.description || ''}</p>
             </div>
 
-            <button onclick="addSelectedVariantToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
-              <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車
-            </button>
+            <!-- 數量與購物車按鈕區 -->
+            <div class="space-y-3 pt-3 border-t border-outline-variant" id="modal-action-area-${p.id}">
+              ${(function(){
+                const firstVar = itemsList[0];
+                const activeStk = firstVar ? parseInt(firstVar.stock_qty !== undefined ? firstVar.stock_qty : (p.stock_qty || 0)) : parseInt(p.stock_qty || 0);
+                if (activeStk > 0) {
+                  return `
+                    <button onclick="addSelectedVariantToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
+                      <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車
+                    </button>
+                  `;
+                } else {
+                  return `
+                    <button disabled class="w-full bg-surface-container-high text-gray-500 py-3 font-label-caps font-bold italic uppercase border border-outline-variant text-sm cursor-not-allowed flex items-center justify-center gap-2">
+                      <span class="material-symbols-outlined text-sm">block</span> 庫存不足 (暫無法訂購)
+                    </button>
+                  `;
+                }
+              })()}
+            </div>
           </div>
         </div>
       `;
@@ -1060,7 +1075,24 @@
       const priceEl = document.getElementById("modal-prod-price");
 
       if (imgEl && v.image_url) imgEl.src = v.image_url;
-      if (priceEl) priceEl.textContent = `$${parseFloat(v.price !== undefined ? v.price : p.price).toFixed(2)}`;
+      // Update button & action area state based on item stock
+      const actionArea = document.getElementById(`modal-action-area-${p.id}`);
+      const itemStk = parseInt(v.stock_qty !== undefined ? v.stock_qty : (p.stock_qty || 0));
+      if (actionArea) {
+        if (itemStk > 0) {
+          actionArea.innerHTML = `
+            <button onclick="addSelectedVariantToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
+              <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車
+            </button>
+          `;
+        } else {
+          actionArea.innerHTML = `
+            <button disabled class="w-full bg-surface-container-high text-gray-500 py-3 font-label-caps font-bold italic uppercase border border-outline-variant text-sm cursor-not-allowed flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-sm">block</span> 庫存不足 (暫無法訂購)
+            </button>
+          `;
+        }
+      }
 
       // Update selected button style
       itemsList.forEach((_, i) => {
