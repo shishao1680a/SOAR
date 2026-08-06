@@ -543,7 +543,10 @@
 
   async function uploadMaterialImage(fileInput, inputId, previewId) {
     if (!fileInput.files || fileInput.files.length === 0) return;
-    const file = fileInput.files[0];
+    uploadMaterialImageFile(fileInput.files[0], inputId, previewId);
+  }
+
+  async function uploadMaterialImageFile(file, inputId, previewId) {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -562,6 +565,50 @@
         alert(json.message || '圖片上傳失敗');
       }
     } catch(e){ alert('圖片上傳發生錯誤'); }
+  }
+
+  function handleMaterialPaste(e, inputId, previewId) {
+    if (!e.clipboardData) return;
+    const items = e.clipboardData.items || [];
+    for (const item of items) {
+      if (item.type && item.type.indexOf('image/') === 0) {
+        const file = item.getAsFile && item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          uploadMaterialImageFile(file, inputId, previewId);
+          return;
+        }
+      }
+    }
+
+    // 剪貼簿沒有圖片本體時，嘗試取出圖片網址（複製「圖片連結」的情況）
+    let url = null;
+    const html = e.clipboardData.getData('text/html') || '';
+    const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (imgMatch) url = imgMatch[1];
+    if (!url) {
+      const uriList = e.clipboardData.getData('text/uri-list') || '';
+      const m = uriList.match(/https?:\/\/[^\s]+/i);
+      if (m) url = m[0];
+    }
+    if (!url) {
+      const plain = e.clipboardData.getData('text/plain') || '';
+      const m = plain.match(/https?:\/\/[^\s]+/i);
+      if (m) url = m[0];
+    }
+
+    if (url && /^https?:\/\//i.test(url)) {
+      e.preventDefault();
+      document.getElementById(inputId).value = url;
+      const preview = document.getElementById(previewId);
+      if (preview) {
+        preview.src = url;
+        preview.classList.remove('hidden');
+      }
+      alert('已貼上圖片網址（外部連結，若來源網站移除圖片可能無法顯示）');
+    } else {
+      alert('沒有偵測到圖片，請先複製圖片後再貼上（或使用「上傳圖片」按鈕）');
+    }
   }
 
   function setVal(id, val) {
