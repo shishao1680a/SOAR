@@ -425,6 +425,7 @@ def api_admin_material_purchases():
         supplier = data.get('supplier', '預設進貨廠商').strip()
         remark = data.get('remark', '').strip()
         purchase_date = data.get('purchase_date', '').strip() or None
+        image_url = data.get('image_url', '').strip()
 
         if not material_name:
             return jsonify({"status": "error", "message": "耗材名稱為必填欄位！"}), 400
@@ -433,7 +434,7 @@ def api_admin_material_purchases():
         current_name = session_user.get('name') or session_user.get('username') or '管理員'
         operator_name = current_name  # 自動代入填表人姓名
 
-        success = db_service.add_material_purchase(material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date, total_capacity)
+        success = db_service.add_material_purchase(material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date, total_capacity, image_url)
         if success:
             return jsonify({"status": "success", "message": "耗材進貨紀錄已成功儲存！"})
         return jsonify({"status": "error", "message": "儲存耗材進貨紀錄失敗"}), 500
@@ -454,6 +455,13 @@ def api_admin_material_unit_costs():
     costs = db_service.get_material_unit_costs()
     return jsonify({"status": "success", "data": costs})
 
+@app.route('/api/admin/material-images', methods=['GET'])
+@admin_or_coach_required
+def api_admin_material_images():
+    """各耗材最近一筆有圖片的圖片網址（供寄送結算視窗顯示耗材照片）。"""
+    images = db_service.get_material_images()
+    return jsonify({"status": "success", "data": images})
+
 @app.route('/api/admin/material-suppliers', methods=['GET'])
 @admin_or_coach_required
 def api_admin_material_suppliers():
@@ -472,11 +480,12 @@ def api_admin_material_purchases_detail(log_id):
         supplier = data.get('supplier', '').strip()
         remark = data.get('remark', '').strip()
         purchase_date = data.get('purchase_date', '').strip() or None
+        image_url = data.get('image_url', '').strip()
 
         session_user = session.get('user', {}) or {}
         operator_name = session_user.get('name') or session_user.get('username') or '管理員'
 
-        updated = db_service.update_material_purchase(log_id, material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date, total_capacity)
+        updated = db_service.update_material_purchase(log_id, material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date, total_capacity, image_url)
         if updated:
             return jsonify({"status": "success", "message": "耗材進貨紀錄已成功修改！"})
         return jsonify({"status": "error", "message": "修改耗材進貨紀錄失敗"}), 500

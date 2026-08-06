@@ -257,6 +257,7 @@ class DBService:
                 conn.execute(text("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS item_name VARCHAR(255) DEFAULT '-'"))
                 conn.execute(text("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS operator_name VARCHAR(255) DEFAULT '管理員'"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS total_capacity VARCHAR(255) DEFAULT ''"))
+                conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT ''"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS other_cost NUMERIC(10, 2) DEFAULT 0"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(10, 2) DEFAULT 60"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS net_profit NUMERIC(10, 2) DEFAULT 0"))
@@ -749,21 +750,22 @@ class DBService:
     # ---------- 耗材進貨 ----------
 
     def add_material_purchase(self, material_name, purchase_cost, purchase_qty, supplier='', remark='',
-                              operator_name='管理員', purchase_date=None, total_capacity=''):
+                              operator_name='管理員', purchase_date=None, total_capacity='', image_url=''):
         try:
             now_str = purchase_date or self._get_taiwan_now_str()
             operator_name = operator_name or '管理員'
             total_capacity = total_capacity or ''
+            image_url = image_url or ''
             self._execute("""
                 INSERT INTO material_purchases (material_name, total_capacity, purchase_cost, purchase_qty,
-                                                supplier, purchase_date, remark, operator_name)
+                                                supplier, purchase_date, remark, operator_name, image_url)
                 VALUES (:material_name, :total_capacity, :purchase_cost, :purchase_qty,
-                        :supplier, :purchase_date, :remark, :operator_name)
+                        :supplier, :purchase_date, :remark, :operator_name, :image_url)
             """, {
                 "material_name": material_name, "total_capacity": total_capacity,
                 "purchase_cost": purchase_cost, "purchase_qty": purchase_qty,
                 "supplier": supplier, "purchase_date": now_str,
-                "remark": remark, "operator_name": operator_name,
+                "remark": remark, "operator_name": operator_name, "image_url": image_url,
             })
             return True
         except Exception as e:
@@ -830,27 +832,47 @@ class DBService:
             return {}
 
     def update_material_purchase(self, log_id, material_name, purchase_cost, purchase_qty, supplier='',
-                                 remark='', operator_name='管理員', purchase_date=None, total_capacity=''):
+                                 remark='', operator_name='管理員', purchase_date=None, total_capacity='',
+                                 image_url=None):
         try:
             now_str = purchase_date or self._get_taiwan_now_str()
             total_capacity = total_capacity or ''
+            image_url = image_url if image_url is not None else ''
             self._execute("""
                 UPDATE material_purchases
                 SET material_name = :material_name, total_capacity = :total_capacity,
                     purchase_cost = :purchase_cost, purchase_qty = :purchase_qty,
                     supplier = :supplier, remark = :remark, operator_name = :operator_name,
-                    purchase_date = :purchase_date
+                    purchase_date = :purchase_date, image_url = :image_url
                 WHERE id = :id
             """, {
                 "material_name": material_name, "total_capacity": total_capacity,
                 "purchase_cost": purchase_cost, "purchase_qty": purchase_qty,
                 "supplier": supplier, "remark": remark, "operator_name": operator_name,
-                "purchase_date": now_str, "id": int(log_id),
+                "purchase_date": now_str, "image_url": image_url, "id": int(log_id),
             })
             return True
         except Exception as e:
             print(f"Error updating material purchase {log_id}: {e}")
             return False
+
+    def get_material_images(self):
+        """各耗材最近一筆有圖片的圖片網址（依進貨日期取最新）。"""
+        try:
+            rows = self._fetch_dicts("""
+                SELECT material_name, image_url FROM material_purchases
+                WHERE image_url IS NOT NULL AND image_url != ''
+                ORDER BY purchase_date DESC, id DESC
+            """)
+            result = {}
+            for r in rows:
+                name = (r.get('material_name') or '').strip()
+                if name and name not in result:
+                    result[name] = r.get('image_url')
+            return result
+        except Exception as e:
+            print(f"Error fetching material images: {e}")
+            return {}
 
     def delete_material_purchase(self, log_id):
         try:

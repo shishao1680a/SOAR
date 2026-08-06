@@ -541,6 +541,29 @@
     } catch(e){ alert('圖片上傳發生錯誤'); }
   }
 
+  async function uploadMaterialImage(fileInput, inputId, previewId) {
+    if (!fileInput.files || fileInput.files.length === 0) return;
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (json.status === 'success' && json.url) {
+        document.getElementById(inputId).value = json.url;
+        const preview = document.getElementById(previewId);
+        if (preview) {
+          preview.src = json.url;
+          preview.classList.remove('hidden');
+        }
+        alert('耗材圖片上傳成功！');
+      } else {
+        alert(json.message || '圖片上傳失敗');
+      }
+    } catch(e){ alert('圖片上傳發生錯誤'); }
+  }
+
   function setVal(id, val) {
     const el = document.getElementById(id);
     if (el) el.value = (val !== undefined && val !== null) ? val : '';
@@ -739,6 +762,12 @@
     setVal('mat-qty', '10');
     setVal('mat-supplier', '');
     setVal('mat-remark', '');
+    setVal('mat-image', '');
+    const preview = document.getElementById('mat-image-preview');
+    if (preview) {
+      preview.removeAttribute('src');
+      preview.classList.add('hidden');
+    }
     loadMaterialNamesForDatalist();
     const modal = document.getElementById('modal-material-purchase');
     if (modal) modal.classList.remove('hidden');
@@ -761,6 +790,7 @@
       purchase_qty: parseInt(document.getElementById('mat-qty').value || 0),
       supplier: document.getElementById('mat-supplier').value.trim(),
       remark: document.getElementById('mat-remark').value.trim(),
+      image_url: document.getElementById('mat-image').value.trim(),
       purchase_date: formattedDate
     };
 
@@ -789,6 +819,17 @@
     setVal('mat-edit-operator', log.operator_name || '管理員');
     setVal('mat-edit-supplier', log.supplier);
     setVal('mat-edit-remark', log.remark);
+    setVal('mat-edit-image', log.image_url || '');
+    const preview = document.getElementById('mat-edit-image-preview');
+    if (preview) {
+      if (log.image_url) {
+        preview.src = log.image_url;
+        preview.classList.remove('hidden');
+      } else {
+        preview.removeAttribute('src');
+        preview.classList.add('hidden');
+      }
+    }
     const modal = document.getElementById('modal-material-log-edit');
     if (modal) modal.classList.remove('hidden');
   }
@@ -802,7 +843,8 @@
       purchase_cost: parseFloat(document.getElementById('mat-edit-cost').value || 0),
       purchase_qty: parseInt(document.getElementById('mat-edit-qty').value || 0),
       supplier: document.getElementById('mat-edit-supplier').value.trim(),
-      remark: document.getElementById('mat-edit-remark').value.trim()
+      remark: document.getElementById('mat-edit-remark').value.trim(),
+      image_url: document.getElementById('mat-edit-image').value.trim()
     };
 
     const res = await fetch(`/api/admin/material-purchases/${logId}`, {
@@ -1422,8 +1464,9 @@
     }).join('');
   }
 
-    // --- 耗材單位成本與可分配人員 ---
+  // --- 耗材單位成本與可分配人員 ---
   let materialUnitCosts = {};
+  let materialImages = {};
 
   async function loadMaterialUnitCosts() {
     try {
@@ -1431,6 +1474,14 @@
       const json = await res.json();
       materialUnitCosts = (json.status === 'success') ? (json.data || {}) : {};
     } catch(e) { materialUnitCosts = {}; }
+  }
+
+  async function loadMaterialImages() {
+    try {
+      const res = await fetch('/api/admin/material-images');
+      const json = await res.json();
+      materialImages = (json.status === 'success') ? (json.data || {}) : {};
+    } catch(e) { materialImages = {}; }
   }
 
   function getEligibleUsers() {
@@ -1485,7 +1536,7 @@
     currentShipmentOrder = order;
     document.getElementById('shipment-order-id').value = order.id;
 
-    await Promise.all([ensureProductsLoaded(), ensureUsersLoaded(), loadMaterialUnitCosts(), loadMaterialNamesForDatalist()]);
+    await Promise.all([ensureProductsLoaded(), ensureUsersLoaded(), loadMaterialUnitCosts(), loadMaterialNamesForDatalist(), loadMaterialImages()]);
 
     let items = [];
     try {
@@ -1631,7 +1682,10 @@
     })();
     tr.innerHTML = `
       <td class="p-1.5">
-        <input type="text" list="mat-name-list" class="shipment-mat-name w-full bg-surface-container border border-outline-variant text-white p-1 rounded outline-none text-xs" placeholder="輸入或選擇耗材" onchange="recalcShipmentMaterialRow(${idx}, '${rowId}')" />
+        <div class="flex items-center gap-2">
+          <input type="text" list="mat-name-list" class="shipment-mat-name flex-1 min-w-0 bg-surface-container border border-outline-variant text-white p-1 rounded outline-none text-xs" placeholder="輸入或選擇耗材" onchange="recalcShipmentMaterialRow(${idx}, '${rowId}')" />
+          <img class="shipment-mat-img w-10 h-10 object-cover rounded border border-outline-variant hidden" alt="耗材圖片" />
+        </div>
       </td>
       <td class="p-1.5 text-center">
         <input type="number" step="1" min="0" class="shipment-mat-capacity w-full bg-surface-container border border-outline-variant text-cyan-300 font-bold p-1 text-center rounded outline-none text-xs" value="150" oninput="recalcShipmentMaterialRow(${idx}, '${rowId}')" />
@@ -1659,6 +1713,17 @@
     tr.querySelector('.shipment-mat-unit-cost').value = unitCost.toFixed(4);
     const cost = capacity * unitCost;
     tr.querySelector('.shipment-mat-cost').value = roundInt(cost);
+    const img = tr.querySelector('.shipment-mat-img');
+    const imageUrl = materialImages[name] || '';
+    if (img) {
+      if (imageUrl) {
+        img.src = imageUrl;
+        img.classList.remove('hidden');
+      } else {
+        img.removeAttribute('src');
+        img.classList.add('hidden');
+      }
+    }
     calculateShipmentNetProfit();
   }
 

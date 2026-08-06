@@ -370,6 +370,18 @@
       <input type="text" id="mat-remark" placeholder="進貨批號或單據" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none" />
     </div>
 
+    <div>
+      <label class="block text-xs font-label-caps text-cyan-300 mb-1 font-bold">耗材圖片</label>
+      <div class="flex items-center gap-2">
+        <label class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white px-3 py-2 text-xs font-bold rounded cursor-pointer transition-all border border-cyan-500/40 flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">upload</span> 上傳圖片
+          <input type="file" accept="image/*" class="hidden" onchange="uploadMaterialImage(this, 'mat-image', 'mat-image-preview')" />
+        </label>
+        <img id="mat-image-preview" src="" alt="耗材圖片" class="w-12 h-12 object-cover rounded border border-outline-variant hidden" />
+      </div>
+      <input type="hidden" id="mat-image" value="" />
+    </div>
+
     <div class="flex gap-2 pt-2">
       <button onclick="closeModal('modal-material-purchase')" class="flex-1 py-2 bg-surface-container-high text-on-surface-variant font-label-caps text-xs rounded">取消</button>
       <button onclick="saveMaterialPurchaseSubmit()" class="flex-1 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-label-caps text-xs font-bold italic rounded shadow">儲存耗材紀錄</button>
@@ -418,6 +430,17 @@
       <div>
         <label class="block font-bold text-gray-200 mb-1">備註說明</label>
         <input type="text" id="mat-edit-remark" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
+      </div>
+      <div>
+        <label class="block font-bold text-cyan-300 mb-1">耗材圖片</label>
+        <div class="flex items-center gap-2">
+          <label class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white px-3 py-2 text-xs font-bold rounded cursor-pointer transition-all border border-cyan-500/40 flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">upload</span> 上傳圖片
+            <input type="file" accept="image/*" class="hidden" onchange="uploadMaterialImage(this, 'mat-edit-image', 'mat-edit-image-preview')" />
+          </label>
+          <img id="mat-edit-image-preview" src="" alt="耗材圖片" class="w-12 h-12 object-cover rounded border border-outline-variant hidden" />
+        </div>
+        <input type="hidden" id="mat-edit-image" value="" />
       </div>
     </div>
     <div class="px-5 py-3 bg-surface-container-high border-t border-outline-variant flex gap-2">
