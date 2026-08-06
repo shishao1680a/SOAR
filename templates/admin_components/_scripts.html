@@ -569,6 +569,7 @@
 
   function handleMaterialPaste(e, inputId, previewId) {
     if (!e.clipboardData) return;
+    const isPasteZone = e.target && e.target.classList && e.target.classList.contains('material-paste-zone');
     const items = e.clipboardData.items || [];
     for (const item of items) {
       if (item.type && item.type.indexOf('image/') === 0) {
@@ -598,15 +599,21 @@
     }
 
     if (url && /^https?:\/\//i.test(url)) {
-      e.preventDefault();
-      document.getElementById(inputId).value = url;
-      const preview = document.getElementById(previewId);
-      if (preview) {
-        preview.src = url;
-        preview.classList.remove('hidden');
+      // 只有「貼上圖片」區域才把網址當圖片；一般文字欄位貼網址不攔截
+      if (isPasteZone) {
+        e.preventDefault();
+        document.getElementById(inputId).value = url;
+        const preview = document.getElementById(previewId);
+        if (preview) {
+          preview.src = url;
+          preview.classList.remove('hidden');
+        }
+        alert('已貼上圖片網址（外部連結，若來源網站移除圖片可能無法顯示）');
       }
-      alert('已貼上圖片網址（外部連結，若來源網站移除圖片可能無法顯示）');
-    } else {
+      return;
+    }
+
+    if (isPasteZone) {
       alert('沒有偵測到圖片，請先複製圖片後再貼上（或使用「上傳圖片」按鈕）');
     }
   }
