@@ -6,6 +6,7 @@ from urllib.parse import quote
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory
 from dotenv import load_dotenv
 from db_service import DBService, StockError
+from cloudinary_service import CloudinaryService
 from line_service import LineService
 from pdf_service import convert_pdf_to_images
 from linebot.models import TextSendMessage, ImageSendMessage
@@ -22,6 +23,7 @@ UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db_service = DBService()
+cloudinary_service = CloudinaryService()
 line_service = LineService()
 
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # 20MB
@@ -310,6 +312,16 @@ def api_admin_upload_image():
     file_path = os.path.join(UPLOAD_FOLDER, unique_name)
     file.save(file_path)
 
+    # 優先上傳至 Cloudinary（持久保存，重新部署不會消失）
+    cloud_url = cloudinary_service.upload_image(file_path)
+    if cloud_url:
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+        return jsonify({"status": "success", "url": cloud_url, "filename": unique_name})
+
+    # Cloudinary 未設定或上傳失敗：沿用本機檔案（備援）
     host_base = request.host_url.rstrip('/')
     if host_base.startswith('http://'):
         host_base = 'https://' + host_base[7:]
@@ -715,7 +727,7 @@ def api_admin_line_broadcast():
         host_base = 'https://' + host_base[7:]
 
     # 同步只做「快速磁碟寫入」；PDF 轉圖與 LINE 推播移到背景執行緒
-    saved_files = []  # (abs_path, ext, public_url)
+    saved_files = []  # (abs_path, ext)
     skipped = 0
     for file in uploaded_files:
         if not file or not file.filename:
@@ -729,7 +741,7 @@ def api_admin_line_broadcast():
         saved_filename = f"{unique_id}{ext}"
         file_path = os.path.join(UPLOAD_FOLDER, saved_filename)
         file.save(file_path)
-        saved_files.append((file_path, ext, f"{host_base}/uploads/{saved_filename}"))
+        saved_files.append((file_path, ext))
 
     if not message_text and not saved_files:
         return jsonify({"status": "error", "message": "發送內容不能為空，請輸入文字或選擇檔案！"}), 400
@@ -742,23 +754,28 @@ def api_admin_line_broadcast():
         if message_text:
             message_objects.append(TextSendMessage(text=message_text))
 
-        for file_path, ext, public_url in saved_files:
+        for file_path, ext in saved_files:
+            fname = os.path.basename(file_path)
             if ext == '.pdf':
                 pdf_count += 1
                 try:
                     converted_imgs = convert_pdf_to_images(file_path, output_folder=UPLOAD_FOLDER)
                     for img_fname in converted_imgs:
-                        img_url = f"{host_base}/uploads/{img_fname}"
+                        img_path = os.path.join(UPLOAD_FOLDER, img_fname)
+                        img_url = cloudinary_service.upload_image(img_path) or f"{host_base}/uploads/{img_fname}"
                         message_objects.append(ImageSendMessage(original_content_url=img_url, preview_image_url=img_url))
                         image_count += 1
                 except Exception as pdf_err:
                     print(f"Error converting PDF to images: {pdf_err}")
-                message_objects.append(TextSendMessage(text=f"📎 原始 PDF 檔案下載網址: {public_url}"))
+                pdf_url = cloudinary_service.upload_file(file_path, raw_filename=fname) or f"{host_base}/uploads/{fname}"
+                message_objects.append(TextSendMessage(text=f"📎 原始 PDF 檔案下載網址: {pdf_url}"))
             elif ext in ALLOWED_IMAGE_EXTS:
                 image_count += 1
-                message_objects.append(ImageSendMessage(original_content_url=public_url, preview_image_url=public_url))
+                img_url = cloudinary_service.upload_image(file_path) or f"{host_base}/uploads/{fname}"
+                message_objects.append(ImageSendMessage(original_content_url=img_url, preview_image_url=img_url))
             else:
-                message_objects.append(TextSendMessage(text=f"📎 檔案下載網址: {public_url}"))
+                file_url = cloudinary_service.upload_file(file_path, raw_filename=fname) or f"{host_base}/uploads/{fname}"
+                message_objects.append(TextSendMessage(text=f"📎 檔案下載網址: {file_url}"))
 
         if not message_objects:
             print("Broadcast job: no messages to send")
