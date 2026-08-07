@@ -785,7 +785,7 @@
     if (materialPurchasesList.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" class="p-4 text-center text-gray-400 italic">尚無耗材進貨紀錄。請點擊右上角【🧪 耗材進貨服務】新增進貨單。</td>
+          <td colspan="9" class="p-4 text-center text-gray-400 italic">尚無耗材進貨紀錄。請點擊右上角【🧪 耗材進貨服務】新增進貨單。</td>
         </tr>
       `;
       return;
@@ -795,6 +795,7 @@
         <td class="p-3 text-on-surface-variant">${m.purchase_date || '-'}</td>
         <td class="p-3 font-bold text-white">${m.material_name}</td>
         <td class="p-3 text-cyan-300 font-bold">${m.total_capacity || '-'}</td>
+        <td class="p-3">${m.measure_type === 'quantity' ? '數量' : '容量'}</td>
         <td class="p-3 text-amber-400 font-bold">$${parseFloat(m.purchase_cost || 0).toFixed(2)}</td>
         <td class="p-3 text-cyan-400 font-bold">+${m.purchase_qty}</td>
         <td class="p-3 text-primary-fixed font-bold">${m.operator_name || '管理員'}</td>
