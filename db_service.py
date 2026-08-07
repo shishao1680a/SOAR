@@ -1306,6 +1306,179 @@ class DBService:
             print(f"Error updating order {order_id}: {e}")
             return False, f"修改訂單失敗：{e}"
 
+    def get_order_settlement(self, order_id):
+        """讀取訂單已存的結算與耗材明細（供已寄送訂單修改時載入）。"""
+        try:
+            settlements = self._fetch_dicts("""
+                SELECT product_id, item_name, sales_amount, material_cost, other_cost, shipping_cost,
+                       net_profit, designer_user_id, packager_user_id,
+                       designer_ratio, packager_ratio, platform_ratio,
+                       designer_amount, packager_amount, platform_amount
+                FROM order_settlements WHERE order_id = :order_id ORDER BY id
+            """, {"order_id": str(order_id)})
+            materials = self._fetch_dicts("""
+                SELECT product_id, item_name, material_name, capacity_used, qty_used, unit_cost, cost
+                FROM order_materials WHERE order_id = :order_id ORDER BY id
+            """, {"order_id": str(order_id)})
+            return {"settlements": settlements, "materials": materials}
+        except Exception as e:
+            print(f"Error fetching order settlement {order_id}: {e}")
+            return {}
+
+    def update_order_settlement(self, order_id, items, products, order_totals):
+        """已寄送訂單修改：更新明細（單價/數量、重扣庫存）、重建結算與耗材明細、重算總額與淨利潤。"""
+        try:
+            now_str = self._get_taiwan_now_str()
+            items_json = json.dumps(items, ensure_ascii=False)
+            total_amount = round(sum(
+                float(it.get('price') or 0) * int(it.get('qty') or 0) for it in items
+            ), 2)
+            with self.engine.begin() as conn:
+                row = conn.execute(
+                    text("SELECT status FROM orders WHERE id = :id FOR UPDATE"),
+                    {"id": str(order_id)},
+                ).first()
+                if not row:
+                    return False, "訂單不存在"
+                if row._mapping["status"] == "CANCELLED":
+                    return False, "已取消的訂單無法修改"
+
+                # 1) 釋放舊庫存，依新明細重新扣減
+                conn.execute(text("DELETE FROM sales_logs WHERE order_id = :id"), {"id": str(order_id)})
+                for it in items:
+                    pid = str(it.get('id') or '').strip()
+                    name = (it.get('name') or it.get('product_name') or '線上列印作品').strip()
+                    variant = (it.get('variant_name') or it.get('item_name') or '').strip()
+                    qty = int(it.get('qty') or 0)
+                    item_key = variant or '-'
+
+                    if pid:
+                        prod_row = conn.execute(
+                            text("SELECT id, name FROM products WHERE id = :pid FOR UPDATE"),
+                            {"pid": pid},
+                        ).first()
+                        if not prod_row:
+                            raise StockError(f"商品「{name}」不存在或已刪除，請先修正再儲存")
+                        pname = prod_row._mapping["name"]
+
+                        purchased = conn.execute(text("""
+                            SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
+                            WHERE (product_id IS NOT NULL AND product_id = :pid)
+                               OR (product_name IS NOT NULL AND product_name = :pname)
+                        """), {"pid": pid, "pname": pname}).scalar() or 0
+                        sold = conn.execute(text("""
+                            SELECT COALESCE(SUM(qty), 0) FROM sales_logs
+                            WHERE (product_id IS NOT NULL AND product_id = :pid)
+                               OR (product_name IS NOT NULL AND product_name = :pname)
+                        """), {"pid": pid, "pname": pname}).scalar() or 0
+                        available = int(purchased) - int(sold)
+
+                        if variant:
+                            purch_item = conn.execute(text("""
+                                SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
+                                WHERE ((product_id IS NOT NULL AND product_id = :pid)
+                                    OR (product_name IS NOT NULL AND product_name = :pname))
+                                  AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
+                            """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
+                            sold_item = conn.execute(text("""
+                                SELECT COALESCE(SUM(qty), 0) FROM sales_logs
+                                WHERE ((product_id IS NOT NULL AND product_id = :pid)
+                                    OR (product_name IS NOT NULL AND product_name = :pname))
+                                  AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
+                            """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
+                            available = min(available, int(purch_item) - int(sold_item))
+
+                        if qty > available:
+                            raise StockError(f"商品「{name}」庫存不足（剩餘 {max(available, 0)} 件）")
+
+                        conn.execute(text("""
+                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, qty, created_at)
+                            VALUES (:order_id, :product_id, :product_name, :item_name, :qty, :created_at)
+                        """), {
+                            "order_id": str(order_id), "product_id": pid, "product_name": pname,
+                            "item_name": item_key, "qty": qty, "created_at": now_str,
+                        })
+                    else:
+                        conn.execute(text("""
+                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, qty, created_at)
+                            VALUES (:order_id, :product_id, :product_name, :item_name, :qty, :created_at)
+                        """), {
+                            "order_id": str(order_id), "product_id": None, "product_name": name,
+                            "item_name": item_key, "qty": qty, "created_at": now_str,
+                        })
+
+                # 2) 更新訂單明細、總額與淨利潤
+                conn.execute(text("""
+                    UPDATE orders SET items_json = :items_json, total_amount = :total_amount, status = 'SHIPPED',
+                        other_cost = :oc, shipping_cost = :sc, net_profit = :np
+                    WHERE id = :id
+                """), {
+                    "items_json": items_json, "total_amount": total_amount,
+                    "oc": order_totals.get("other_cost", 0),
+                    "sc": order_totals.get("shipping_cost", 0),
+                    "np": order_totals.get("net_profit", 0),
+                    "id": str(order_id),
+                })
+
+                # 3) 重建結算與耗材明細（避免重複累加）
+                conn.execute(text("DELETE FROM order_settlements WHERE order_id = :id"), {"id": str(order_id)})
+                conn.execute(text("DELETE FROM order_materials WHERE order_id = :id"), {"id": str(order_id)})
+
+                for p in products:
+                    conn.execute(text("""
+                        INSERT INTO order_settlements (order_id, product_id, item_name, sales_amount,
+                            material_cost, other_cost, shipping_cost, net_profit,
+                            designer_user_id, packager_user_id,
+                            designer_ratio, packager_ratio, platform_ratio,
+                            designer_amount, packager_amount, platform_amount, settled_at)
+                        VALUES (:order_id, :product_id, :item_name, :sales_amount,
+                            :material_cost, :other_cost, :shipping_cost, :net_profit,
+                            :designer_user_id, :packager_user_id,
+                            :designer_ratio, :packager_ratio, :platform_ratio,
+                            :designer_amount, :packager_amount, :platform_amount, :settled_at)
+                    """), {
+                        "order_id": str(order_id),
+                        "product_id": p.get("product_id"),
+                        "item_name": p.get("item_name") or '-',
+                        "sales_amount": p.get("sales_amount", 0),
+                        "material_cost": p.get("material_cost", 0),
+                        "other_cost": p.get("other_cost", 0),
+                        "shipping_cost": p.get("shipping_cost", 0),
+                        "net_profit": p.get("net_profit", 0),
+                        "designer_user_id": p.get("designer_user_id") or None,
+                        "packager_user_id": p.get("packager_user_id") or None,
+                        "designer_ratio": p.get("designer_ratio", 20),
+                        "packager_ratio": p.get("packager_ratio", 60),
+                        "platform_ratio": p.get("platform_ratio", 20),
+                        "designer_amount": p.get("designer_amount", 0),
+                        "packager_amount": p.get("packager_amount", 0),
+                        "platform_amount": p.get("platform_amount", 0),
+                        "settled_at": now_str,
+                    })
+
+                    for m in p.get("materials", []):
+                        conn.execute(text("""
+                            INSERT INTO order_materials (order_id, product_id, item_name, material_name,
+                                capacity_used, qty_used, unit_cost, cost)
+                            VALUES (:order_id, :product_id, :item_name, :material_name,
+                                :capacity_used, :qty_used, :unit_cost, :cost)
+                        """), {
+                            "order_id": str(order_id),
+                            "product_id": p.get("product_id"),
+                            "item_name": p.get("item_name") or '-',
+                            "material_name": m.get("material_name"),
+                            "capacity_used": m.get("capacity_used", 0),
+                            "qty_used": m.get("qty_used", 0),
+                            "unit_cost": m.get("unit_cost", 0),
+                            "cost": m.get("cost", 0),
+                        })
+            return True, "訂單與結算已更新，庫存與淨利潤已重新計算"
+        except StockError as se:
+            return False, str(se)
+        except Exception as e:
+            print(f"Error updating order settlement {order_id}: {e}")
+            return False, f"修改訂單結算失敗：{e}"
+
     def save_order_settlement(self, order_id, products, order_totals):
         """寄送結算：寫入逐商品明細（order_settlements）與耗材消耗（order_materials），並更新訂單狀態。
 

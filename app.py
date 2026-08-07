@@ -608,9 +608,9 @@ def api_admin_orders_ship(order_id):
     for p in products:
         if not isinstance(p, dict):
             return jsonify({"status": "error", "message": "結算明細格式錯誤"}), 400
-        if p.get('designer_user_id') not in eligible:
+        if p.get('designer_user_id') and p.get('designer_user_id') not in eligible:
             return jsonify({"status": "error", "message": "請選擇有效的設計者"}), 400
-        if p.get('packager_user_id') not in eligible:
+        if p.get('packager_user_id') and p.get('packager_user_id') not in eligible:
             return jsonify({"status": "error", "message": "請選擇有效的包裝人員"}), 400
         order_totals["other_cost"] += float(p.get('other_cost', 0) or 0)
         order_totals["shipping_cost"] += float(p.get('shipping_cost', 0) or 0)
@@ -658,6 +658,61 @@ def api_admin_orders_update(order_id):
             return jsonify({"status": "error", "message": "單價不可為負數"}), 400
 
     ok, msg = db_service.update_order_items(str(order_id), items)
+    if ok:
+        return jsonify({"status": "success", "message": msg})
+    return jsonify({"status": "error", "message": msg}), 400
+
+
+@app.route('/api/admin/orders/<order_id>/settlement', methods=['GET'])
+@admin_or_coach_required
+def api_admin_order_settlement(order_id):
+    """讀取訂單已存的結算與耗材明細（供已寄送訂單修改時載入）。"""
+    data = db_service.get_order_settlement(str(order_id))
+    return jsonify({"status": "success", "data": data})
+
+
+@app.route('/api/admin/orders/<order_id>/update-shipment', methods=['POST'])
+@admin_or_coach_required
+def api_admin_orders_update_shipment(order_id):
+    """已寄送訂單修改：更新明細（單價/數量）與結算（設計者/包裝人員/耗材等），重新計算並寫回。"""
+    data = request.get_json() or {}
+    items = data.get('items')
+    products = data.get('products')
+    if not isinstance(items, list) or not items:
+        return jsonify({"status": "error", "message": "請至少保留一筆商品"}), 400
+    if not isinstance(products, list) or not products:
+        return jsonify({"status": "error", "message": "缺少逐商品結算明細"}), 400
+
+    for it in items:
+        if not isinstance(it, dict):
+            return jsonify({"status": "error", "message": "商品資料格式錯誤"}), 400
+        try:
+            qty = int(it.get('qty') or 0)
+            price = float(it.get('price') or 0)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "商品數量或單價格式錯誤"}), 400
+        if qty <= 0:
+            return jsonify({"status": "error", "message": "商品數量需大於 0"}), 400
+        if price < 0:
+            return jsonify({"status": "error", "message": "單價不可為負數"}), 400
+
+    eligible = {
+        u['id'] for u in db_service.get_all_users()
+        if u.get('role') in ('admin', 'assistant_coach')
+    }
+    order_totals = {"other_cost": 0.0, "shipping_cost": 0.0, "net_profit": 0.0}
+    for p in products:
+        if not isinstance(p, dict):
+            return jsonify({"status": "error", "message": "結算明細格式錯誤"}), 400
+        if p.get('designer_user_id') and p.get('designer_user_id') not in eligible:
+            return jsonify({"status": "error", "message": "請選擇有效的設計者"}), 400
+        if p.get('packager_user_id') and p.get('packager_user_id') not in eligible:
+            return jsonify({"status": "error", "message": "請選擇有效的包裝人員"}), 400
+        order_totals["other_cost"] += float(p.get('other_cost', 0) or 0)
+        order_totals["shipping_cost"] += float(p.get('shipping_cost', 0) or 0)
+        order_totals["net_profit"] += float(p.get('net_profit', 0) or 0)
+
+    ok, msg = db_service.update_order_settlement(str(order_id), items, products, order_totals)
     if ok:
         return jsonify({"status": "success", "message": msg})
     return jsonify({"status": "error", "message": msg}), 400
