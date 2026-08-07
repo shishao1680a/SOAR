@@ -74,23 +74,14 @@
       dataLoaded.orders = true;
       loadAdminOrdersList();
     } else if (secId === 'bonuses') {
+      // 每次點進獎金頁都重新查詢，避免編輯後看到舊資料
+      defaultBonusRange();
+      loadBonusSummary();
       if (!dataLoaded.users) {
         dataLoaded.users = true;
-        loadUsers().then(() => {
-          populateBonusMemberFilter();
-          if (!dataLoaded.bonuses) {
-            dataLoaded.bonuses = true;
-            defaultBonusRange();
-            loadBonusSummary();
-          }
-        });
+        loadUsers().then(populateBonusMemberFilter);
       } else {
         populateBonusMemberFilter();
-        if (!dataLoaded.bonuses) {
-          dataLoaded.bonuses = true;
-          defaultBonusRange();
-          loadBonusSummary();
-        }
       }
     } else if ((secId === 'line-groups' || secId === 'line-send') && !dataLoaded.lineGroups) {
       dataLoaded.lineGroups = true;
