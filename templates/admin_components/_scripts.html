@@ -761,6 +761,7 @@
       const res = await fetch('/api/admin/material-names');
       const json = await res.json();
       if (json.status === 'success' && Array.isArray(json.data)) {
+        materialNameList = json.data;
         const datalist = document.getElementById('mat-name-list');
         if (datalist) {
           datalist.innerHTML = json.data.map(name => `<option value="${name}"></option>`).join('');
@@ -806,12 +807,29 @@
     `).join('');
   }
 
+  function updateMaterialMeasureLabel() {
+    const sel = document.getElementById('mat-measure-type');
+    const label = document.getElementById('mat-capacity-label');
+    if (label && sel) {
+      label.textContent = sel.value === 'quantity' ? '進貨總數量 (數字，例如: 10 卷)' : '總容量 (數字，例如: 1000 公克)';
+    }
+  }
+
+  function updateMaterialEditMeasureLabel() {
+    const sel = document.getElementById('mat-edit-measure-type');
+    const label = document.getElementById('mat-edit-capacity-label');
+    if (label && sel) {
+      label.textContent = sel.value === 'quantity' ? '進貨總數量 (數字，例如: 10 卷)' : '總容量 (數字，例如: 1000 公克)';
+    }
+  }
+
   function openMaterialPurchaseModal() {
     const now = new Date();
     const localIso = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
     setVal('mat-date', localIso);
     setVal('mat-name', '');
     setVal('mat-capacity', '');
+    setVal('mat-measure-type', 'capacity');
     setVal('mat-cost', '10.00');
     setVal('mat-qty', '10');
     setVal('mat-supplier', '');
@@ -822,6 +840,7 @@
       preview.removeAttribute('src');
       preview.classList.add('hidden');
     }
+    updateMaterialMeasureLabel();
     loadMaterialNamesForDatalist();
     const modal = document.getElementById('modal-material-purchase');
     if (modal) modal.classList.remove('hidden');
@@ -845,6 +864,7 @@
       supplier: document.getElementById('mat-supplier').value.trim(),
       remark: document.getElementById('mat-remark').value.trim(),
       image_url: document.getElementById('mat-image').value.trim(),
+      measure_type: document.getElementById('mat-measure-type').value,
       purchase_date: formattedDate
     };
 
@@ -874,6 +894,8 @@
     setVal('mat-edit-supplier', log.supplier);
     setVal('mat-edit-remark', log.remark);
     setVal('mat-edit-image', log.image_url || '');
+    setVal('mat-edit-measure-type', log.measure_type || 'capacity');
+    updateMaterialEditMeasureLabel();
     const preview = document.getElementById('mat-edit-image-preview');
     if (preview) {
       if (log.image_url) {
@@ -898,7 +920,8 @@
       purchase_qty: parseInt(document.getElementById('mat-edit-qty').value || 0),
       supplier: document.getElementById('mat-edit-supplier').value.trim(),
       remark: document.getElementById('mat-edit-remark').value.trim(),
-      image_url: document.getElementById('mat-edit-image').value.trim()
+      image_url: document.getElementById('mat-edit-image').value.trim(),
+      measure_type: document.getElementById('mat-edit-measure-type').value
     };
 
     const res = await fetch(`/api/admin/material-purchases/${logId}`, {
@@ -1521,6 +1544,8 @@
   // --- 耗材單位成本與可分配人員 ---
   let materialUnitCosts = {};
   let materialImages = {};
+  let materialNameList = [];
+  let materialMeasureTypes = {};
 
   async function loadMaterialUnitCosts() {
     try {
@@ -1536,6 +1561,14 @@
       const json = await res.json();
       materialImages = (json.status === 'success') ? (json.data || {}) : {};
     } catch(e) { materialImages = {}; }
+  }
+
+  async function loadMaterialMeasureTypes() {
+    try {
+      const res = await fetch('/api/admin/material-measure-types');
+      const json = await res.json();
+      materialMeasureTypes = (json.status === 'success') ? (json.data || {}) : {};
+    } catch(e) { materialMeasureTypes = {}; }
   }
 
   function getEligibleUsers() {
@@ -1590,7 +1623,7 @@
     currentShipmentOrder = order;
     document.getElementById('shipment-order-id').value = order.id;
 
-    await Promise.all([ensureProductsLoaded(), ensureUsersLoaded(), loadMaterialUnitCosts(), loadMaterialNamesForDatalist(), loadMaterialImages()]);
+    await Promise.all([ensureProductsLoaded(), ensureUsersLoaded(), loadMaterialUnitCosts(), loadMaterialNamesForDatalist(), loadMaterialImages(), loadMaterialMeasureTypes()]);
 
     let items = [];
     try {
@@ -1652,14 +1685,14 @@
 
         <div class="space-y-1.5">
           <div class="flex justify-between items-center">
-            <span class="font-bold text-cyan-400 text-[11px]">耗材消耗明細（成本 = 消耗容量 × 加權單位成本）</span>
+            <span class="font-bold text-cyan-400 text-[11px]">耗材消耗明細（成本 = 消耗量 × 加權單位成本）</span>
             <button type="button" onclick="addShipmentMaterialRow(${idx})" class="px-2 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[11px] rounded">+ 新增耗材</button>
           </div>
           <table class="w-full text-left text-xs">
             <thead class="text-gray-400 border-b border-outline-variant/60">
               <tr>
                 <th class="p-1.5">耗材名稱</th>
-                <th class="p-1.5 text-center w-28">消耗容量</th>
+                <th class="p-1.5 text-center w-28">消耗量</th>
                 <th class="p-1.5 text-right w-28">單位成本</th>
                 <th class="p-1.5 text-right w-28">成本 ($)</th>
                 <th class="p-1.5 text-center w-10"></th>
@@ -1735,14 +1768,15 @@
       return Array.from(list.options).map(o => o.value);
     })();
     tr.innerHTML = `
-      <td class="p-1.5">
+      <td class="p-1.5 relative">
         <div class="flex items-center gap-2">
-          <input type="text" list="mat-name-list" class="shipment-mat-name flex-1 min-w-0 bg-surface-container border border-outline-variant text-white p-1 rounded outline-none text-xs" placeholder="輸入或選擇耗材" onchange="recalcShipmentMaterialRow(${idx}, '${rowId}')" />
+          <input type="text" class="shipment-mat-name flex-1 min-w-0 bg-surface-container border border-outline-variant text-white p-1 rounded outline-none text-xs" placeholder="輸入關鍵字搜尋耗材" oninput="onMaterialSearchInput(event, '${rowId}')" onchange="recalcShipmentMaterialRow(${idx}, '${rowId}')" onblur="setTimeout(() => hideMaterialSuggest('${rowId}'), 150)" />
           <img class="shipment-mat-img w-12 h-12 object-cover rounded border border-outline-variant hidden cursor-zoom-in" alt="耗材圖片" onmouseenter="showMaterialZoom(this)" onmousemove="moveMaterialZoom(event)" onmouseleave="hideMaterialZoom()" />
         </div>
+        <div class="shipment-mat-suggest hidden absolute left-0 right-0 top-full mt-0.5 max-h-44 overflow-y-auto bg-surface-container-high border border-outline-variant rounded-lg shadow-2xl z-30 text-xs"></div>
       </td>
       <td class="p-1.5 text-center">
-        <input type="number" step="1" min="0" class="shipment-mat-capacity w-full bg-surface-container border border-outline-variant text-cyan-300 font-bold p-1 text-center rounded outline-none text-xs" value="150" oninput="recalcShipmentMaterialRow(${idx}, '${rowId}')" />
+        <input type="number" step="1" min="0" class="shipment-mat-qty w-full bg-surface-container border border-outline-variant text-cyan-300 font-bold p-1 text-center rounded outline-none text-xs" value="150" placeholder="消耗容量" oninput="recalcShipmentMaterialRow(0, '${rowId}')" />
       </td>
       <td class="p-1.5 text-right">
         <input type="number" step="0.0001" readonly class="shipment-mat-unit-cost w-full bg-surface-container border border-outline-variant text-cyan-200 font-bold p-1 text-right rounded outline-none text-xs" value="0.0000" title="加權平均單位成本（自動帶入）" />
@@ -1762,10 +1796,16 @@
     const tr = document.getElementById(rowId);
     if (!tr) return;
     const name = tr.querySelector('.shipment-mat-name').value.trim();
-    const capacity = parseFloat(tr.querySelector('.shipment-mat-capacity').value || 0);
+    const amount = parseFloat(tr.querySelector('.shipment-mat-qty').value || 0);
+    const measureType = (name && materialMeasureTypes[name]) || 'capacity';
+    const amountInput = tr.querySelector('.shipment-mat-qty');
+    if (amountInput) {
+      amountInput.placeholder = measureType === 'quantity' ? '消耗數量' : '消耗容量';
+      amountInput.title = measureType === 'quantity' ? '消耗數量' : '消耗容量';
+    }
     const unitCost = materialUnitCosts[name] || 0;
     tr.querySelector('.shipment-mat-unit-cost').value = unitCost.toFixed(4);
-    const cost = capacity * unitCost;
+    const cost = amount * unitCost;
     tr.querySelector('.shipment-mat-cost').value = roundInt(cost);
     const img = tr.querySelector('.shipment-mat-img');
     const imageUrl = materialImages[name] || '';
@@ -1811,6 +1851,61 @@
   function hideMaterialZoom() {
     const zoom = document.getElementById('shipment-material-zoom');
     if (zoom) zoom.classList.add('hidden');
+  }
+
+  function onMaterialSearchInput(e, rowId) {
+    const tr = document.getElementById(rowId);
+    if (!tr) return;
+    const input = tr.querySelector('.shipment-mat-name');
+    const suggest = tr.querySelector('.shipment-mat-suggest');
+    if (!input || !suggest) return;
+    const kw = (input.value || '').trim().toLowerCase();
+    const pool = Array.from(new Set([...(materialNameList || []), ...Object.keys(materialUnitCosts || {})]));
+    if (!kw || pool.length === 0) {
+      suggest.classList.add('hidden');
+      suggest.innerHTML = '';
+      return;
+    }
+    const matches = pool.filter(n => n.toLowerCase().includes(kw)).slice(0, 20);
+    if (matches.length === 0) {
+      suggest.innerHTML = `<div class="px-3 py-2 text-gray-400 italic">無符合的耗材</div>`;
+      suggest.classList.remove('hidden');
+      return;
+    }
+    suggest.innerHTML = matches.map(n => {
+      const cost = materialUnitCosts[n];
+      const img = materialImages[n];
+      const safeName = n.replace(/\\/g, '\\\\').replace(/"/g, '&quot;');
+      return `<div class="px-3 py-2 hover:bg-surface-container cursor-pointer flex items-center gap-2 border-b border-outline-variant/40" data-name="${safeName}" onmousedown="selectMaterialSuggestion(this, '${rowId}')">
+        ${img ? `<img src="${img}" class="w-7 h-7 object-cover rounded border border-outline-variant" />` : ''}
+        <span class="font-bold text-white">${n}</span>
+        ${cost !== undefined ? `<span class="ml-auto text-cyan-300 text-[10px]">單價 $${Number(cost).toFixed(4)}</span>` : ''}
+      </div>`;
+    }).join('');
+    suggest.classList.remove('hidden');
+  }
+
+  function selectMaterialSuggestion(el, rowId) {
+    const tr = document.getElementById(rowId);
+    if (!tr) return;
+    const name = el.getAttribute('data-name');
+    const input = tr.querySelector('.shipment-mat-name');
+    const suggest = tr.querySelector('.shipment-mat-suggest');
+    if (input && name) {
+      input.value = name;
+      if (suggest) {
+        suggest.classList.add('hidden');
+        suggest.innerHTML = '';
+      }
+      recalcShipmentMaterialRow(0, rowId);
+    }
+  }
+
+  function hideMaterialSuggest(rowId) {
+    const tr = document.getElementById(rowId);
+    if (!tr) return;
+    const suggest = tr.querySelector('.shipment-mat-suggest');
+    if (suggest) suggest.classList.add('hidden');
   }
 
   function round2(v) { return Math.round((v + Number.EPSILON) * 100) / 100; }
@@ -1894,11 +1989,18 @@
       if (tbody) {
         tbody.querySelectorAll('tr').forEach(tr => {
           const name = tr.querySelector('.shipment-mat-name').value.trim();
-          const capacity = parseFloat(tr.querySelector('.shipment-mat-capacity').value || 0);
+          const amount = parseFloat(tr.querySelector('.shipment-mat-qty').value || 0);
           const cost = parseFloat(tr.querySelector('.shipment-mat-cost').value || 0);
           const unitCost = name ? (materialUnitCosts[name] || 0) : 0;
+          const measureType = (name && materialMeasureTypes[name]) || 'capacity';
           if (name) {
-            materials.push({ material_name: name, capacity_used: capacity, unit_cost: unitCost, cost: round2(cost) });
+            materials.push({
+              material_name: name,
+              capacity_used: measureType === 'capacity' ? amount : 0,
+              qty_used: measureType === 'quantity' ? amount : 0,
+              unit_cost: unitCost,
+              cost: round2(cost)
+            });
           }
         });
       }

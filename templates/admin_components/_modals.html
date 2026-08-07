@@ -340,8 +340,16 @@
     </div>
 
     <div>
-      <label class="block text-xs font-label-caps text-cyan-300 mb-1 font-bold">總容量 (數字，例如: 1000 公克)</label>
+      <label id="mat-capacity-label" class="block text-xs font-label-caps text-cyan-300 mb-1 font-bold">總容量 (數字，例如: 1000 公克)</label>
       <input type="number" step="1" min="0" id="mat-capacity" placeholder="例如: 1000（公克，同一耗材請固定單位）" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-cyan-400" />
+    </div>
+
+    <div>
+      <label class="block text-xs font-label-caps text-cyan-300 mb-1 font-bold">計量方式</label>
+      <select id="mat-measure-type" onchange="updateMaterialMeasureLabel()" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded outline-none focus:border-cyan-400">
+        <option value="capacity">容量（例如 公克 / 毫升）</option>
+        <option value="quantity">數量（例如 張 / 卷 / 個）</option>
+      </select>
     </div>
 
     <div class="grid grid-cols-2 gap-2">
@@ -410,8 +418,15 @@
         <input type="text" id="mat-edit-name" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
       </div>
       <div>
-        <label class="block font-bold text-cyan-300 mb-1">總容量 (數字，例如: 1000 公克)</label>
+        <label id="mat-edit-capacity-label" class="block font-bold text-cyan-300 mb-1">總容量 (數字，例如: 1000 公克)</label>
         <input type="number" step="1" min="0" id="mat-edit-capacity" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
+      </div>
+      <div>
+        <label class="block font-bold text-cyan-300 mb-1">計量方式</label>
+        <select id="mat-edit-measure-type" onchange="updateMaterialEditMeasureLabel()" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400">
+          <option value="capacity">容量（例如 公克 / 毫升）</option>
+          <option value="quantity">數量（例如 張 / 卷 / 個）</option>
+        </select>
       </div>
       <div class="grid grid-cols-2 gap-2">
         <div>

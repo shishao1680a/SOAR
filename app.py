@@ -426,6 +426,9 @@ def api_admin_material_purchases():
         remark = data.get('remark', '').strip()
         purchase_date = data.get('purchase_date', '').strip() or None
         image_url = data.get('image_url', '').strip()
+        measure_type = data.get('measure_type', 'capacity').strip()
+        if measure_type not in ('capacity', 'quantity'):
+            measure_type = 'capacity'
 
         if not material_name:
             return jsonify({"status": "error", "message": "耗材名稱為必填欄位！"}), 400
@@ -434,7 +437,7 @@ def api_admin_material_purchases():
         current_name = session_user.get('name') or session_user.get('username') or '管理員'
         operator_name = current_name  # 自動代入填表人姓名
 
-        success = db_service.add_material_purchase(material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date, total_capacity, image_url)
+        success = db_service.add_material_purchase(material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date, total_capacity, image_url, measure_type)
         if success:
             return jsonify({"status": "success", "message": "耗材進貨紀錄已成功儲存！"})
         return jsonify({"status": "error", "message": "儲存耗材進貨紀錄失敗"}), 500
@@ -462,6 +465,13 @@ def api_admin_material_images():
     images = db_service.get_material_images()
     return jsonify({"status": "success", "data": images})
 
+@app.route('/api/admin/material-measure-types', methods=['GET'])
+@admin_or_coach_required
+def api_admin_material_measure_types():
+    """各耗材的計量方式（capacity=容量 / quantity=數量）。"""
+    types = db_service.get_material_measure_types()
+    return jsonify({"status": "success", "data": types})
+
 @app.route('/api/admin/material-suppliers', methods=['GET'])
 @admin_or_coach_required
 def api_admin_material_suppliers():
@@ -481,11 +491,14 @@ def api_admin_material_purchases_detail(log_id):
         remark = data.get('remark', '').strip()
         purchase_date = data.get('purchase_date', '').strip() or None
         image_url = data.get('image_url', '').strip()
+        measure_type = data.get('measure_type', 'capacity').strip()
+        if measure_type not in ('capacity', 'quantity'):
+            measure_type = 'capacity'
 
         session_user = session.get('user', {}) or {}
         operator_name = session_user.get('name') or session_user.get('username') or '管理員'
 
-        updated = db_service.update_material_purchase(log_id, material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date, total_capacity, image_url)
+        updated = db_service.update_material_purchase(log_id, material_name, purchase_cost, purchase_qty, supplier, remark, operator_name, purchase_date, total_capacity, image_url, measure_type)
         if updated:
             return jsonify({"status": "success", "message": "耗材進貨紀錄已成功修改！"})
         return jsonify({"status": "error", "message": "修改耗材進貨紀錄失敗"}), 500

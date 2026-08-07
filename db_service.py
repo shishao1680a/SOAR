@@ -258,6 +258,7 @@ class DBService:
                 conn.execute(text("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS operator_name VARCHAR(255) DEFAULT '管理員'"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS total_capacity VARCHAR(255) DEFAULT ''"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT ''"))
+                conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS measure_type VARCHAR(20) DEFAULT 'capacity'"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS other_cost NUMERIC(10, 2) DEFAULT 0"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(10, 2) DEFAULT 60"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS net_profit NUMERIC(10, 2) DEFAULT 0"))
@@ -265,6 +266,7 @@ class DBService:
                 conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS designer_ratio NUMERIC(5, 2) DEFAULT 20"))
                 conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS packager_ratio NUMERIC(5, 2) DEFAULT 60"))
                 conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS platform_ratio NUMERIC(5, 2) DEFAULT 20"))
+                conn.execute(text("ALTER TABLE order_materials ADD COLUMN IF NOT EXISTS qty_used NUMERIC(12, 3) DEFAULT 0"))
 
                 # 常用索引
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_id ON inventory_logs (product_id)"))
@@ -750,22 +752,25 @@ class DBService:
     # ---------- 耗材進貨 ----------
 
     def add_material_purchase(self, material_name, purchase_cost, purchase_qty, supplier='', remark='',
-                              operator_name='管理員', purchase_date=None, total_capacity='', image_url=''):
+                              operator_name='管理員', purchase_date=None, total_capacity='', image_url='',
+                              measure_type='capacity'):
         try:
             now_str = purchase_date or self._get_taiwan_now_str()
             operator_name = operator_name or '管理員'
             total_capacity = total_capacity or ''
             image_url = image_url or ''
+            measure_type = measure_type if measure_type in ('capacity', 'quantity') else 'capacity'
             self._execute("""
                 INSERT INTO material_purchases (material_name, total_capacity, purchase_cost, purchase_qty,
-                                                supplier, purchase_date, remark, operator_name, image_url)
+                                                supplier, purchase_date, remark, operator_name, image_url, measure_type)
                 VALUES (:material_name, :total_capacity, :purchase_cost, :purchase_qty,
-                        :supplier, :purchase_date, :remark, :operator_name, :image_url)
+                        :supplier, :purchase_date, :remark, :operator_name, :image_url, :measure_type)
             """, {
                 "material_name": material_name, "total_capacity": total_capacity,
                 "purchase_cost": purchase_cost, "purchase_qty": purchase_qty,
                 "supplier": supplier, "purchase_date": now_str,
                 "remark": remark, "operator_name": operator_name, "image_url": image_url,
+                "measure_type": measure_type,
             })
             return True
         except Exception as e:
@@ -833,23 +838,25 @@ class DBService:
 
     def update_material_purchase(self, log_id, material_name, purchase_cost, purchase_qty, supplier='',
                                  remark='', operator_name='管理員', purchase_date=None, total_capacity='',
-                                 image_url=None):
+                                 image_url=None, measure_type='capacity'):
         try:
             now_str = purchase_date or self._get_taiwan_now_str()
             total_capacity = total_capacity or ''
             image_url = image_url if image_url is not None else ''
+            measure_type = measure_type if measure_type in ('capacity', 'quantity') else 'capacity'
             self._execute("""
                 UPDATE material_purchases
                 SET material_name = :material_name, total_capacity = :total_capacity,
                     purchase_cost = :purchase_cost, purchase_qty = :purchase_qty,
                     supplier = :supplier, remark = :remark, operator_name = :operator_name,
-                    purchase_date = :purchase_date, image_url = :image_url
+                    purchase_date = :purchase_date, image_url = :image_url, measure_type = :measure_type
                 WHERE id = :id
             """, {
                 "material_name": material_name, "total_capacity": total_capacity,
                 "purchase_cost": purchase_cost, "purchase_qty": purchase_qty,
                 "supplier": supplier, "remark": remark, "operator_name": operator_name,
-                "purchase_date": now_str, "image_url": image_url, "id": int(log_id),
+                "purchase_date": now_str, "image_url": image_url, "measure_type": measure_type,
+                "id": int(log_id),
             })
             return True
         except Exception as e:
@@ -872,6 +879,23 @@ class DBService:
             return result
         except Exception as e:
             print(f"Error fetching material images: {e}")
+            return {}
+
+    def get_material_measure_types(self):
+        """各耗材最近一筆的計量方式（capacity=容量 / quantity=數量）。"""
+        try:
+            rows = self._fetch_dicts("""
+                SELECT material_name, measure_type FROM material_purchases
+                ORDER BY purchase_date DESC NULLS LAST, id DESC
+            """)
+            result = {}
+            for r in rows:
+                name = (r.get('material_name') or '').strip()
+                if name and name not in result:
+                    result[name] = r.get('measure_type') or 'capacity'
+            return result
+        except Exception as e:
+            print(f"Error fetching material measure types: {e}")
             return {}
 
     def delete_material_purchase(self, log_id):
@@ -1186,15 +1210,16 @@ class DBService:
                     for m in p.get("materials", []):
                         conn.execute(text("""
                             INSERT INTO order_materials (order_id, product_id, item_name, material_name,
-                                capacity_used, unit_cost, cost)
+                                capacity_used, qty_used, unit_cost, cost)
                             VALUES (:order_id, :product_id, :item_name, :material_name,
-                                :capacity_used, :unit_cost, :cost)
+                                :capacity_used, :qty_used, :unit_cost, :cost)
                         """), {
                             "order_id": str(order_id),
                             "product_id": p.get("product_id"),
                             "item_name": p.get("item_name") or '-',
                             "material_name": m.get("material_name"),
                             "capacity_used": m.get("capacity_used", 0),
+                            "qty_used": m.get("qty_used", 0),
                             "unit_cost": m.get("unit_cost", 0),
                             "cost": m.get("cost", 0),
                         })
