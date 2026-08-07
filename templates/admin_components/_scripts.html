@@ -785,7 +785,7 @@
     if (materialPurchasesList.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" class="p-4 text-center text-gray-400 italic">尚無耗材進貨紀錄。請點擊右上角【🧪 耗材進貨服務】新增進貨單。</td>
+          <td colspan="8" class="p-4 text-center text-gray-400 italic">尚無耗材進貨紀錄。請點擊右上角【🧪 耗材進貨服務】新增進貨單。</td>
         </tr>
       `;
       return;
@@ -797,7 +797,6 @@
         <td class="p-3 text-cyan-300 font-bold">${m.total_capacity || '-'}</td>
         <td class="p-3">${m.measure_type === 'quantity' ? '數量' : '容量'}</td>
         <td class="p-3 text-amber-400 font-bold">$${parseFloat(m.purchase_cost || 0).toFixed(2)}</td>
-        <td class="p-3 text-cyan-400 font-bold">+${m.purchase_qty}</td>
         <td class="p-3 text-primary-fixed font-bold">${m.operator_name || '管理員'}</td>
         <td class="p-3">${m.supplier || '-'} / ${m.remark || '-'}</td>
         <td class="p-3 text-right whitespace-nowrap">
@@ -832,7 +831,6 @@
     setVal('mat-capacity', '');
     setVal('mat-measure-type', 'capacity');
     setVal('mat-cost', '10.00');
-    setVal('mat-qty', '10');
     setVal('mat-supplier', '');
     setVal('mat-remark', '');
     setVal('mat-image', '');
@@ -861,7 +859,6 @@
       material_name: material_name,
       total_capacity: document.getElementById('mat-capacity').value.trim(),
       purchase_cost: parseFloat(document.getElementById('mat-cost').value || 0),
-      purchase_qty: parseInt(document.getElementById('mat-qty').value || 0),
       supplier: document.getElementById('mat-supplier').value.trim(),
       remark: document.getElementById('mat-remark').value.trim(),
       image_url: document.getElementById('mat-image').value.trim(),
@@ -890,7 +887,6 @@
     setVal('mat-edit-name', log.material_name);
     setVal('mat-edit-capacity', log.total_capacity || '');
     setVal('mat-edit-cost', log.purchase_cost);
-    setVal('mat-edit-qty', log.purchase_qty);
     setVal('mat-edit-operator', log.operator_name || '管理員');
     setVal('mat-edit-supplier', log.supplier);
     setVal('mat-edit-remark', log.remark);
@@ -918,7 +914,6 @@
       material_name: document.getElementById('mat-edit-name').value.trim(),
       total_capacity: document.getElementById('mat-edit-capacity').value.trim(),
       purchase_cost: parseFloat(document.getElementById('mat-edit-cost').value || 0),
-      purchase_qty: parseInt(document.getElementById('mat-edit-qty').value || 0),
       supplier: document.getElementById('mat-edit-supplier').value.trim(),
       remark: document.getElementById('mat-edit-remark').value.trim(),
       image_url: document.getElementById('mat-edit-image').value.trim(),
