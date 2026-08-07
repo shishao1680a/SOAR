@@ -8,7 +8,7 @@
 
   // 頁籤 Tab 切換選單
   function switchProductSubTab(subTabId) {
-    ['products', 'inventory', 'materials'].forEach(tab => {
+    ['products', 'inventory', 'materials', 'material-manage'].forEach(tab => {
       const contentEl = document.getElementById(`prod-subtab-${tab}`);
       const btnEl = document.getElementById(`prod-tab-${tab}`);
       if (contentEl) contentEl.classList.add('hidden');
@@ -27,7 +27,16 @@
         activeBtn.className = "px-5 py-3 font-bold italic border-b-4 border-secondary-container text-secondary-container bg-surface-container-high transition-all flex items-center gap-2";
       } else if (subTabId === 'materials') {
         activeBtn.className = "px-5 py-3 font-bold italic border-b-4 border-cyan-400 text-cyan-400 bg-surface-container-high transition-all flex items-center gap-2";
+      } else if (subTabId === 'material-manage') {
+        activeBtn.className = "px-5 py-3 font-bold italic border-b-4 border-cyan-400 text-cyan-400 bg-surface-container-high transition-all flex items-center gap-2";
       }
+    }
+
+    if (subTabId === 'material-manage') {
+      defaultMaterialMgmtRange();
+      loadMaterialManagementSummary();
+      loadMaterialNamesForDatalist();
+      loadMaterialMeasureTypes();
     }
   }
 
@@ -903,6 +912,199 @@
     } else { alert(json.message); }
   }
 
+  // --- 耗材管理（剩餘容量/數量） ---
+  let materialManagementData = [];
+
+  function defaultMaterialMgmtRange() {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const pad = n => String(n).padStart(2, '0');
+    const fromEl = document.getElementById('matmgmt-from');
+    const toEl = document.getElementById('matmgmt-to');
+    if (fromEl && !fromEl.value) fromEl.value = `${first.getFullYear()}-${pad(first.getMonth() + 1)}-${pad(first.getDate())}`;
+    if (toEl && !toEl.value) toEl.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+
+  async function loadMaterialManagementSummary() {
+    const from = document.getElementById('matmgmt-from').value;
+    const to = document.getElementById('matmgmt-to').value;
+    if (!from || !to) return alert('請選擇開始與結束日期');
+    try {
+      const res = await fetch(`/api/admin/material-management?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      const json = await res.json();
+      if (json.status === 'success') {
+        materialManagementData = json.data || [];
+        renderMaterialManagementTable();
+      }
+    } catch(e) { console.error(e); }
+  }
+
+  function renderMaterialManagementTable() {
+    const tbody = document.getElementById('material-management-tbody');
+    if (!tbody) return;
+    if (materialManagementData.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 italic">此期間沒有耗材資料</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = materialManagementData.map(m => {
+      const type = m.measure_type === 'quantity' ? '數量' : '容量';
+      const remaining = parseFloat(m.remaining || 0);
+      const safeName = encodeURIComponent(m.material_name);
+      return `
+        <tr class="hover:bg-surface-container/50">
+          <td class="p-3 font-bold text-white">${m.material_name}</td>
+          <td class="p-3 text-cyan-300">${type}</td>
+          <td class="p-3 text-right text-cyan-300 font-bold">${m.purchased_period}</td>
+          <td class="p-3 text-right text-amber-400 font-bold">${m.consumed_period}</td>
+          <td class="p-3 text-right ${remaining < 0 ? 'text-error font-black' : 'text-line-green font-black'}">${remaining}</td>
+          <td class="p-3 text-right">
+            <button onclick="openMaterialManagementDetail(decodeURIComponent('${safeName}'))" class="text-primary-fixed hover:underline font-bold">查看明細</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function openMaterialManagementDetail(name) {
+    const from = document.getElementById('matmgmt-from').value;
+    const to = document.getElementById('matmgmt-to').value;
+    document.getElementById('matmgmt-detail-title').textContent = name;
+    try {
+      const res = await fetch(`/api/admin/material-management/detail?material=${encodeURIComponent(name)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      const json = await res.json();
+      if (json.status === 'success') {
+        renderMaterialManagementDetail(json.data);
+        document.getElementById('modal-material-management-detail').classList.remove('hidden');
+      } else {
+        alert(json.message || '讀取明細失敗');
+      }
+    } catch(e) { alert('讀取明細失敗'); }
+  }
+
+  function renderMaterialManagementDetail(d) {
+    const typeLabel = d.measure_type === 'quantity' ? '數量' : '容量';
+    const purEl = document.getElementById('matmgmt-detail-purchases');
+    const conEl = document.getElementById('matmgmt-detail-consumptions');
+
+    if (!d.purchases || d.purchases.length === 0) {
+      purEl.innerHTML = `<div class="text-xs text-gray-400 italic">此期間沒有進貨紀錄</div>`;
+    } else {
+      purEl.innerHTML = `<table class="w-full text-left text-xs">
+        <thead class="text-gray-400 border-b border-outline-variant/60"><tr>
+          <th class="p-2">日期</th><th class="p-2">進貨量</th><th class="p-2">成本 ($)</th><th class="p-2">進貨人員</th>
+        </tr></thead><tbody>` + d.purchases.map(p => `
+          <tr class="border-b border-outline-variant/30">
+            <td class="p-2">${p.purchase_date || '-'}</td>
+            <td class="p-2 text-cyan-300 font-bold">${p.total_capacity || '-'} ${typeLabel}</td>
+            <td class="p-2 text-amber-400 font-bold">$${parseFloat(p.purchase_cost || 0).toFixed(2)}</td>
+            <td class="p-2">${p.operator_name || '管理員'}</td>
+          </tr>`).join('') + `</tbody></table>`;
+    }
+
+    const orderCons = d.order_consumptions || [];
+    const manualCons = d.manual_consumptions || [];
+    if (orderCons.length === 0 && manualCons.length === 0) {
+      conEl.innerHTML = `<div class="text-xs text-gray-400 italic">此期間沒有消耗紀錄</div>`;
+      return;
+    }
+
+    let html = '';
+    if (orderCons.length > 0) {
+      html += `<div class="mb-2 text-[10px] text-gray-400 font-bold">來源：訂單結算（寄送）</div>`;
+      html += `<table class="w-full text-left text-xs mb-3">
+        <thead class="text-gray-400 border-b border-outline-variant/60"><tr>
+          <th class="p-2">日期</th><th class="p-2">訂單編號</th><th class="p-2">商品項目</th><th class="p-2">消耗量</th>
+        </tr></thead><tbody>` + orderCons.map(c => {
+          const amount = parseFloat(c.capacity_used || 0) + parseFloat(c.qty_used || 0);
+          return `<tr class="border-b border-outline-variant/30">
+            <td class="p-2">${c.settled_at || '-'}</td>
+            <td class="p-2 font-mono text-cyan-300">${c.order_id}</td>
+            <td class="p-2">${c.item_name || '-'}</td>
+            <td class="p-2 text-amber-400 font-bold">${amount} ${typeLabel}</td>
+          </tr>`;
+        }).join('') + `</tbody></table>`;
+    }
+    if (manualCons.length > 0) {
+      html += `<div class="mb-2 text-[10px] text-gray-400 font-bold">來源：試作／浪費記錄</div>`;
+      html += `<table class="w-full text-left text-xs">
+        <thead class="text-gray-400 border-b border-outline-variant/60"><tr>
+          <th class="p-2">日期</th><th class="p-2">消耗量</th><th class="p-2">備註</th><th class="p-2">記錄人</th><th class="p-2"></th>
+        </tr></thead><tbody>` + manualCons.map(c => `
+          <tr class="border-b border-outline-variant/30">
+            <td class="p-2">${c.consumed_at || '-'}</td>
+            <td class="p-2 text-amber-400 font-bold">${c.amount} ${typeLabel}</td>
+            <td class="p-2">${c.remark || '-'}</td>
+            <td class="p-2">${c.operator_name || '管理員'}</td>
+            <td class="p-2 text-right"><button onclick="deleteConsumptionLog(${c.id})" class="text-error hover:underline font-bold">刪除</button></td>
+          </tr>`).join('') + `</tbody></table>`;
+    }
+    conEl.innerHTML = html;
+  }
+
+  async function deleteConsumptionLog(id) {
+    if (!confirm('確定刪除此筆消耗記錄？')) return;
+    try {
+      const res = await fetch(`/api/admin/material-consumptions/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      alert(json.message || '處理完成');
+      const title = document.getElementById('matmgmt-detail-title').textContent;
+      if (title) openMaterialManagementDetail(title);
+      loadMaterialManagementSummary();
+    } catch(e) { alert('刪除失敗'); }
+  }
+
+  function openConsumptionLogModal() {
+    const now = new Date();
+    const localIso = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+    setVal('mcons-name', '');
+    setVal('mcons-amount', '');
+    setVal('mcons-remark', '');
+    setVal('mcons-date', localIso);
+    setVal('mcons-measure-type', 'capacity');
+    loadMaterialNamesForDatalist();
+    loadMaterialMeasureTypes();
+    document.getElementById('modal-material-consumption').classList.remove('hidden');
+  }
+
+  function autoSetConsumptionMeasureType() {
+    const name = document.getElementById('mcons-name').value.trim();
+    const sel = document.getElementById('mcons-measure-type');
+    if (sel && materialMeasureTypes[name]) {
+      sel.value = materialMeasureTypes[name];
+    }
+  }
+
+  async function saveConsumptionLogSubmit() {
+    const material_name = document.getElementById('mcons-name').value.trim();
+    const amount = parseFloat(document.getElementById('mcons-amount').value || 0);
+    if (!material_name) return alert('請輸入或選擇耗材名稱');
+    if (!amount || amount <= 0) return alert('請填寫消耗量（需大於 0）');
+    const rawDate = document.getElementById('mcons-date').value;
+    const consumed_at = rawDate ? rawDate.replace('T', ' ') + ':00' : '';
+    const payload = {
+      material_name: material_name,
+      amount: amount,
+      measure_type: document.getElementById('mcons-measure-type').value,
+      remark: document.getElementById('mcons-remark').value.trim(),
+      consumed_at: consumed_at
+    };
+    try {
+      const res = await fetch('/api/admin/material-consumptions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert(json.message || '消耗記錄已儲存！');
+        closeModal('modal-material-consumption');
+        loadMaterialManagementSummary();
+      } else {
+        alert(json.message || '儲存失敗');
+      }
+    } catch(e) { alert('儲存失敗'); }
+  }
+
   async function deleteMaterialLog(logId) {
     if (!confirm('確定要刪除此筆耗材進貨紀錄嗎？')) return;
     const res = await fetch(`/api/admin/material-purchases/${logId}`, { method: 'DELETE' });
@@ -1492,7 +1694,7 @@
             </span>
           </td>
           <td class="p-3 text-right whitespace-nowrap">
-            ${isCancelled ? '' : `<button onclick="openOrderShipmentModal('${o.id}')" class="px-2.5 py-1 bg-line-green hover:bg-line-green/80 text-white font-bold rounded text-xs mr-1 shadow">
+            ${isCancelled || isShipped ? '' : `<button onclick="openOrderShipmentModal('${o.id}')" class="px-2.5 py-1 bg-line-green hover:bg-line-green/80 text-white font-bold rounded text-xs mr-1 shadow">
               寄送
             </button>`}
             <button onclick="editAdminOrder('${o.id}')" class="px-2.5 py-1 bg-surface-container border border-outline-variant text-gray-200 hover:text-white font-bold rounded text-xs">

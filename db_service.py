@@ -169,6 +169,17 @@ class DBService:
                     )
                 """))
                 conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS material_consumption_logs (
+                        id SERIAL PRIMARY KEY,
+                        material_name VARCHAR(255) NOT NULL,
+                        amount NUMERIC(12, 3) DEFAULT 0,
+                        measure_type VARCHAR(20) DEFAULT 'capacity',
+                        remark TEXT DEFAULT '',
+                        operator_name VARCHAR(255) DEFAULT '管理員',
+                        consumed_at VARCHAR(100)
+                    )
+                """))
+                conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS line_groups (
                         id VARCHAR(255) PRIMARY KEY,
                         name VARCHAR(255) NOT NULL,
@@ -273,6 +284,7 @@ class DBService:
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_name ON inventory_logs (product_name)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_material_purchases_material_name ON material_purchases (material_name)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_material_consumption_logs_material_name ON material_consumption_logs (material_name)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_line_id ON users (line_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sales_logs_product_id ON sales_logs (product_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sales_logs_order_id ON sales_logs (order_id)"))
@@ -897,6 +909,148 @@ class DBService:
         except Exception as e:
             print(f"Error fetching material measure types: {e}")
             return {}
+
+    def get_material_management_summary(self, date_from, date_to):
+        """耗材管理：每種耗材的進貨總量/消耗總量（可依日期區間）與目前剩餘。
+        消耗來源：訂單結算（order_materials）＋ 試作記錄（material_consumption_logs）。
+        """
+        try:
+            purchase_rows = self._fetch_dicts("""
+                SELECT material_name, total_capacity, purchase_date, measure_type
+                FROM material_purchases ORDER BY purchase_date DESC NULLS LAST, id DESC
+            """)
+            order_rows = self._fetch_dicts("""
+                SELECT om.material_name, om.capacity_used, om.qty_used, s.settled_at
+                FROM order_materials om
+                JOIN order_settlements s
+                  ON s.order_id = om.order_id AND s.product_id = om.product_id AND s.item_name = om.item_name
+            """)
+            log_rows = self._fetch_dicts("""
+                SELECT material_name, amount, consumed_at FROM material_consumption_logs
+            """)
+
+            measure_types = {}
+            purchased_all = {}
+            purchased_period = {}
+            for r in purchase_rows:
+                name = (r.get('material_name') or '').strip()
+                if not name:
+                    continue
+                cap = self._parse_capacity_number(r.get('total_capacity')) or 0
+                if name not in measure_types:
+                    measure_types[name] = r.get('measure_type') or 'capacity'
+                purchased_all[name] = purchased_all.get(name, 0) + cap
+                if date_from <= (r.get('purchase_date') or '') <= date_to:
+                    purchased_period[name] = purchased_period.get(name, 0) + cap
+
+            consumed_all = {}
+            consumed_period = {}
+
+            def add_consumption(name, amount, dt):
+                if not name:
+                    return
+                consumed_all[name] = consumed_all.get(name, 0) + amount
+                if date_from <= (dt or '') <= date_to:
+                    consumed_period[name] = consumed_period.get(name, 0) + amount
+
+            for r in order_rows:
+                name = (r.get('material_name') or '').strip()
+                amount = float(r.get('capacity_used') or 0) + float(r.get('qty_used') or 0)
+                add_consumption(name, amount, r.get('settled_at'))
+            for r in log_rows:
+                name = (r.get('material_name') or '').strip()
+                add_consumption(name, float(r.get('amount') or 0), r.get('consumed_at'))
+
+            names = sorted(set(list(purchased_all.keys()) + list(consumed_all.keys())))
+            result = []
+            for name in names:
+                consumed = consumed_all.get(name, 0)
+                result.append({
+                    "material_name": name,
+                    "measure_type": measure_types.get(name, 'capacity'),
+                    "purchased_period": round(purchased_period.get(name, 0), 3),
+                    "purchased_all": round(purchased_all.get(name, 0), 3),
+                    "consumed_period": round(consumed_period.get(name, 0), 3),
+                    "consumed_all": round(consumed, 3),
+                    "remaining": round(purchased_all.get(name, 0) - consumed, 3),
+                })
+            return result
+        except Exception as e:
+            print(f"Error fetching material management summary: {e}")
+            return []
+
+    def get_material_management_detail(self, material_name, date_from, date_to):
+        """單一耗材明細：進貨紀錄 + 消耗紀錄（訂單結算／試作記錄）。"""
+        try:
+            purchases = self._fetch_dicts("""
+                SELECT id, total_capacity, purchase_cost, purchase_date, supplier, remark,
+                       operator_name, measure_type
+                FROM material_purchases
+                WHERE material_name = :name AND purchase_date >= :f AND purchase_date <= :t
+                ORDER BY purchase_date DESC, id DESC
+            """, {"name": material_name, "f": date_from, "t": date_to})
+
+            order_cons = self._fetch_dicts("""
+                SELECT om.order_id, om.item_name, om.capacity_used, om.qty_used, om.cost, s.settled_at
+                FROM order_materials om
+                JOIN order_settlements s
+                  ON s.order_id = om.order_id AND s.product_id = om.product_id AND s.item_name = om.item_name
+                WHERE om.material_name = :name AND s.settled_at >= :f AND s.settled_at <= :t
+                ORDER BY s.settled_at DESC, om.id DESC
+            """, {"name": material_name, "f": date_from, "t": date_to})
+
+            manual_cons = self._fetch_dicts("""
+                SELECT id, amount, measure_type, remark, operator_name, consumed_at
+                FROM material_consumption_logs
+                WHERE material_name = :name AND consumed_at >= :f AND consumed_at <= :t
+                ORDER BY consumed_at DESC, id DESC
+            """, {"name": material_name, "f": date_from, "t": date_to})
+
+            measure = self._fetch_one("""
+                SELECT measure_type FROM material_purchases
+                WHERE material_name = :name
+                ORDER BY purchase_date DESC NULLS LAST, id DESC LIMIT 1
+            """, {"name": material_name})
+
+            return {
+                "material_name": material_name,
+                "measure_type": (measure or {}).get('measure_type') or 'capacity',
+                "purchases": purchases,
+                "order_consumptions": order_cons,
+                "manual_consumptions": manual_cons,
+            }
+        except Exception as e:
+            print(f"Error fetching material management detail: {e}")
+            return {}
+
+    def add_material_consumption(self, material_name, amount, measure_type, remark='',
+                                 operator_name='管理員', consumed_at=None):
+        try:
+            now_str = consumed_at or self._get_taiwan_now_str()
+            measure_type = measure_type if measure_type in ('capacity', 'quantity') else 'capacity'
+            self._execute("""
+                INSERT INTO material_consumption_logs (material_name, amount, measure_type, remark, operator_name, consumed_at)
+                VALUES (:material_name, :amount, :measure_type, :remark, :operator_name, :consumed_at)
+            """, {
+                "material_name": material_name,
+                "amount": float(amount or 0),
+                "measure_type": measure_type,
+                "remark": remark,
+                "operator_name": operator_name,
+                "consumed_at": now_str,
+            })
+            return True
+        except Exception as e:
+            print(f"Error adding material consumption: {e}")
+            return False
+
+    def delete_material_consumption(self, log_id):
+        try:
+            self._execute("DELETE FROM material_consumption_logs WHERE id = :id", {"id": int(log_id)})
+            return True
+        except Exception as e:
+            print(f"Error deleting material consumption {log_id}: {e}")
+            return False
 
     def delete_material_purchase(self, log_id):
         try:

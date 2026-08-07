@@ -472,6 +472,70 @@ def api_admin_material_measure_types():
     types = db_service.get_material_measure_types()
     return jsonify({"status": "success", "data": types})
 
+@app.route('/api/admin/material-management', methods=['GET'])
+@admin_or_coach_required
+def api_admin_material_management():
+    """耗材管理：各耗材進貨總量/消耗總量（可依日期區間）與目前剩餘。"""
+    date_from = request.args.get('from', '').strip()[:10]
+    date_to = request.args.get('to', '').strip()[:10]
+    from_str = f"{date_from} 00:00:00" if date_from else "1970-01-01 00:00:00"
+    to_str = f"{date_to} 23:59:59" if date_to else "9999-12-31 23:59:59"
+    data = db_service.get_material_management_summary(from_str, to_str)
+    return jsonify({"status": "success", "data": data})
+
+@app.route('/api/admin/material-management/detail', methods=['GET'])
+@admin_or_coach_required
+def api_admin_material_management_detail():
+    """單一耗材明細：進貨紀錄 + 消耗紀錄（訂單結算／試作記錄）。"""
+    material = request.args.get('material', '').strip()
+    if not material:
+        return jsonify({"status": "error", "message": "請指定耗材"}), 400
+    date_from = request.args.get('from', '').strip()[:10]
+    date_to = request.args.get('to', '').strip()[:10]
+    from_str = f"{date_from} 00:00:00" if date_from else "1970-01-01 00:00:00"
+    to_str = f"{date_to} 23:59:59" if date_to else "9999-12-31 23:59:59"
+    detail = db_service.get_material_management_detail(material, from_str, to_str)
+    return jsonify({"status": "success", "data": detail})
+
+@app.route('/api/admin/material-consumptions', methods=['POST'])
+@admin_or_coach_required
+def api_admin_material_consumptions():
+    """新增試作耗材消耗記錄。"""
+    data = request.get_json() or {}
+    material_name = data.get('material_name', '').strip()
+    try:
+        amount = float(data.get('amount', 0))
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "消耗量格式錯誤"}), 400
+    if not material_name:
+        return jsonify({"status": "error", "message": "請選擇耗材"}), 400
+    if amount <= 0:
+        return jsonify({"status": "error", "message": "消耗量需大於 0"}), 400
+
+    measure_type = data.get('measure_type', 'capacity').strip()
+    if measure_type not in ('capacity', 'quantity'):
+        measure_type = 'capacity'
+    session_user = session.get('user', {}) or {}
+    operator_name = session_user.get('name') or session_user.get('username') or '管理員'
+    raw_date = data.get('consumed_at', '').strip()
+    consumed_at = raw_date.replace('T', ' ') + ':00' if raw_date else None
+
+    ok = db_service.add_material_consumption(
+        material_name, amount, measure_type,
+        data.get('remark', '').strip(), operator_name, consumed_at,
+    )
+    if ok:
+        return jsonify({"status": "success", "message": "消耗耗材記錄已儲存！"})
+    return jsonify({"status": "error", "message": "儲存消耗記錄失敗"}), 500
+
+@app.route('/api/admin/material-consumptions/<int:log_id>', methods=['DELETE'])
+@admin_or_coach_required
+def api_admin_material_consumptions_detail(log_id):
+    deleted = db_service.delete_material_consumption(log_id)
+    if deleted:
+        return jsonify({"status": "success", "message": "消耗記錄已刪除！"})
+    return jsonify({"status": "error", "message": "刪除失敗"}), 500
+
 @app.route('/api/admin/material-suppliers', methods=['GET'])
 @admin_or_coach_required
 def api_admin_material_suppliers():

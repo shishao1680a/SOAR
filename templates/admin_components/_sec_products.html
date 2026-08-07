@@ -16,6 +16,9 @@
     <button onclick="switchProductSubTab('materials')" id="prod-tab-materials" class="px-5 py-3 font-bold italic border-b-4 border-transparent text-gray-400 hover:text-white hover:bg-surface-container transition-all flex items-center gap-2">
       <span class="material-symbols-outlined text-sm">science</span> 🧪 耗材進貨
     </button>
+    <button onclick="switchProductSubTab('material-manage')" id="prod-tab-material-manage" class="px-5 py-3 font-bold italic border-b-4 border-transparent text-gray-400 hover:text-white hover:bg-surface-container transition-all flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm">monitoring</span> 🧪 耗材管理
+    </button>
   </div>
 
   <!-- TAB 1: 商品維護與列表 -->
@@ -106,6 +109,50 @@
         </thead>
         <tbody id="material-inventory-table-body" class="divide-y divide-outline-variant/40">
           <!-- Dynamically rendered -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 4: 耗材管理（剩餘容量/數量） -->
+  <div id="prod-subtab-material-manage" class="hidden space-y-4">
+    <div class="flex justify-between items-center flex-wrap gap-4">
+      <h3 class="font-headline-md text-base italic font-bold text-white flex items-center gap-2">
+        <span class="material-symbols-outlined text-cyan-400 text-lg">monitoring</span> 耗材管理（剩餘容量 / 數量）
+      </h3>
+      <button onclick="openConsumptionLogModal()" class="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-label-caps text-xs font-bold italic flex items-center gap-1 shadow transition-all">
+        <span class="material-symbols-outlined text-sm">edit_note</span> 📝 消耗耗材記錄
+      </button>
+    </div>
+
+    <div class="bg-surface-container-low border border-outline-variant rounded-xl p-4 flex flex-wrap items-end gap-3">
+      <div>
+        <label class="block text-xs font-bold text-gray-300 mb-1">開始日期</label>
+        <input type="date" id="matmgmt-from" class="bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded" />
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-300 mb-1">結束日期</label>
+        <input type="date" id="matmgmt-to" class="bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 rounded" />
+      </div>
+      <button onclick="loadMaterialManagementSummary()" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-label-caps text-xs font-bold italic rounded shadow flex items-center gap-1">
+        <span class="material-symbols-outlined text-sm">search</span> 查詢
+      </button>
+    </div>
+
+    <div class="bg-surface-container-low border border-outline-variant overflow-x-auto">
+      <table class="w-full text-left font-label-caps text-xs">
+        <thead class="bg-surface-container border-b border-outline-variant text-cyan-400">
+          <tr>
+            <th class="p-3">耗材名稱</th>
+            <th class="p-3">計量方式</th>
+            <th class="p-3 text-right">進貨總量（此期間）</th>
+            <th class="p-3 text-right">消耗總量（此期間）</th>
+            <th class="p-3 text-right">目前剩餘</th>
+            <th class="p-3 text-right">操作</th>
+          </tr>
+        </thead>
+        <tbody id="material-management-tbody" class="divide-y divide-outline-variant/40">
+          <tr><td colspan="6" class="p-4 text-center text-gray-400 italic">請選擇日期區間後查詢</td></tr>
         </tbody>
       </table>
     </div>
