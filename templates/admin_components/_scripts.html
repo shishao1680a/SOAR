@@ -2274,22 +2274,24 @@
       }));
     }
 
+    const t0 = Date.now();
     const res = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body)
     });
+    const elapsed = Date.now() - t0;
 
     const json = await res.json();
     if (json.status === 'success') {
       alert(shipmentEditMode
-        ? `訂單 #${orderId} 已更新，結算與庫存已重新計算。`
-        : `訂單 #${orderId} 已成功執行寄送！逐商品利潤結算與分潤已存檔。`);
+        ? `訂單 #${orderId} 已更新，結算與庫存已重新計算。（伺服器回應 ${elapsed} ms）`
+        : `訂單 #${orderId} 已成功執行寄送！逐商品利潤結算與分潤已存檔。（伺服器回應 ${elapsed} ms）`);
       closeModal('modal-order-shipment');
       shipmentEditMode = false;
       loadAdminOrdersList();
     } else {
-      alert(json.message || '執行寄送失敗');
+      alert((json.message || '執行寄送失敗') + `（伺服器回應 ${elapsed} ms）`);
     }
   }
 

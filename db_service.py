@@ -1327,6 +1327,8 @@ class DBService:
 
     def update_order_settlement(self, order_id, items, products, order_totals):
         """已寄送訂單修改：更新明細（單價/數量、重扣庫存）、重建結算與耗材明細、重算總額與淨利潤。"""
+        import time as _t
+        _t0 = _t.time()
         try:
             now_str = self._get_taiwan_now_str()
             items_json = json.dumps(items, ensure_ascii=False)
@@ -1474,10 +1476,14 @@ class DBService:
                         })
             return True, "訂單與結算已更新，庫存與淨利潤已重新計算"
         except StockError as se:
+            print(f"[TIMING] update_order_settlement {order_id}: {round((_t.time() - _t0) * 1000)}ms ERROR(StockError)")
             return False, str(se)
         except Exception as e:
+            print(f"[TIMING] update_order_settlement {order_id}: {round((_t.time() - _t0) * 1000)}ms ERROR({e})")
             print(f"Error updating order settlement {order_id}: {e}")
             return False, f"修改訂單結算失敗：{e}"
+
+        print(f"[TIMING] update_order_settlement {order_id}: {round((_t.time() - _t0) * 1000)}ms OK")
 
     def save_order_settlement(self, order_id, products, order_totals):
         """寄送結算：寫入逐商品明細（order_settlements）與耗材消耗（order_materials），並更新訂單狀態。

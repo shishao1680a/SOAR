@@ -2,6 +2,7 @@ import os
 import uuid
 import json
 import threading
+import time
 from urllib.parse import quote
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory
 from dotenv import load_dotenv
@@ -675,6 +676,7 @@ def api_admin_order_settlement(order_id):
 @admin_or_coach_required
 def api_admin_orders_update_shipment(order_id):
     """已寄送訂單修改：更新明細（單價/數量）與結算（設計者/包裝人員/耗材等），重新計算並寫回。"""
+    t_start = time.time()
     data = request.get_json() or {}
     items = data.get('items')
     products = data.get('products')
@@ -713,6 +715,7 @@ def api_admin_orders_update_shipment(order_id):
         order_totals["net_profit"] += float(p.get('net_profit', 0) or 0)
 
     ok, msg = db_service.update_order_settlement(str(order_id), items, products, order_totals)
+    print(f"[TIMING] update-shipment {order_id}: total={round((time.time() - t_start) * 1000)}ms ok={ok}")
     if ok:
         return jsonify({"status": "success", "message": msg})
     return jsonify({"status": "error", "message": msg}), 400
