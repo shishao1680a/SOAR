@@ -4,7 +4,7 @@ import json
 import threading
 import time
 from urllib.parse import quote
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, make_response
 from dotenv import load_dotenv
 from db_service import DBService, StockError
 from cloudinary_service import CloudinaryService
@@ -98,7 +98,10 @@ def login_page():
 @app.route('/admin')
 @admin_or_coach_required
 def admin_page():
-    return render_template('admin.html')
+    resp = make_response(render_template('admin.html'))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
 
 @app.route('/logout')
 def logout():
