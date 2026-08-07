@@ -275,36 +275,6 @@
 
   let inventoryLogsList = [];
 
-  function calcCalculatedStock(prodId, itemName) {
-    if (!inventoryLogsList || inventoryLogsList.length === 0) return 0;
-    const prod = productsList.find(p => String(p.id).trim() === String(prodId).trim());
-    const prodName = prod ? prod.name.trim() : '';
-    let purchased = 0;
-
-    inventoryLogsList.forEach(log => {
-      const logProdId = log.product_id ? String(log.product_id).trim() : '';
-      const logProdName = log.product_name ? String(log.product_name).trim() : '';
-
-      const matchesProduct = (logProdId && logProdId === String(prodId).trim()) ||
-                             (logProdName && prodName && logProdName === prodName);
-
-      if (matchesProduct) {
-        const logItem = (log.item_name || '-').trim();
-        const targetItem = (itemName || '-').trim();
-        
-        if (targetItem === '-') {
-          purchased += parseInt(log.purchase_qty || 0);
-        } else {
-          if (logItem === targetItem || logItem === '-' || logItem === '-- 全品項預設/主商品 --') {
-            purchased += parseInt(log.purchase_qty || 0);
-          }
-        }
-      }
-    });
-    let sold = 0;
-    return Math.max(0, purchased - sold);
-  }
-
   function renderProductsTable() {
     const tbody = document.getElementById('product-table-body');
     tbody.innerHTML = productsList.map(p => {
@@ -336,14 +306,14 @@
 
       const itemsStockHtml = hasItems
         ? itemsArr.map(item => {
-            const qty = calcCalculatedStock(p.id, item.name);
+            const qty = parseInt(item.stock_qty !== undefined ? item.stock_qty : 0) || 0;
             return `
               <div class="py-1 font-bold font-mono text-[11px] mb-1 ${qty < 10 ? 'text-error' : 'text-line-green'}">
                 ${qty} 件
               </div>
             `;
           }).join('')
-        : `<span class="font-bold ${calcCalculatedStock(p.id, '-') < 10 ? 'text-error' : 'text-line-green'}">${calcCalculatedStock(p.id, '-')} 件</span>`;
+        : `<span class="font-bold ${parseInt(p.stock_qty || 0) < 10 ? 'text-error' : 'text-line-green'}">${parseInt(p.stock_qty || 0)} 件</span>`;
 
       return `
         <tr class="hover:bg-surface-container/50">
@@ -991,7 +961,7 @@
   function updateInventorySelect() {
     const select = document.getElementById('inv-product-select');
     select.innerHTML = productsList.map(p => {
-      const calculatedStock = calcCalculatedStock(p.id, '-');
+      const calculatedStock = parseInt(p.stock_qty || 0);
       return `<option value="${p.id}">${p.name} (庫存: ${calculatedStock})</option>`;
     }).join('');
     onInventoryProductChange();
@@ -1015,7 +985,7 @@
       wrapper.classList.remove('hidden');
       itemSelect.innerHTML = `<option value="-">-- 全品項預設/主商品 --</option>` + 
         itemsArr.map((item) => {
-          const itemStock = calcCalculatedStock(prod.id, item.name);
+          const itemStock = parseInt(item.stock_qty !== undefined ? item.stock_qty : 0) || 0;
           const itemPrice = parseFloat(item.price !== undefined ? item.price : (prod.price || 0)).toFixed(2);
           return `<option value="${item.name}">${item.name} ($${itemPrice}) (庫存: ${itemStock})</option>`;
         }).join('');
