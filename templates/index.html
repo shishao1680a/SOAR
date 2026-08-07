@@ -1089,30 +1089,42 @@
             <h4 class="font-label-caps text-xs font-bold text-white line-clamp-1">${item.name}</h4>
             <span class="font-label-caps text-[10px] text-primary-fixed font-bold">$${parseFloat(item.price).toFixed(2)}</span>
             <div class="flex items-center gap-2 mt-1">
-              <button onclick="changeQty('${item.id}', -1)" class="w-5 h-5 bg-surface-container border border-outline-variant text-white flex items-center justify-center text-xs">-</button>
-              <span class="font-label-caps text-xs text-white font-bold">${item.qty}</span>
-              <button onclick="changeQty('${item.id}', 1)" class="w-5 h-5 bg-surface-container border border-outline-variant text-white flex items-center justify-center text-xs">+</button>
+              <button onclick="changeQty('${item.cart_key || item.id}', -1)" class="w-5 h-5 bg-surface-container border border-outline-variant text-white flex items-center justify-center text-xs">-</button>
+              <input type="number" min="1" max="999" value="${item.qty}" onchange="setCartQty('${item.cart_key || item.id}', this.value)" class="w-14 bg-surface-container border border-outline-variant text-white text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed" />
+              <button onclick="changeQty('${item.cart_key || item.id}', 1)" class="w-5 h-5 bg-surface-container border border-outline-variant text-white flex items-center justify-center text-xs">+</button>
             </div>
           </div>
-          <button onclick="removeItem('${item.id}')" class="text-on-surface-variant hover:text-error">
+          <button onclick="removeItem('${item.cart_key || item.id}')" class="text-on-surface-variant hover:text-error">
             <span class="material-symbols-outlined text-sm">delete</span>
           </button>
         </div>
       `).join('');
     }
 
-    function changeQty(id, delta) {
-      const item = cart.find(i => i.id === id);
+    function changeQty(key, delta) {
+      const item = cart.find(i => (i.cart_key || i.id) === key);
       if (!item) return;
-      item.qty += delta;
+      item.qty = (parseInt(item.qty || 1, 10) || 1) + delta;
       if (item.qty <= 0) {
-        cart = cart.filter(i => i.id !== id);
+        cart = cart.filter(i => (i.cart_key || i.id) !== key);
+      } else if (item.qty > 999) {
+        item.qty = 999;
       }
       updateCartUI();
     }
 
-    function removeItem(id) {
-      cart = cart.filter(i => i.id !== id);
+    function setCartQty(key, val) {
+      const item = cart.find(i => (i.cart_key || i.id) === key);
+      if (!item) return;
+      let qty = parseInt(val, 10);
+      if (isNaN(qty) || qty <= 0) qty = 1;
+      if (qty > 999) qty = 999;
+      item.qty = qty;
+      updateCartUI();
+    }
+
+    function removeItem(key) {
+      cart = cart.filter(i => (i.cart_key || i.id) !== key);
       updateCartUI();
     }
 
