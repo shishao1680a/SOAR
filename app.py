@@ -535,10 +535,16 @@ def api_admin_material_consumptions():
     operator_name = session_user.get('name') or session_user.get('username') or '管理員'
     raw_date = data.get('consumed_at', '').strip()
     consumed_at = raw_date.replace('T', ' ') + ':00' if raw_date else None
+    try:
+        cost = float(data.get('cost', 0))
+        unit_cost = float(data.get('unit_cost', 0))
+    except (TypeError, ValueError):
+        cost = 0.0
+        unit_cost = 0.0
 
     ok = db_service.add_material_consumption(
         material_name, amount, measure_type,
-        data.get('remark', '').strip(), operator_name, consumed_at,
+        data.get('remark', '').strip(), operator_name, consumed_at, cost, unit_cost,
     )
     if ok:
         return jsonify({"status": "success", "message": "消耗耗材記錄已儲存！"})

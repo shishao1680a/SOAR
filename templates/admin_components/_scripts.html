@@ -934,7 +934,7 @@
     const tbody = document.getElementById('material-management-tbody');
     if (!tbody) return;
     if (materialManagementData.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 italic">此期間沒有耗材資料</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-gray-400 italic">此期間沒有耗材資料</td></tr>`;
       return;
     }
     tbody.innerHTML = materialManagementData.map(m => {
@@ -947,6 +947,8 @@
           <td class="p-3 text-cyan-300">${type}</td>
           <td class="p-3 text-right text-cyan-300 font-bold">${m.purchased_period}</td>
           <td class="p-3 text-right text-amber-400 font-bold">${m.consumed_period}</td>
+          <td class="p-3 text-right text-cyan-300 font-bold">$${parseFloat(m.purchase_cost_period || 0).toFixed(2)}</td>
+          <td class="p-3 text-right text-amber-400 font-bold">$${parseFloat(m.consumed_cost_period || 0).toFixed(2)}</td>
           <td class="p-3 text-right ${remaining < 0 ? 'text-error font-black' : 'text-line-green font-black'}">${remaining}</td>
           <td class="p-3 text-right">
             <button onclick="openMaterialManagementDetail(decodeURIComponent('${safeName}'))" class="text-primary-fixed hover:underline font-bold">查看明細</button>
@@ -1004,7 +1006,7 @@
       html += `<div class="mb-2 text-[10px] text-gray-400 font-bold">來源：訂單結算（寄送）</div>`;
       html += `<table class="w-full text-left text-xs mb-3">
         <thead class="text-gray-400 border-b border-outline-variant/60"><tr>
-          <th class="p-2">日期</th><th class="p-2">訂單編號</th><th class="p-2">商品項目</th><th class="p-2">消耗量</th>
+          <th class="p-2">日期</th><th class="p-2">訂單編號</th><th class="p-2">商品項目</th><th class="p-2">消耗量</th><th class="p-2">成本 ($)</th>
         </tr></thead><tbody>` + orderCons.map(c => {
           const amount = parseFloat(c.capacity_used || 0) + parseFloat(c.qty_used || 0);
           return `<tr class="border-b border-outline-variant/30">
@@ -1012,6 +1014,7 @@
             <td class="p-2 font-mono text-cyan-300">${c.order_id}</td>
             <td class="p-2">${c.item_name || '-'}</td>
             <td class="p-2 text-amber-400 font-bold">${amount} ${typeLabel}</td>
+            <td class="p-2 text-amber-400 font-bold">$${parseFloat(c.cost || 0).toFixed(2)}</td>
           </tr>`;
         }).join('') + `</tbody></table>`;
     }
@@ -1019,11 +1022,12 @@
       html += `<div class="mb-2 text-[10px] text-gray-400 font-bold">來源：試作／浪費記錄</div>`;
       html += `<table class="w-full text-left text-xs">
         <thead class="text-gray-400 border-b border-outline-variant/60"><tr>
-          <th class="p-2">日期</th><th class="p-2">消耗量</th><th class="p-2">備註</th><th class="p-2">記錄人</th><th class="p-2"></th>
+          <th class="p-2">日期</th><th class="p-2">消耗量</th><th class="p-2">成本 ($)</th><th class="p-2">備註</th><th class="p-2">記錄人</th><th class="p-2"></th>
         </tr></thead><tbody>` + manualCons.map(c => `
           <tr class="border-b border-outline-variant/30">
             <td class="p-2">${c.consumed_at || '-'}</td>
             <td class="p-2 text-amber-400 font-bold">${c.amount} ${typeLabel}</td>
+            <td class="p-2 text-amber-400 font-bold">$${parseFloat(c.cost || 0).toFixed(2)}</td>
             <td class="p-2">${c.remark || '-'}</td>
             <td class="p-2">${c.operator_name || '管理員'}</td>
             <td class="p-2 text-right"><button onclick="deleteConsumptionLog(${c.id})" class="text-error hover:underline font-bold">刪除</button></td>
@@ -1052,8 +1056,10 @@
     setVal('mcons-remark', '');
     setVal('mcons-date', localIso);
     setVal('mcons-measure-type', 'capacity');
+    setVal('mcons-cost', '');
     loadMaterialNamesForDatalist();
     loadMaterialMeasureTypes();
+    loadMaterialUnitCosts();
     document.getElementById('modal-material-consumption').classList.remove('hidden');
   }
 
@@ -1063,6 +1069,16 @@
     if (sel && materialMeasureTypes[name]) {
       sel.value = materialMeasureTypes[name];
     }
+    recalcConsumptionCost();
+  }
+
+  function recalcConsumptionCost() {
+    const name = document.getElementById('mcons-name').value.trim();
+    const amount = parseFloat(document.getElementById('mcons-amount').value || 0);
+    const costInput = document.getElementById('mcons-cost');
+    if (!costInput) return;
+    const unitCost = materialUnitCosts[name] || 0;
+    costInput.value = round2(amount * unitCost);
   }
 
   async function saveConsumptionLogSubmit() {
@@ -1072,10 +1088,13 @@
     if (!amount || amount <= 0) return alert('請填寫消耗量（需大於 0）');
     const rawDate = document.getElementById('mcons-date').value;
     const consumed_at = rawDate ? rawDate.replace('T', ' ') + ':00' : '';
+    const unitCost = materialUnitCosts[material_name] || 0;
     const payload = {
       material_name: material_name,
       amount: amount,
       measure_type: document.getElementById('mcons-measure-type').value,
+      cost: round2(amount * unitCost),
+      unit_cost: unitCost,
       remark: document.getElementById('mcons-remark').value.trim(),
       consumed_at: consumed_at
     };

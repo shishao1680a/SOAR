@@ -483,12 +483,16 @@
       <div class="grid grid-cols-2 gap-2">
         <div>
           <label class="block font-bold text-amber-400 mb-1">消耗量</label>
-          <input type="number" step="0.001" min="0" id="mcons-amount" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
+          <input type="number" step="0.001" min="0" id="mcons-amount" oninput="recalcConsumptionCost()" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" />
         </div>
         <div>
           <label class="block font-bold text-gray-200 mb-1">消耗日期</label>
           <input type="datetime-local" id="mcons-date" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none" />
         </div>
+      </div>
+      <div>
+        <label class="block font-bold text-amber-400 mb-1">成本 ($)（自動 ＝ 消耗量 × 單位成本）</label>
+        <input type="number" step="0.01" readonly id="mcons-cost" class="w-full bg-surface-container-high border border-outline-variant text-amber-400 font-bold p-2.5 rounded outline-none" placeholder="選擇耗材並填消耗量後自動計算" />
       </div>
       <div>
         <label class="block font-bold text-gray-200 mb-1">備註說明</label>

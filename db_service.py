@@ -174,6 +174,8 @@ class DBService:
                         material_name VARCHAR(255) NOT NULL,
                         amount NUMERIC(12, 3) DEFAULT 0,
                         measure_type VARCHAR(20) DEFAULT 'capacity',
+                        cost NUMERIC(10, 2) DEFAULT 0,
+                        unit_cost NUMERIC(10, 4) DEFAULT 0,
                         remark TEXT DEFAULT '',
                         operator_name VARCHAR(255) DEFAULT '管理員',
                         consumed_at VARCHAR(100)
@@ -270,6 +272,8 @@ class DBService:
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS total_capacity VARCHAR(255) DEFAULT ''"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT ''"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS measure_type VARCHAR(20) DEFAULT 'capacity'"))
+                conn.execute(text("ALTER TABLE material_consumption_logs ADD COLUMN IF NOT EXISTS cost NUMERIC(10, 2) DEFAULT 0"))
+                conn.execute(text("ALTER TABLE material_consumption_logs ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10, 4) DEFAULT 0"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS other_cost NUMERIC(10, 2) DEFAULT 0"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(10, 2) DEFAULT 60"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS net_profit NUMERIC(10, 2) DEFAULT 0"))
@@ -916,50 +920,55 @@ class DBService:
         """
         try:
             purchase_rows = self._fetch_dicts("""
-                SELECT material_name, total_capacity, purchase_date, measure_type
+                SELECT material_name, total_capacity, purchase_date, measure_type, purchase_cost
                 FROM material_purchases ORDER BY purchase_date DESC NULLS LAST, id DESC
             """)
             order_rows = self._fetch_dicts("""
-                SELECT om.material_name, om.capacity_used, om.qty_used, s.settled_at
+                SELECT om.material_name, om.capacity_used, om.qty_used, om.cost, s.settled_at
                 FROM order_materials om
                 JOIN order_settlements s
                   ON s.order_id = om.order_id AND s.product_id = om.product_id AND s.item_name = om.item_name
             """)
             log_rows = self._fetch_dicts("""
-                SELECT material_name, amount, consumed_at FROM material_consumption_logs
+                SELECT material_name, amount, cost, consumed_at FROM material_consumption_logs
             """)
 
             measure_types = {}
             purchased_all = {}
             purchased_period = {}
+            purchase_cost_period = {}
             for r in purchase_rows:
                 name = (r.get('material_name') or '').strip()
                 if not name:
                     continue
                 cap = self._parse_capacity_number(r.get('total_capacity')) or 0
+                cost = float(r.get('purchase_cost') or 0)
                 if name not in measure_types:
                     measure_types[name] = r.get('measure_type') or 'capacity'
                 purchased_all[name] = purchased_all.get(name, 0) + cap
                 if date_from <= (r.get('purchase_date') or '') <= date_to:
                     purchased_period[name] = purchased_period.get(name, 0) + cap
+                    purchase_cost_period[name] = purchase_cost_period.get(name, 0) + cost
 
             consumed_all = {}
             consumed_period = {}
+            consumed_cost_period = {}
 
-            def add_consumption(name, amount, dt):
+            def add_consumption(name, amount, cost, dt):
                 if not name:
                     return
                 consumed_all[name] = consumed_all.get(name, 0) + amount
                 if date_from <= (dt or '') <= date_to:
                     consumed_period[name] = consumed_period.get(name, 0) + amount
+                    consumed_cost_period[name] = consumed_cost_period.get(name, 0) + cost
 
             for r in order_rows:
                 name = (r.get('material_name') or '').strip()
                 amount = float(r.get('capacity_used') or 0) + float(r.get('qty_used') or 0)
-                add_consumption(name, amount, r.get('settled_at'))
+                add_consumption(name, amount, float(r.get('cost') or 0), r.get('settled_at'))
             for r in log_rows:
                 name = (r.get('material_name') or '').strip()
-                add_consumption(name, float(r.get('amount') or 0), r.get('consumed_at'))
+                add_consumption(name, float(r.get('amount') or 0), float(r.get('cost') or 0), r.get('consumed_at'))
 
             names = sorted(set(list(purchased_all.keys()) + list(consumed_all.keys())))
             result = []
@@ -973,6 +982,8 @@ class DBService:
                     "consumed_period": round(consumed_period.get(name, 0), 3),
                     "consumed_all": round(consumed, 3),
                     "remaining": round(purchased_all.get(name, 0) - consumed, 3),
+                    "purchase_cost_period": round(purchase_cost_period.get(name, 0), 2),
+                    "consumed_cost_period": round(consumed_cost_period.get(name, 0), 2),
                 })
             return result
         except Exception as e:
@@ -1000,7 +1011,7 @@ class DBService:
             """, {"name": material_name, "f": date_from, "t": date_to})
 
             manual_cons = self._fetch_dicts("""
-                SELECT id, amount, measure_type, remark, operator_name, consumed_at
+                SELECT id, amount, measure_type, cost, unit_cost, remark, operator_name, consumed_at
                 FROM material_consumption_logs
                 WHERE material_name = :name AND consumed_at >= :f AND consumed_at <= :t
                 ORDER BY consumed_at DESC, id DESC
@@ -1024,17 +1035,19 @@ class DBService:
             return {}
 
     def add_material_consumption(self, material_name, amount, measure_type, remark='',
-                                 operator_name='管理員', consumed_at=None):
+                                 operator_name='管理員', consumed_at=None, cost=0, unit_cost=0):
         try:
             now_str = consumed_at or self._get_taiwan_now_str()
             measure_type = measure_type if measure_type in ('capacity', 'quantity') else 'capacity'
             self._execute("""
-                INSERT INTO material_consumption_logs (material_name, amount, measure_type, remark, operator_name, consumed_at)
-                VALUES (:material_name, :amount, :measure_type, :remark, :operator_name, :consumed_at)
+                INSERT INTO material_consumption_logs (material_name, amount, measure_type, cost, unit_cost, remark, operator_name, consumed_at)
+                VALUES (:material_name, :amount, :measure_type, :cost, :unit_cost, :remark, :operator_name, :consumed_at)
             """, {
                 "material_name": material_name,
                 "amount": float(amount or 0),
                 "measure_type": measure_type,
+                "cost": float(cost or 0),
+                "unit_cost": float(unit_cost or 0),
                 "remark": remark,
                 "operator_name": operator_name,
                 "consumed_at": now_str,
