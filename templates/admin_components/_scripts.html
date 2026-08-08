@@ -916,6 +916,7 @@
 
   // --- 耗材管理（剩餘容量/數量） ---
   let materialManagementData = [];
+  let materialMgmtDetail = null;
 
   function defaultMaterialMgmtRange() {
     const now = new Date();
@@ -977,6 +978,7 @@
       const res = await fetch(`/api/admin/material-management/detail?material=${encodeURIComponent(name)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       const json = await res.json();
       if (json.status === 'success') {
+        materialMgmtDetail = json.data;
         renderMaterialManagementDetail(json.data);
         document.getElementById('modal-material-management-detail').classList.remove('hidden');
       } else {
@@ -1041,7 +1043,10 @@
             <td class="p-2 text-amber-400 font-bold">$${parseFloat(c.cost || 0).toFixed(2)}</td>
             <td class="p-2">${c.remark || '-'}</td>
             <td class="p-2">${c.operator_name || '管理員'}</td>
-            <td class="p-2 text-right"><button onclick="deleteConsumptionLog(${c.id})" class="text-error hover:underline font-bold">刪除</button></td>
+            <td class="p-2 text-right whitespace-nowrap">
+              <button onclick="editConsumptionLog(${c.id})" class="text-primary-fixed hover:underline font-bold mr-2">修改</button>
+              <button onclick="deleteConsumptionLog(${c.id})" class="text-error hover:underline font-bold">刪除</button>
+            </td>
           </tr>`).join('') + `</tbody></table>`;
     }
     conEl.innerHTML = html;
@@ -1062,16 +1067,35 @@
   function openConsumptionLogModal() {
     const now = new Date();
     const localIso = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+    setVal('mcons-id', '');
     setVal('mcons-name', '');
     setVal('mcons-amount', '');
     setVal('mcons-remark', '');
     setVal('mcons-date', localIso);
     setVal('mcons-measure-type', 'capacity');
     setVal('mcons-cost', '');
+    const title = document.getElementById('mcons-modal-title');
+    if (title) title.textContent = '消耗耗材記錄（試作 / 浪費）';
     loadMaterialNamesForDatalist();
     loadMaterialMeasureTypes();
     loadMaterialUnitCosts();
     document.getElementById('modal-material-consumption').classList.remove('hidden');
+  }
+
+  function editConsumptionLog(id) {
+    const rec = ((materialMgmtDetail && materialMgmtDetail.manual_consumptions) || []).find(c => String(c.id) === String(id));
+    if (!rec) return;
+    openConsumptionLogModal();
+    setVal('mcons-id', rec.id);
+    setVal('mcons-name', rec.material_name || '');
+    setVal('mcons-amount', rec.amount);
+    setVal('mcons-measure-type', rec.measure_type || 'capacity');
+    setVal('mcons-remark', rec.remark || '');
+    setVal('mcons-cost', rec.cost || 0);
+    const dt = (rec.consumed_at || '').replace(' ', 'T');
+    setVal('mcons-date', dt ? dt.slice(0, 16) : '');
+    const title = document.getElementById('mcons-modal-title');
+    if (title) title.textContent = '修改消耗耗材記錄';
   }
 
   function autoSetConsumptionMeasureType() {
@@ -1100,6 +1124,9 @@
     const rawDate = document.getElementById('mcons-date').value;
     const consumed_at = rawDate ? rawDate.replace('T', ' ') + ':00' : '';
     const unitCost = materialUnitCosts[material_name] || 0;
+    const logId = document.getElementById('mcons-id').value;
+    const method = logId ? 'PUT' : 'POST';
+    const url = logId ? `/api/admin/material-consumptions/${logId}` : '/api/admin/material-consumptions';
     const payload = {
       material_name: material_name,
       amount: amount,
@@ -1110,15 +1137,17 @@
       consumed_at: consumed_at
     };
     try {
-      const res = await fetch('/api/admin/material-consumptions', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method: method,
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload)
       });
       const json = await res.json();
       if (json.status === 'success') {
-        alert(json.message || '消耗記錄已儲存！');
+        alert(json.message || (logId ? '消耗記錄已更新！' : '消耗記錄已儲存！'));
         closeModal('modal-material-consumption');
+        const title = document.getElementById('matmgmt-detail-title').textContent;
+        if (title) openMaterialManagementDetail(title);
         loadMaterialManagementSummary();
       } else {
         alert(json.message || '儲存失敗');

@@ -1065,6 +1065,30 @@ class DBService:
             print(f"Error deleting material consumption {log_id}: {e}")
             return False
 
+    def update_material_consumption(self, log_id, material_name, amount, measure_type, remark='',
+                                    consumed_at=None, cost=0, unit_cost=0):
+        try:
+            measure_type = measure_type if measure_type in ('capacity', 'quantity') else 'capacity'
+            self._execute("""
+                UPDATE material_consumption_logs
+                SET material_name = :material_name, amount = :amount, measure_type = :measure_type,
+                    cost = :cost, unit_cost = :unit_cost, remark = :remark, consumed_at = :consumed_at
+                WHERE id = :id
+            """, {
+                "material_name": material_name,
+                "amount": float(amount or 0),
+                "measure_type": measure_type,
+                "cost": float(cost or 0),
+                "unit_cost": float(unit_cost or 0),
+                "remark": remark,
+                "consumed_at": consumed_at or self._get_taiwan_now_str(),
+                "id": int(log_id),
+            })
+            return True
+        except Exception as e:
+            print(f"Error updating material consumption {log_id}: {e}")
+            return False
+
     def delete_material_purchase(self, log_id):
         try:
             self._execute("DELETE FROM material_purchases WHERE id = :id", {"id": int(log_id)})

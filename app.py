@@ -550,13 +550,41 @@ def api_admin_material_consumptions():
         return jsonify({"status": "success", "message": "消耗耗材記錄已儲存！"})
     return jsonify({"status": "error", "message": "儲存消耗記錄失敗"}), 500
 
-@app.route('/api/admin/material-consumptions/<int:log_id>', methods=['DELETE'])
+@app.route('/api/admin/material-consumptions/<int:log_id>', methods=['PUT', 'DELETE'])
 @admin_or_coach_required
 def api_admin_material_consumptions_detail(log_id):
-    deleted = db_service.delete_material_consumption(log_id)
-    if deleted:
-        return jsonify({"status": "success", "message": "消耗記錄已刪除！"})
-    return jsonify({"status": "error", "message": "刪除失敗"}), 500
+    if request.method == 'PUT':
+        data = request.get_json() or {}
+        material_name = data.get('material_name', '').strip()
+        try:
+            amount = float(data.get('amount', 0))
+            cost = float(data.get('cost', 0))
+            unit_cost = float(data.get('unit_cost', 0))
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "數量或成本格式錯誤"}), 400
+        if not material_name:
+            return jsonify({"status": "error", "message": "請選擇耗材"}), 400
+        if amount <= 0:
+            return jsonify({"status": "error", "message": "消耗量需大於 0"}), 400
+
+        measure_type = data.get('measure_type', 'capacity').strip()
+        if measure_type not in ('capacity', 'quantity'):
+            measure_type = 'capacity'
+        raw_date = data.get('consumed_at', '').strip()
+        consumed_at = raw_date.replace('T', ' ') + ':00' if raw_date else None
+
+        updated = db_service.update_material_consumption(
+            log_id, material_name, amount, measure_type,
+            data.get('remark', '').strip(), consumed_at, cost, unit_cost,
+        )
+        if updated:
+            return jsonify({"status": "success", "message": "消耗記錄已更新！"})
+        return jsonify({"status": "error", "message": "更新消耗記錄失敗"}), 500
+    else:
+        deleted = db_service.delete_material_consumption(log_id)
+        if deleted:
+            return jsonify({"status": "success", "message": "消耗記錄已刪除！"})
+        return jsonify({"status": "error", "message": "刪除失敗"}), 500
 
 @app.route('/api/admin/material-suppliers', methods=['GET'])
 @admin_or_coach_required

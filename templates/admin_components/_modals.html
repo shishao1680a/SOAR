@@ -463,12 +463,13 @@
 <div id="modal-material-consumption" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
   <div class="bg-surface-container border-2 border-cyan-500 max-w-md w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col">
     <div class="px-5 py-3.5 bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
-      <h4 class="font-headline-md italic text-base font-bold text-white flex items-center gap-2">
+      <h4 id="mcons-modal-title" class="font-headline-md italic text-base font-bold text-white flex items-center gap-2">
         <span class="material-symbols-outlined text-cyan-400 text-lg">edit_note</span> 消耗耗材記錄（試作 / 浪費）
       </h4>
       <button type="button" onclick="closeModal('modal-material-consumption')" class="text-gray-400 hover:text-white font-bold text-base">✕</button>
     </div>
     <div class="p-5 space-y-4 text-xs">
+      <input type="hidden" id="mcons-id" value="" />
       <div>
         <label class="block font-bold text-cyan-400 mb-1">耗材名稱</label>
         <input type="text" id="mcons-name" list="mat-name-list" onchange="autoSetConsumptionMeasureType()" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" placeholder="輸入或選擇耗材" />
