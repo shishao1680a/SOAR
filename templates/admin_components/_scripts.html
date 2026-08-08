@@ -714,7 +714,7 @@
   // --- Material Purchases JS ---
   let materialPurchasesList = [];
 
-  async function loadMaterialPurchases() {
+  async function loadMaterialPurchases(refreshMeta) {
     try {
       const res = await fetch('/api/admin/material-purchases');
       const json = await res.json();
@@ -723,10 +723,20 @@
         renderMaterialPurchasesTable();
       }
     } catch(e){ console.error("Error loading material purchases:", e); }
-    loadMaterialNamesForDatalist();
+    if (refreshMeta) {
+      await Promise.all([
+        loadMaterialNamesForDatalist(true),
+        loadMaterialUnitCosts(true),
+        loadMaterialMeasureTypes(true),
+        loadMaterialImages(true)
+      ]);
+    } else {
+      loadMaterialNamesForDatalist();
+    }
   }
 
-  async function loadMaterialNamesForDatalist() {
+  async function loadMaterialNamesForDatalist(force) {
+    if (!force && materialMetaLoaded.names) return;
     try {
       const res = await fetch('/api/admin/material-names');
       const json = await res.json();
@@ -746,6 +756,7 @@
           supDatalist.innerHTML = supJson.data.map(sup => `<option value="${sup}"></option>`).join('');
         }
       }
+      materialMetaLoaded.names = true;
     } catch(e){}
   }
 
@@ -845,7 +856,7 @@
     if (json.status === 'success') {
       alert('耗材進貨紀錄已成功儲存！');
       closeModal('modal-material-purchase');
-      loadMaterialPurchases();
+      loadMaterialPurchases(true);
     } else { alert(json.message); }
   }
 
@@ -899,7 +910,7 @@
     if (json.status === 'success') {
       alert('耗材進貨紀錄已成功修改！');
       closeModal('modal-material-log-edit');
-      loadMaterialPurchases();
+      loadMaterialPurchases(true);
     } else { alert(json.message); }
   }
 
@@ -1121,7 +1132,7 @@
     const json = await res.json();
     if (json.status === 'success') {
       alert('耗材進貨紀錄已成功刪除！');
-      loadMaterialPurchases();
+      loadMaterialPurchases(true);
     } else { alert(json.message); }
   }
 
@@ -1724,28 +1735,35 @@
   let materialImages = {};
   let materialNameList = [];
   let materialMeasureTypes = {};
+  let materialMetaLoaded = { unitCosts: false, images: false, names: false, measureTypes: false };
 
-  async function loadMaterialUnitCosts() {
+  async function loadMaterialUnitCosts(force) {
+    if (!force && materialMetaLoaded.unitCosts) return;
     try {
       const res = await fetch('/api/admin/material-unit-costs');
       const json = await res.json();
       materialUnitCosts = (json.status === 'success') ? (json.data || {}) : {};
+      materialMetaLoaded.unitCosts = true;
     } catch(e) { materialUnitCosts = {}; }
   }
 
-  async function loadMaterialImages() {
+  async function loadMaterialImages(force) {
+    if (!force && materialMetaLoaded.images) return;
     try {
       const res = await fetch('/api/admin/material-images');
       const json = await res.json();
       materialImages = (json.status === 'success') ? (json.data || {}) : {};
+      materialMetaLoaded.images = true;
     } catch(e) { materialImages = {}; }
   }
 
-  async function loadMaterialMeasureTypes() {
+  async function loadMaterialMeasureTypes(force) {
+    if (!force && materialMetaLoaded.measureTypes) return;
     try {
       const res = await fetch('/api/admin/material-measure-types');
       const json = await res.json();
       materialMeasureTypes = (json.status === 'success') ? (json.data || {}) : {};
+      materialMetaLoaded.measureTypes = true;
     } catch(e) { materialMeasureTypes = {}; }
   }
 

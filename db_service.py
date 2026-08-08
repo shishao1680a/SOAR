@@ -20,8 +20,8 @@ class DBService:
     - 啟動時若資料庫無法連線會直接失敗（fail-fast），不做 SQLite 降級
     """
 
-    POOL_SIZE = 5
-    MAX_OVERFLOW = 10
+    POOL_SIZE = 3
+    MAX_OVERFLOW = 5
     POOL_RECYCLE = 1800
 
     def __init__(self, db_url=None):
