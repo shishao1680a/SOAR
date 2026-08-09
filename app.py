@@ -380,6 +380,31 @@ def api_admin_delete_product(prod_id):
 def api_admin_inventory():
     if request.method == 'POST':
         data = request.get_json() or {}
+        records = data.get('records')
+        session_user = session.get('user', {}) or {}
+        current_name = session_user.get('name') or session_user.get('username') or '管理員'
+        operator_name = data.get('operator_name', '').strip() or current_name
+
+        if isinstance(records, list) and records:
+            for rec in records:
+                product_id = rec.get('product_id')
+                product_name = rec.get('product_name')
+                item_name = (rec.get('item_name', '-') or '-').strip() or '-'
+                sub_option = (rec.get('sub_option') or '').strip()
+                purchase_qty = int(rec.get('purchase_qty', 0))
+                if purchase_qty <= 0:
+                    continue
+                purchase_cost = float(rec.get('purchase_cost', 0))
+                supplier = rec.get('supplier', '預設進貨廠商')
+                remark = rec.get('remark', '')
+                ok = db_service.add_inventory_log(
+                    product_id, product_name, item_name, purchase_qty, purchase_cost,
+                    supplier, remark, operator_name, sub_option,
+                )
+                if not ok:
+                    return jsonify({"status": "error", "message": "進貨失敗"}), 500
+            return jsonify({"status": "success", "message": "進貨紀錄已儲存，商品庫存已更新！"})
+
         product_id = data.get('product_id')
         product_name = data.get('product_name')
         purchase_qty = int(data.get('purchase_qty', 0))
@@ -388,11 +413,9 @@ def api_admin_inventory():
         remark = data.get('remark', '')
 
         item_name = data.get('item_name', '-').strip() or '-'
-        session_user = session.get('user', {}) or {}
-        current_name = session_user.get('name') or session_user.get('username') or '管理員'
-        operator_name = data.get('operator_name', '').strip() or current_name
+        sub_option = (data.get('sub_option') or '').strip()
 
-        success = db_service.add_inventory_log(product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name)
+        success = db_service.add_inventory_log(product_id, product_name, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name, sub_option)
         if success:
             return jsonify({"status": "success", "message": "進貨紀錄已儲存，商品庫存已更新！"})
         return jsonify({"status": "error", "message": "進貨失敗"}), 500
@@ -415,11 +438,12 @@ def api_admin_inventory_detail(log_id):
             )
             supplier = (existing or {}).get('supplier') or ''
         remark = data.get('remark', '')
+        sub_option = data.get('sub_option')
 
         session_user = session.get('user', {}) or {}
         operator_name = session_user.get('name') or session_user.get('username') or '管理員'
 
-        updated = db_service.update_inventory_log(log_id, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name)
+        updated = db_service.update_inventory_log(log_id, item_name, purchase_qty, purchase_cost, supplier, remark, operator_name, sub_option)
         if updated:
             return jsonify({"status": "success", "message": "進貨紀錄已成功修改！"})
         return jsonify({"status": "error", "message": "修改進貨紀錄失敗"}), 500

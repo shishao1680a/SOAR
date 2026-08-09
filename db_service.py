@@ -147,6 +147,7 @@ class DBService:
                         product_id VARCHAR(100),
                         product_name VARCHAR(255),
                         item_name VARCHAR(255) DEFAULT '-',
+                        sub_option VARCHAR(255) DEFAULT '',
                         purchase_qty INTEGER,
                         purchase_cost NUMERIC(10, 2),
                         supplier VARCHAR(255),
@@ -225,6 +226,7 @@ class DBService:
                         product_id VARCHAR(100),
                         product_name VARCHAR(255),
                         item_name VARCHAR(255) DEFAULT '-',
+                        sub_option VARCHAR(255) DEFAULT '',
                         qty INTEGER DEFAULT 0,
                         created_at VARCHAR(100)
                     )
@@ -268,7 +270,9 @@ class DBService:
                 conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS uv_cost_price NUMERIC(10, 2) DEFAULT 0.00"))
                 conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS items_json TEXT DEFAULT '[]'"))
                 conn.execute(text("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS item_name VARCHAR(255) DEFAULT '-'"))
+                conn.execute(text("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS sub_option VARCHAR(255) DEFAULT ''"))
                 conn.execute(text("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS operator_name VARCHAR(255) DEFAULT '管理員'"))
+                conn.execute(text("ALTER TABLE sales_logs ADD COLUMN IF NOT EXISTS sub_option VARCHAR(255) DEFAULT ''"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS total_capacity VARCHAR(255) DEFAULT ''"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT ''"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS measure_type VARCHAR(20) DEFAULT 'capacity'"))
@@ -562,6 +566,29 @@ class DBService:
                 GROUP BY product_id, product_name, item_name
             """)
 
+            sub_purch_rows = self._fetch_dicts("""
+                SELECT product_id, product_name, item_name, sub_option, SUM(purchase_qty) AS qty
+                FROM inventory_logs
+                WHERE sub_option IS NOT NULL AND sub_option != ''
+                GROUP BY product_id, product_name, item_name, sub_option
+            """)
+            sub_sold_rows = self._fetch_dicts("""
+                SELECT product_id, product_name, item_name, sub_option, SUM(qty) AS qty
+                FROM sales_logs
+                WHERE sub_option IS NOT NULL AND sub_option != ''
+                GROUP BY product_id, product_name, item_name, sub_option
+            """)
+            sub_purch = {}
+            for r in sub_purch_rows:
+                k = (str(r.get('product_id') or '').strip(), str(r.get('product_name') or '').strip(),
+                     (r.get('item_name') or '').strip(), (r.get('sub_option') or '').strip())
+                sub_purch[k] = sub_purch.get(k, 0) + int(r.get('qty') or 0)
+            sub_sold = {}
+            for r in sub_sold_rows:
+                k = (str(r.get('product_id') or '').strip(), str(r.get('product_name') or '').strip(),
+                     (r.get('item_name') or '').strip(), (r.get('sub_option') or '').strip())
+                sub_sold[k] = sub_sold.get(k, 0) + int(r.get('qty') or 0)
+
             prods = []
             by_id = {}
             for r in rows:
@@ -617,6 +644,17 @@ class DBService:
                                 if (sg.get('item_name') or '-').strip() in (itm_name, '-', '-- 全品項預設/主商品 --')
                             )
                             itm['stock_qty'] = max(0, item_purchased - item_sold)
+                            colors = itm.get('colors')
+                            if isinstance(colors, list):
+                                for c in colors:
+                                    cname = (c.get('name') or '').strip()
+                                    if not cname:
+                                        continue
+                                    pk = (pid, pname, itm_name, cname)
+                                    nk = ('', pname, itm_name, cname)
+                                    cp = sub_purch.get(pk, sub_purch.get(nk, 0))
+                                    cs = sub_sold.get(pk, sub_sold.get(nk, 0))
+                                    c['stock_qty'] = max(0, cp - cs)
                         p['items_json'] = json.dumps(items_arr, ensure_ascii=False)
                 except Exception as ex:
                     print(f"Error calculating item stock for product {p.get('id')}: {ex}")
@@ -707,19 +745,21 @@ class DBService:
             return False
 
     def add_inventory_log(self, product_id, product_name, item_name, purchase_qty, purchase_cost,
-                          supplier, remark, operator_name='管理員'):
+                          supplier, remark, operator_name='管理員', sub_option=''):
         try:
             now_str = self._get_taiwan_now_str()
             item_name = item_name or '-'
+            sub_option = sub_option or ''
             operator_name = operator_name or '管理員'
             with self.engine.begin() as conn:
                 conn.execute(text("""
-                    INSERT INTO inventory_logs (product_id, product_name, item_name, purchase_qty, purchase_cost,
+                    INSERT INTO inventory_logs (product_id, product_name, item_name, sub_option, purchase_qty, purchase_cost,
                                                 supplier, purchase_date, remark, operator_name)
-                    VALUES (:product_id, :product_name, :item_name, :purchase_qty, :purchase_cost,
+                    VALUES (:product_id, :product_name, :item_name, :sub_option, :purchase_qty, :purchase_cost,
                             :supplier, :purchase_date, :remark, :operator_name)
                 """), {
                     "product_id": product_id, "product_name": product_name, "item_name": item_name,
+                    "sub_option": sub_option,
                     "purchase_qty": purchase_qty, "purchase_cost": purchase_cost,
                     "supplier": supplier, "purchase_date": now_str,
                     "remark": remark, "operator_name": operator_name,
@@ -740,15 +780,20 @@ class DBService:
             return []
 
     def update_inventory_log(self, log_id, item_name, purchase_qty, purchase_cost, supplier,
-                             remark, operator_name='管理員'):
+                             remark, operator_name='管理員', sub_option=None):
         try:
+            if sub_option is None:
+                existing = self._fetch_one(
+                    "SELECT sub_option FROM inventory_logs WHERE id = :id", {"id": log_id}
+                )
+                sub_option = (existing or {}).get('sub_option') or ''
             self._execute("""
                 UPDATE inventory_logs
-                SET item_name = :item_name, purchase_qty = :purchase_qty, purchase_cost = :purchase_cost,
+                SET item_name = :item_name, sub_option = :sub_option, purchase_qty = :purchase_qty, purchase_cost = :purchase_cost,
                     supplier = :supplier, remark = :remark, operator_name = :operator_name
                 WHERE id = :id
             """, {
-                "item_name": item_name, "purchase_qty": purchase_qty,
+                "item_name": item_name, "sub_option": sub_option or '', "purchase_qty": purchase_qty,
                 "purchase_cost": purchase_cost, "supplier": supplier,
                 "remark": remark, "operator_name": operator_name, "id": log_id,
             })
@@ -1213,10 +1258,10 @@ class DBService:
                         )
 
                     conn.execute(text("""
-                        INSERT INTO sales_logs (order_id, product_id, product_name, item_name, qty, created_at)
-                        VALUES (:order_id, :product_id, :product_name, :item_name, :qty, :created_at)
+                        INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at)
+                        VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at)
                     """), {
-                        "order_id": order_id, "product_id": pid, "product_name": pname,
+                        "order_id": order_id, "product_id": pid, "product_name": pname, "sub_option": (it.get('variant_color') or ''),
                         "item_name": item_key, "qty": qty, "created_at": now_str,
                     })
             return True
@@ -1317,18 +1362,18 @@ class DBService:
                             )
 
                         conn.execute(text("""
-                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, qty, created_at)
-                            VALUES (:order_id, :product_id, :product_name, :item_name, :qty, :created_at)
+                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at)
+                            VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at)
                         """), {
-                            "order_id": str(order_id), "product_id": pid, "product_name": pname,
+                            "order_id": str(order_id), "product_id": pid, "product_name": pname, "sub_option": (it.get('variant_color') or ''),
                             "item_name": item_key, "qty": qty, "created_at": now_str,
                         })
                     else:
                         conn.execute(text("""
-                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, qty, created_at)
-                            VALUES (:order_id, :product_id, :product_name, :item_name, :qty, :created_at)
+                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at)
+                            VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at)
                         """), {
-                            "order_id": str(order_id), "product_id": None, "product_name": name,
+                            "order_id": str(order_id), "product_id": None, "product_name": name, "sub_option": (it.get('variant_color') or ''),
                             "item_name": item_key, "qty": qty, "created_at": now_str,
                         })
 
@@ -1431,18 +1476,18 @@ class DBService:
                             raise StockError(f"商品「{name}」庫存不足（剩餘 {max(available, 0)} 件）")
 
                         conn.execute(text("""
-                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, qty, created_at)
-                            VALUES (:order_id, :product_id, :product_name, :item_name, :qty, :created_at)
+                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at)
+                            VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at)
                         """), {
-                            "order_id": str(order_id), "product_id": pid, "product_name": pname,
+                            "order_id": str(order_id), "product_id": pid, "product_name": pname, "sub_option": (it.get('variant_color') or ''),
                             "item_name": item_key, "qty": qty, "created_at": now_str,
                         })
                     else:
                         conn.execute(text("""
-                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, qty, created_at)
-                            VALUES (:order_id, :product_id, :product_name, :item_name, :qty, :created_at)
+                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at)
+                            VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at)
                         """), {
-                            "order_id": str(order_id), "product_id": None, "product_name": name,
+                            "order_id": str(order_id), "product_id": None, "product_name": name, "sub_option": (it.get('variant_color') or ''),
                             "item_name": item_key, "qty": qty, "created_at": now_str,
                         })
 

@@ -365,13 +365,13 @@
     const container = document.getElementById('item-edit-colors-container');
     if (!container) return;
     if (currentItemColors.length === 0) {
-      container.innerHTML = `<div class="text-[11px] text-gray-400 italic">未設定顏色時，使用上方「項目圖片」；設定顏色後，前台可依顏色選擇圖片。</div>`;
+      container.innerHTML = `<div class="text-[11px] text-gray-400 italic">未設定次選項時，使用上方「項目圖片」；設定次選項後，前台可依次選項選擇圖片。</div>`;
       return;
     }
     container.innerHTML = currentItemColors.map((c, idx) => `
       <div class="flex items-center gap-2 p-2 bg-surface-container-low border border-outline-variant rounded">
-        <input type="text" class="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded outline-none text-xs" placeholder="顏色名稱（例如 黑色）" value="${(c.name || '').replace(/"/g, '&quot;')}" oninput="updateItemColorName(${idx}, this.value)" />
-        <input type="text" id="item-color-image-${idx}" class="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded outline-none text-xs" placeholder="顏色圖片網址" value="${(c.image_url || '').replace(/"/g, '&quot;')}" oninput="updateItemColorImage(${idx}, this.value)" />
+        <input type="text" class="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded outline-none text-xs" placeholder="次選項名稱（例如 黑色）" value="${(c.name || '').replace(/"/g, '&quot;')}" oninput="updateItemColorName(${idx}, this.value)" />
+        <input type="text" id="item-color-image-${idx}" class="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded outline-none text-xs" placeholder="次選項圖片網址" value="${(c.image_url || '').replace(/"/g, '&quot;')}" oninput="updateItemColorImage(${idx}, this.value)" />
         <label class="bg-line-green/20 hover:bg-line-green text-line-green hover:text-white px-2 py-1.5 text-xs font-bold rounded cursor-pointer border border-line-green/40 whitespace-nowrap">
           上傳<input type="file" accept="image/*" class="hidden" onchange="uploadItemColorImage(this, ${idx})" />
         </label>
@@ -412,7 +412,7 @@
 
   function uploadItemColorImage(fileInput, idx) {
     if (!fileInput.files || fileInput.files.length === 0) return;
-    uploadMaterialImageFile(fileInput.files[0], `item-color-image-${idx}`, `item-color-preview-${idx}`, '顏色圖片', () => {
+    uploadMaterialImageFile(fileInput.files[0], `item-color-image-${idx}`, `item-color-preview-${idx}`, '次選項圖片', () => {
       const url = document.getElementById(`item-color-image-${idx}`).value;
       updateItemColorImage(idx, url);
     });
@@ -783,6 +783,7 @@
         <td class="p-3 text-on-surface-variant">${l.purchase_date}</td>
         <td class="p-3 font-bold text-white">${l.product_name}</td>
         <td class="p-3 text-line-green font-bold">${l.item_name || '-'}</td>
+        <td class="p-3 text-cyan-300 font-bold">${l.sub_option || '-'}</td>
         <td class="p-3 text-line-green font-bold">+${l.purchase_qty} 件</td>
         <td class="p-3 text-primary-fixed font-bold">${l.operator_name || '管理員'}</td>
         <td class="p-3 text-right whitespace-nowrap">
@@ -1358,6 +1359,7 @@
     setVal('inv-edit-log-id', log.id);
     setVal('inv-edit-product-name', log.product_name);
     setVal('inv-edit-item-name', log.item_name || '-');
+    setVal('inv-edit-sub-option', log.sub_option || '');
     setVal('inv-edit-qty', log.purchase_qty);
     setVal('inv-edit-cost', log.purchase_cost);
     setVal('inv-edit-remark', log.remark);
@@ -1369,6 +1371,7 @@
     const logId = document.getElementById('inv-edit-log-id').value;
     const payload = {
       item_name: document.getElementById('inv-edit-item-name').value.trim() || '-',
+      sub_option: document.getElementById('inv-edit-sub-option').value.trim(),
       purchase_qty: parseInt(document.getElementById('inv-edit-qty').value || 0),
       purchase_cost: parseFloat(document.getElementById('inv-edit-cost').value || 0),
       remark: document.getElementById('inv-edit-remark').value.trim()
@@ -1435,6 +1438,7 @@
 
     const defaultCost = prod ? (prod.cost_price || 15.00) : 15.00;
     document.getElementById('inv-cost').value = defaultCost;
+    renderInventorySubOptions();
   }
 
   function onInventoryItemChange() {
@@ -1454,6 +1458,45 @@
         document.getElementById('inv-cost').value = matchedItem.cost_price;
       }
     }
+    renderInventorySubOptions();
+  }
+
+  function renderInventorySubOptions() {
+    const prodId = document.getElementById('inv-product-select').value;
+    const prod = productsList.find(p => p.id === prodId);
+    const itemName = document.getElementById('inv-item-select').value;
+    const subWrapper = document.getElementById('inv-sub-options-wrapper');
+    const subContainer = document.getElementById('inv-sub-options-container');
+    const qtyWrapper = document.getElementById('inv-qty-wrapper');
+    if (!subWrapper || !subContainer || !qtyWrapper) return;
+
+    let subs = [];
+    if (prod && itemName && itemName !== '-') {
+      let itemsArr = [];
+      try {
+        if (typeof prod.items_json === 'string') itemsArr = JSON.parse(prod.items_json || '[]');
+        else if (Array.isArray(prod.items_json)) itemsArr = prod.items_json;
+      } catch(e){}
+      const matched = itemsArr.find(i => i.name === itemName);
+      if (matched && Array.isArray(matched.colors)) {
+        subs = matched.colors.filter(c => (c.name || '').trim());
+      }
+    }
+
+    if (subs.length > 0) {
+      subWrapper.classList.remove('hidden');
+      qtyWrapper.classList.add('hidden');
+      subContainer.innerHTML = subs.map(s => `
+        <div class="flex items-center gap-2">
+          <span class="w-36 truncate font-bold text-white text-xs">${s.name}</span>
+          <input type="number" min="0" value="0" class="inv-sub-qty flex-1 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded text-xs" data-sub="${(s.name || '').replace(/"/g, '&quot;')}" />
+        </div>
+      `).join('');
+    } else {
+      subWrapper.classList.add('hidden');
+      subContainer.innerHTML = '';
+      qtyWrapper.classList.remove('hidden');
+    }
   }
 
   function openInventoryModal() {
@@ -1465,20 +1508,44 @@
     const prodId = document.getElementById('inv-product-select').value;
     const prod = productsList.find(p => p.id === prodId);
     const itemName = document.getElementById('inv-item-select').value || '-';
+    const purchase_cost = parseFloat(document.getElementById('inv-cost').value || 0);
+    const remark = document.getElementById('inv-remark').value.trim();
 
-    const payload = {
-      product_id: prodId,
-      product_name: prod ? prod.name : '自訂進貨品項',
-      item_name: itemName,
-      purchase_qty: parseInt(document.getElementById('inv-qty').value || 0),
-      purchase_cost: parseFloat(document.getElementById('inv-cost').value || 0),
-      remark: document.getElementById('inv-remark').value.trim()
-    };
+    const subWrapper = document.getElementById('inv-sub-options-wrapper');
+    const hasSubs = subWrapper && !subWrapper.classList.contains('hidden');
+    const records = [];
+    if (hasSubs) {
+      document.querySelectorAll('.inv-sub-qty').forEach(row => {
+        const qty = parseInt(row.value || 0, 10);
+        if (qty > 0) {
+          records.push({
+            product_id: prodId,
+            product_name: prod ? prod.name : '自訂進貨品項',
+            item_name: itemName,
+            sub_option: row.getAttribute('data-sub') || '',
+            purchase_qty: qty,
+            purchase_cost: purchase_cost,
+            remark: remark
+          });
+        }
+      });
+      if (records.length === 0) return alert('請至少填寫一個次選項的進貨數量');
+    } else {
+      records.push({
+        product_id: prodId,
+        product_name: prod ? prod.name : '自訂進貨品項',
+        item_name: itemName,
+        sub_option: '',
+        purchase_qty: parseInt(document.getElementById('inv-qty').value || 0),
+        purchase_cost: purchase_cost,
+        remark: remark
+      });
+    }
 
     const res = await fetch('/api/admin/inventory', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ records: records })
     });
     const json = await res.json();
     if (json.status === 'success') {

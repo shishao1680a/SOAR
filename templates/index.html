@@ -866,12 +866,11 @@
 
               <div id="modal-prod-stock" class="text-xs font-bold text-line-green mb-1"></div>
               <div id="modal-prod-desc" class="text-xs text-on-surface-variant leading-relaxed mb-2 hidden"></div>
-              <div id="modal-prod-colors" class="hidden mb-3"></div>
 
               ${itemsList.length > 0 ? `
                 <div class="bg-surface-container p-3 rounded-lg border border-outline-variant/80 mb-4 space-y-2">
                   <label class="block text-xs font-bold text-gray-200 flex items-center gap-1">
-                    <span class="material-symbols-outlined text-primary-fixed text-sm">palette</span> 項目規格 / 顏色款式選單：
+                    <span class="material-symbols-outlined text-primary-fixed text-sm">palette</span> 項目規格：
                   </label>
                   <div class="flex flex-wrap gap-2" id="modal-variants-selector">
                     ${itemsList.map((v, idx) => {
@@ -888,6 +887,8 @@
                   </div>
                 </div>
               ` : ''}
+
+              <div id="modal-prod-colors" class="hidden mb-3"></div>
 
               <p class="text-xs text-on-surface-variant leading-relaxed border-t border-outline-variant pt-3">${p.description || ''}</p>
             </div>
@@ -1017,13 +1018,14 @@
       container.classList.remove('hidden');
       container.innerHTML = `
         <label class="block text-xs font-bold text-gray-200 flex items-center gap-1 mb-1">
-          <span class="material-symbols-outlined text-primary-fixed text-sm">palette</span> 顏色：
+          <span class="material-symbols-outlined text-primary-fixed text-sm">palette</span> 次選項：
         </label>
         <div class="flex flex-wrap gap-2">
           ${colors.map((c, i) => `
             <button type="button" onclick="selectProductColor('${prodId}', ${i})" id="color-btn-${prodId}-${i}" class="color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400">
               ${c.image_url ? `<img src="${c.image_url}" class="w-5 h-5 object-cover rounded-full border border-white/20" />` : ''}
-              <span>${c.name || '顏色'}</span>
+              <span>${c.name || '次選項'}</span>
+              <span class="text-[10px] font-mono ${parseInt(c.stock_qty !== undefined ? c.stock_qty : 0) > 0 ? 'text-line-green' : 'text-error'}">(${parseInt(c.stock_qty !== undefined ? c.stock_qty : 0)} 件)</span>
             </button>`).join('')}
         </div>`;
     }
@@ -1036,6 +1038,12 @@
       currentSelectedColorMap[prodId] = color;
       const imgEl = document.getElementById("modal-prod-img");
       if (imgEl && color && color.image_url) imgEl.src = color.image_url;
+      const stockEl = document.getElementById("modal-prod-stock");
+      if (stockEl && color) {
+        const stk = parseInt(color.stock_qty !== undefined ? color.stock_qty : (v.stock_qty !== undefined ? v.stock_qty : 0));
+        stockEl.textContent = `剩餘數量: ${stk} 件`;
+        stockEl.className = "text-xs font-bold mb-1 " + (stk > 0 ? "text-line-green" : "text-error");
+      }
       v.colors.forEach((_, i) => {
         const btn = document.getElementById(`color-btn-${prodId}-${i}`);
         if (btn) {
@@ -1054,6 +1062,10 @@
 
       const selectedVariant = currentSelectedVariantMap[prodId];
       const selectedColor = currentSelectedColorMap[prodId] || null;
+      if (selectedColor && selectedColor.stock_qty !== undefined && parseInt(selectedColor.stock_qty) <= 0) {
+        alert('此次選項庫存不足，暫無法訂購');
+        return;
+      }
       let qty = parseInt(document.getElementById('modal-prod-qty') ? document.getElementById('modal-prod-qty').value : 1, 10);
       if (isNaN(qty) || qty <= 0) qty = 1;
       if (qty > 999) qty = 999;
