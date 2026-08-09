@@ -511,12 +511,12 @@
     } catch(e){ alert('圖片上傳發生錯誤'); }
   }
 
-  async function uploadMaterialImage(fileInput, inputId, previewId) {
+  async function uploadMaterialImage(fileInput, inputId, previewId, label) {
     if (!fileInput.files || fileInput.files.length === 0) return;
-    uploadMaterialImageFile(fileInput.files[0], inputId, previewId);
+    uploadMaterialImageFile(fileInput.files[0], inputId, previewId, label);
   }
 
-  async function uploadMaterialImageFile(file, inputId, previewId) {
+  async function uploadMaterialImageFile(file, inputId, previewId, label, afterSet) {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -530,14 +530,15 @@
           preview.src = json.url;
           preview.classList.remove('hidden');
         }
-        alert('耗材圖片上傳成功！');
+        if (afterSet) afterSet();
+        alert(`${label || '圖片'}上傳成功！`);
       } else {
         alert(json.message || '圖片上傳失敗');
       }
     } catch(e){ alert('圖片上傳發生錯誤'); }
   }
 
-  function handleMaterialPaste(e, inputId, previewId) {
+  function handleImagePaste(e, inputId, previewId, label, afterSet) {
     if (!e.clipboardData) return;
     const isPasteZone = e.target && e.target.classList && e.target.classList.contains('material-paste-zone');
     const items = e.clipboardData.items || [];
@@ -546,7 +547,7 @@
         const file = item.getAsFile && item.getAsFile();
         if (file) {
           e.preventDefault();
-          uploadMaterialImageFile(file, inputId, previewId);
+          uploadMaterialImageFile(file, inputId, previewId, label, afterSet);
           return;
         }
       }
@@ -578,6 +579,7 @@
           preview.src = url;
           preview.classList.remove('hidden');
         }
+        if (afterSet) afterSet();
         alert('已貼上圖片網址（外部連結，若來源網站移除圖片可能無法顯示）');
       }
       return;
@@ -586,6 +588,10 @@
     if (isPasteZone) {
       alert('沒有偵測到圖片，請先複製圖片後再貼上（或使用「上傳圖片」按鈕）');
     }
+  }
+
+  function handleItemImagePaste(e) {
+    handleImagePaste(e, 'item-edit-image', null, '項目規格圖片', () => updateSubItemImagePreview());
   }
 
   function setVal(id, val) {

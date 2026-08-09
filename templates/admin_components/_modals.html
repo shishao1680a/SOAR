@@ -39,7 +39,7 @@
 </div>
 
 <!-- Product Modal (新增/編輯商品與多項目規格) -->
-<div id="modal-product" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+<div id="modal-product" onpaste="handleImagePaste(event, 'prod-edit-image', null, '商品主圖')" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
   <div class="bg-surface-container border-2 border-primary-fixed max-w-xl w-full flex flex-col max-h-[90vh] rounded-xl shadow-2xl overflow-hidden my-auto">
     
     <!-- Sticky Header -->
@@ -138,6 +138,7 @@
             <span class="material-symbols-outlined text-sm">upload</span> 上傳圖片
             <input type="file" accept="image/*" class="hidden" onchange="uploadMainProductImage(this)" />
           </label>
+          <div tabindex="0" onclick="this.focus()" title="點擊後按 Ctrl+V 貼上圖片" class="material-paste-zone px-3 py-2 text-[11px] text-primary-fixed/80 border border-dashed border-primary-fixed/40 rounded cursor-pointer outline-none focus:border-primary-fixed whitespace-nowrap">Ctrl+V 貼上</div>
         </div>
       </div>
 
@@ -167,7 +168,7 @@
 </div>
 
 <!-- Sub-Modal: Add / Edit Product Item -->
-<div id="modal-product-item" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
+<div id="modal-product-item" onpaste="handleItemImagePaste(event)" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
   <div class="bg-surface-container border-2 border-line-green max-w-md w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col">
     
     <div class="px-5 py-3.5 bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
@@ -219,6 +220,7 @@
             <span class="material-symbols-outlined text-sm">upload</span> 上傳圖片
             <input type="file" accept="image/*" class="hidden" onchange="uploadSubItemImage(this)" />
           </label>
+          <div tabindex="0" onclick="this.focus()" title="點擊後按 Ctrl+V 貼上圖片" class="material-paste-zone px-3 py-2 text-[11px] text-line-green/80 border border-dashed border-line-green/40 rounded cursor-pointer outline-none focus:border-line-green whitespace-nowrap">Ctrl+V 貼上</div>
         </div>
         <div id="item-edit-preview-box" class="mt-2.5 flex items-center gap-3 bg-surface-container-low p-2 rounded border border-outline-variant/60 hidden">
           <img id="item-edit-img-preview" src="" class="w-12 h-12 object-cover rounded border border-outline-variant shadow" />
@@ -320,7 +322,7 @@
 </div>
 
 <!-- Material Purchase Modal (耗材進貨服務對話框) -->
-<div id="modal-material-purchase" onpaste="handleMaterialPaste(event, 'mat-image', 'mat-image-preview')" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+<div id="modal-material-purchase" onpaste="handleImagePaste(event, 'mat-image', 'mat-image-preview', '耗材圖片')" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
   <div class="bg-surface-container border-2 border-cyan-500 max-w-md w-full p-6 space-y-4 rounded-xl shadow-2xl">
     <h3 class="font-headline-md italic text-lg font-bold text-white flex items-center gap-2">
       <span class="material-symbols-outlined text-cyan-400">science</span> 🧪 耗材進貨服務紀錄
@@ -377,7 +379,7 @@
       <div class="flex items-center gap-2">
         <label class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white px-3 py-2 text-xs font-bold rounded cursor-pointer transition-all border border-cyan-500/40 flex items-center gap-1">
           <span class="material-symbols-outlined text-sm">upload</span> 上傳圖片
-          <input type="file" accept="image/*" class="hidden" onchange="uploadMaterialImage(this, 'mat-image', 'mat-image-preview')" />
+          <input type="file" accept="image/*" class="hidden" onchange="uploadMaterialImage(this, 'mat-image', 'mat-image-preview', '耗材圖片')" />
         </label>
         <div tabindex="0" onclick="this.focus()" title="點擊後按 Ctrl+V 貼上圖片" class="material-paste-zone flex-1 px-3 py-2 text-[11px] text-cyan-400/80 border border-dashed border-cyan-500/40 rounded cursor-pointer outline-none focus:border-cyan-400">點擊此處後，按 Ctrl+V 貼上圖片</div>
         <img id="mat-image-preview" src="" alt="耗材圖片" class="w-12 h-12 object-cover rounded border border-outline-variant hidden" />
@@ -393,7 +395,7 @@
 </div>
 
 <!-- Modal: Edit Material Log (修改耗材紀錄對話框) -->
-<div id="modal-material-log-edit" onpaste="handleMaterialPaste(event, 'mat-edit-image', 'mat-edit-image-preview')" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
+<div id="modal-material-log-edit" onpaste="handleImagePaste(event, 'mat-edit-image', 'mat-edit-image-preview', '耗材圖片')" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
   <div class="bg-surface-container border-2 border-cyan-500 max-w-md w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col">
     <div class="px-5 py-3.5 bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
       <h4 class="font-headline-md italic text-base font-bold text-white flex items-center gap-2">
@@ -440,7 +442,7 @@
         <div class="flex items-center gap-2">
           <label class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white px-3 py-2 text-xs font-bold rounded cursor-pointer transition-all border border-cyan-500/40 flex items-center gap-1">
             <span class="material-symbols-outlined text-sm">upload</span> 上傳圖片
-            <input type="file" accept="image/*" class="hidden" onchange="uploadMaterialImage(this, 'mat-edit-image', 'mat-edit-image-preview')" />
+            <input type="file" accept="image/*" class="hidden" onchange="uploadMaterialImage(this, 'mat-edit-image', 'mat-edit-image-preview', '耗材圖片')" />
           </label>
           <div tabindex="0" onclick="this.focus()" title="點擊後按 Ctrl+V 貼上圖片" class="material-paste-zone flex-1 px-3 py-2 text-[11px] text-cyan-400/80 border border-dashed border-cyan-500/40 rounded cursor-pointer outline-none focus:border-cyan-400">點擊此處後，按 Ctrl+V 貼上圖片</div>
           <img id="mat-edit-image-preview" src="" alt="耗材圖片" class="w-12 h-12 object-cover rounded border border-outline-variant hidden" />
