@@ -769,6 +769,32 @@ def api_admin_bonuses():
     summary = db_service.get_bonus_summary(from_str, to_str)
     return jsonify({"status": "success", **summary})
 
+@app.route('/api/admin/platform-revenue', methods=['GET'])
+@admin_or_coach_required
+def api_admin_platform_revenue():
+    """平台收益彙總：依結算時間區間，依商品＋項目彙總各項金額。"""
+    date_from = request.args.get('from', '').strip()[:10]
+    date_to = request.args.get('to', '').strip()[:10]
+    from_str = f"{date_from} 00:00:00" if date_from else "1970-01-01 00:00:00"
+    to_str = f"{date_to} 23:59:59" if date_to else "9999-12-31 23:59:59"
+    data = db_service.get_platform_revenue_summary(from_str, to_str)
+    return jsonify({"status": "success", "data": data})
+
+@app.route('/api/admin/platform-revenue/detail', methods=['GET'])
+@admin_or_coach_required
+def api_admin_platform_revenue_detail():
+    """平台收益明細：單一商品＋項目的每一筆結算紀錄。"""
+    product_id = request.args.get('product_id', '').strip() or None
+    item_name = request.args.get('item_name', '').strip()
+    if not item_name and product_id is None:
+        return jsonify({"status": "error", "message": "請指定商品與項目"}), 400
+    date_from = request.args.get('from', '').strip()[:10]
+    date_to = request.args.get('to', '').strip()[:10]
+    from_str = f"{date_from} 00:00:00" if date_from else "1970-01-01 00:00:00"
+    to_str = f"{date_to} 23:59:59" if date_to else "9999-12-31 23:59:59"
+    detail = db_service.get_platform_revenue_detail(product_id, item_name, from_str, to_str)
+    return jsonify({"status": "success", "data": detail})
+
 # --- LINE Group & Broadcast APIs (PDF 自動轉圖 + 每 5 張圖片一則訊息分批推播) ---
 
 @app.route('/api/admin/line-groups', methods=['GET', 'POST'])

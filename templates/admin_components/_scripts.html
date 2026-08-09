@@ -41,7 +41,7 @@
   }
 
   function switchAdminSection(secId) {
-    ['dashboard', 'users', 'products', 'orders', 'bonuses', 'line-groups', 'line-send', 'bulletins'].forEach(s => {
+    ['dashboard', 'users', 'products', 'orders', 'bonuses', 'platform', 'line-groups', 'line-send', 'bulletins'].forEach(s => {
       const sec = document.getElementById(`sec-${s}`);
       if (sec) sec.classList.add('hidden');
       const sideBtn = document.getElementById(`side-${s}`);
@@ -83,6 +83,9 @@
       } else {
         populateBonusMemberFilter();
       }
+    } else if (secId === 'platform') {
+      defaultPlatformRange();
+      loadPlatformRevenueSummary();
     } else if ((secId === 'line-groups' || secId === 'line-send') && !dataLoaded.lineGroups) {
       dataLoaded.lineGroups = true;
       loadLineGroups();
@@ -1068,6 +1071,111 @@
       if (title) openMaterialManagementDetail(title);
       loadMaterialManagementSummary();
     } catch(e) { alert('刪除失敗'); }
+  }
+
+  // --- 平台收益 ---
+  let platformRevenueData = [];
+
+  function defaultPlatformRange() {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const pad = n => String(n).padStart(2, '0');
+    const fromEl = document.getElementById('platform-from');
+    const toEl = document.getElementById('platform-to');
+    if (fromEl && !fromEl.value) fromEl.value = `${first.getFullYear()}-${pad(first.getMonth() + 1)}-${pad(first.getDate())}`;
+    if (toEl && !toEl.value) toEl.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+
+  async function loadPlatformRevenueSummary() {
+    const from = document.getElementById('platform-from').value;
+    const to = document.getElementById('platform-to').value;
+    if (!from || !to) return alert('請選擇開始與結束日期');
+    try {
+      const res = await fetch(`/api/admin/platform-revenue?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      const json = await res.json();
+      if (json.status === 'success') {
+        platformRevenueData = json.data || [];
+        renderPlatformRevenueTable();
+      }
+    } catch(e) { console.error(e); }
+  }
+
+  function renderPlatformRevenueTable() {
+    const tbody = document.getElementById('platform-revenue-tbody');
+    if (!tbody) return;
+    if (platformRevenueData.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="11" class="p-4 text-center text-gray-400 italic">此期間沒有結算資料</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = platformRevenueData.map(r => {
+      const safePid = encodeURIComponent(r.product_id || '');
+      const safeItem = encodeURIComponent(r.item_name || '');
+      return `
+        <tr class="hover:bg-surface-container/50">
+          <td class="p-3 font-bold text-white">${r.product_name}</td>
+          <td class="p-3 text-cyan-300">${r.item_name}</td>
+          <td class="p-3 text-right text-primary-fixed font-bold">$${parseFloat(r.sales_amount || 0).toFixed(2)}</td>
+          <td class="p-3 text-right text-amber-400 font-bold">$${parseFloat(r.material_cost || 0).toFixed(2)}</td>
+          <td class="p-3 text-right">$${parseFloat(r.other_cost || 0).toFixed(2)}</td>
+          <td class="p-3 text-right">$${parseFloat(r.shipping_cost || 0).toFixed(2)}</td>
+          <td class="p-3 text-right text-line-green font-black">$${parseFloat(r.net_profit || 0).toFixed(2)}</td>
+          <td class="p-3 text-right text-primary-fixed font-bold">$${parseFloat(r.designer_amount || 0).toFixed(2)}</td>
+          <td class="p-3 text-right text-secondary-container font-bold">$${parseFloat(r.packager_amount || 0).toFixed(2)}</td>
+          <td class="p-3 text-right text-line-green font-black">$${parseFloat(r.platform_amount || 0).toFixed(2)}</td>
+          <td class="p-3 text-right">
+            <button onclick="openPlatformRevenueDetail(decodeURIComponent('${safePid}'), decodeURIComponent('${safeItem}'))" class="text-primary-fixed hover:underline font-bold">查看明細</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function openPlatformRevenueDetail(productId, itemName) {
+    const from = document.getElementById('platform-from').value;
+    const to = document.getElementById('platform-to').value;
+    document.getElementById('platform-detail-title').textContent = `${itemName || '-'}`;
+    try {
+      const qs = `product_id=${encodeURIComponent(productId || '')}&item_name=${encodeURIComponent(itemName || '')}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+      const res = await fetch(`/api/admin/platform-revenue/detail?${qs}`);
+      const json = await res.json();
+      if (json.status === 'success') {
+        renderPlatformRevenueDetail(json.data);
+        document.getElementById('modal-platform-revenue-detail').classList.remove('hidden');
+      } else {
+        alert(json.message || '讀取明細失敗');
+      }
+    } catch(e) { alert('讀取明細失敗'); }
+  }
+
+  function renderPlatformRevenueDetail(d) {
+    const el = document.getElementById('platform-detail-records');
+    document.getElementById('platform-detail-title').textContent = `${d.product_name || ''} - ${d.item_name || ''}`;
+    const records = d.records || [];
+    if (records.length === 0) {
+      el.innerHTML = `<div class="text-xs text-gray-400 italic">此期間沒有明細</div>`;
+      return;
+    }
+    el.innerHTML = `<table class="w-full text-left text-xs">
+      <thead class="text-gray-400 border-b border-outline-variant/60"><tr>
+        <th class="p-2">日期</th><th class="p-2">訂單編號</th><th class="p-2 text-right">銷售金額</th>
+        <th class="p-2 text-right">耗材成本</th><th class="p-2 text-right">其它成本</th><th class="p-2 text-right">郵寄成本</th>
+        <th class="p-2 text-right">淨利潤</th><th class="p-2">設計者</th><th class="p-2 text-right">設計者金額</th>
+        <th class="p-2">包裝人員</th><th class="p-2 text-right">包裝金額</th><th class="p-2 text-right">平台抽取金</th>
+      </tr></thead><tbody>` + records.map(r => `
+        <tr class="border-b border-outline-variant/30">
+          <td class="p-2">${r.settled_at || '-'}</td>
+          <td class="p-2 font-mono text-cyan-300">${r.order_id}</td>
+          <td class="p-2 text-right text-primary-fixed font-bold">$${parseFloat(r.sales_amount || 0).toFixed(2)}</td>
+          <td class="p-2 text-right text-amber-400 font-bold">$${parseFloat(r.material_cost || 0).toFixed(2)}</td>
+          <td class="p-2 text-right">$${parseFloat(r.other_cost || 0).toFixed(2)}</td>
+          <td class="p-2 text-right">$${parseFloat(r.shipping_cost || 0).toFixed(2)}</td>
+          <td class="p-2 text-right text-line-green font-black">$${parseFloat(r.net_profit || 0).toFixed(2)}</td>
+          <td class="p-2">${r.designer_name || '-'}</td>
+          <td class="p-2 text-right text-primary-fixed font-bold">$${parseFloat(r.designer_amount || 0).toFixed(2)}</td>
+          <td class="p-2">${r.packager_name || '-'}</td>
+          <td class="p-2 text-right text-secondary-container font-bold">$${parseFloat(r.packager_amount || 0).toFixed(2)}</td>
+          <td class="p-2 text-right text-line-green font-black">$${parseFloat(r.platform_amount || 0).toFixed(2)}</td>
+        </tr>`).join('') + `</tbody></table>`;
   }
 
   function openConsumptionLogModal() {

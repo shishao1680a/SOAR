@@ -1668,6 +1668,97 @@ class DBService:
             print(f"Error fetching bonus summary: {e}")
             return {"platform_total": 0, "members": [], "entries": []}
 
+    def get_platform_revenue_summary(self, date_from, date_to):
+        """平台收益彙總：依商品＋項目彙總結算金額（依結算日期區間）。"""
+        try:
+            rows = self._fetch_dicts("""
+                SELECT s.product_id, s.item_name,
+                       COALESCE(SUM(s.sales_amount), 0) AS sales_amount,
+                       COALESCE(SUM(s.material_cost), 0) AS material_cost,
+                       COALESCE(SUM(s.other_cost), 0) AS other_cost,
+                       COALESCE(SUM(s.shipping_cost), 0) AS shipping_cost,
+                       COALESCE(SUM(s.net_profit), 0) AS net_profit,
+                       COALESCE(SUM(s.designer_amount), 0) AS designer_amount,
+                       COALESCE(SUM(s.packager_amount), 0) AS packager_amount,
+                       COALESCE(SUM(s.platform_amount), 0) AS platform_amount
+                FROM order_settlements s
+                JOIN orders o ON o.id = s.order_id
+                WHERE s.settled_at >= :f AND s.settled_at <= :t
+                GROUP BY s.product_id, s.item_name
+                ORDER BY s.product_id ASC, s.item_name ASC
+            """, {"f": date_from, "t": date_to})
+
+            prod_rows = self._fetch_dicts("SELECT id, name FROM products")
+            prod_names = {p['id']: p['name'] for p in prod_rows}
+
+            result = []
+            for r in rows:
+                pid = r.get('product_id') or ''
+                item = r.get('item_name') or '-'
+                result.append({
+                    "product_id": pid,
+                    "product_name": prod_names.get(pid) or item,
+                    "item_name": item,
+                    "sales_amount": round(float(r.get('sales_amount') or 0), 2),
+                    "material_cost": round(float(r.get('material_cost') or 0), 2),
+                    "other_cost": round(float(r.get('other_cost') or 0), 2),
+                    "shipping_cost": round(float(r.get('shipping_cost') or 0), 2),
+                    "net_profit": round(float(r.get('net_profit') or 0), 2),
+                    "designer_amount": round(float(r.get('designer_amount') or 0), 2),
+                    "packager_amount": round(float(r.get('packager_amount') or 0), 2),
+                    "platform_amount": round(float(r.get('platform_amount') or 0), 2),
+                })
+            return result
+        except Exception as e:
+            print(f"Error fetching platform revenue summary: {e}")
+            return []
+
+    def get_platform_revenue_detail(self, product_id, item_name, date_from, date_to):
+        """平台收益明細：單一商品＋項目的每一筆結算紀錄。"""
+        try:
+            rows = self._fetch_dicts("""
+                SELECT s.order_id, s.product_id, s.item_name, s.sales_amount, s.material_cost,
+                       s.other_cost, s.shipping_cost, s.net_profit,
+                       s.designer_user_id, s.packager_user_id,
+                       s.designer_amount, s.packager_amount, s.platform_amount, s.settled_at
+                FROM order_settlements s
+                JOIN orders o ON o.id = s.order_id
+                WHERE (s.product_id = :pid OR (:pid IS NULL AND s.product_id IS NULL))
+                  AND s.item_name = :item
+                  AND s.settled_at >= :f AND s.settled_at <= :t
+                ORDER BY s.settled_at DESC, s.id DESC
+            """, {"pid": product_id, "item": item_name, "f": date_from, "t": date_to})
+
+            users = {u['id']: u['name'] for u in self.get_all_users()}
+            prod_rows = self._fetch_dicts("SELECT id, name FROM products")
+            prod_names = {p['id']: p['name'] for p in prod_rows}
+
+            records = []
+            for r in rows:
+                records.append({
+                    "order_id": r.get('order_id'),
+                    "settled_at": r.get('settled_at'),
+                    "sales_amount": float(r.get('sales_amount') or 0),
+                    "material_cost": float(r.get('material_cost') or 0),
+                    "other_cost": float(r.get('other_cost') or 0),
+                    "shipping_cost": float(r.get('shipping_cost') or 0),
+                    "net_profit": float(r.get('net_profit') or 0),
+                    "designer_name": users.get(r.get('designer_user_id')) or '-',
+                    "packager_name": users.get(r.get('packager_user_id')) or '-',
+                    "designer_amount": float(r.get('designer_amount') or 0),
+                    "packager_amount": float(r.get('packager_amount') or 0),
+                    "platform_amount": float(r.get('platform_amount') or 0),
+                })
+            return {
+                "product_id": product_id,
+                "product_name": prod_names.get(product_id) or item_name,
+                "item_name": item_name,
+                "records": records,
+            }
+        except Exception as e:
+            print(f"Error fetching platform revenue detail: {e}")
+            return {}
+
     # ---------- LINE 群組與公告 ----------
 
     def get_line_groups(self):
