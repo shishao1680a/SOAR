@@ -197,6 +197,11 @@
         </div>
       </div>
 
+      <div>
+        <label class="block font-bold text-gray-200 mb-1">說明</label>
+        <textarea id="item-edit-description" rows="2" placeholder="此項目的說明文字（例如：材質、尺寸、特色）" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2.5 rounded outline-none focus:border-line-green"></textarea>
+      </div>
+
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="block font-bold text-primary-fixed mb-1">設計者比率 (%)</label>
@@ -228,6 +233,18 @@
             <span class="block text-[11px] font-bold text-line-green">📷 項目圖片預覽</span>
             <span id="item-edit-img-status" class="block text-[10px] text-gray-400">已載入縮圖</span>
           </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="block font-bold text-gray-200">顏色選項（每個顏色可上傳圖片）</label>
+          <button type="button" onclick="addItemColor()" class="px-2 py-1 bg-line-green/20 hover:bg-line-green text-line-green hover:text-white text-xs font-bold rounded border border-line-green/40 flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">add</span> 新增顏色
+          </button>
+        </div>
+        <div id="item-edit-colors-container" class="space-y-2">
+          <div class="text-[11px] text-gray-400 italic">未設定顏色時，使用上方「項目圖片」；設定顏色後，前台可依顏色選擇圖片。</div>
         </div>
       </div>
     </div>

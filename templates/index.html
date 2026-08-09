@@ -823,6 +823,7 @@
     }
 
     let currentSelectedVariantMap = {};
+    let currentSelectedColorMap = {};
 
     function openProductModal(id) {
       const p = productsData.find(item => item.id === id);
@@ -846,7 +847,7 @@
         <div class="flex flex-col md:flex-row gap-6">
           <!-- Left: Main Image -->
           <div class="w-full md:w-1/2 aspect-square bg-surface-container overflow-hidden relative rounded-lg border border-outline-variant">
-            <img id="modal-prod-img" class="w-full h-full object-cover transition-all duration-300" src="${displayImg}" alt="${p.name}"/>
+            <img id="modal-prod-img" class="w-full h-full object-contain transition-all duration-300" src="${displayImg}" alt="${p.name}"/>
             <div class="absolute top-2 left-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs px-2 py-1 font-bold">
               ${p.badge}
             </div>
@@ -856,12 +857,16 @@
           <div class="w-full md:w-1/2 flex flex-col justify-between space-y-4">
             <div>
               <span class="font-label-caps text-xs text-primary-fixed font-bold">[${p.category.toUpperCase()}] // ${p.material}</span>
-              <h2 class="font-headline-md text-xl italic font-bold text-white mt-1 mb-2">${p.name}</h2>
+              <h2 id="modal-prod-name" class="font-headline-md text-xl italic font-bold text-white mt-1 mb-2">${p.name}</h2>
               
               <div class="flex items-baseline gap-2 mb-3">
                 <span id="modal-prod-price" class="text-3xl font-label-caps text-primary-fixed font-black">$${parseFloat(displayPrice).toFixed(2)}</span>
                 <span class="text-xs text-on-surface-variant">/ 件</span>
               </div>
+
+              <div id="modal-prod-stock" class="text-xs font-bold text-line-green mb-1"></div>
+              <div id="modal-prod-desc" class="text-xs text-on-surface-variant leading-relaxed mb-2 hidden"></div>
+              <div id="modal-prod-colors" class="hidden mb-3"></div>
 
               ${itemsList.length > 0 ? `
                 <div class="bg-surface-container p-3 rounded-lg border border-outline-variant/80 mb-4 space-y-2">
@@ -894,6 +899,10 @@
                 const activeStk = firstVar ? parseInt(firstVar.stock_qty !== undefined ? firstVar.stock_qty : (p.stock_qty || 0)) : parseInt(p.stock_qty || 0);
                 if (activeStk > 0) {
                   return `
+                    <div class="flex items-center gap-3">
+                      <label class="font-label-caps text-xs font-bold text-gray-300">訂購數量</label>
+                      <input type="number" id="modal-prod-qty" min="1" max="999" value="1" class="w-20 bg-surface-container-high border border-outline-variant text-white text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed p-2" />
+                    </div>
                     <button onclick="addSelectedVariantToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
                       <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車
                     </button>
@@ -910,6 +919,8 @@
           </div>
         </div>
       `;
+      currentSelectedColorMap[p.id] = null;
+      if (itemsList && itemsList.length > 0) selectProductVariant(p.id, 0);
       document.getElementById("product-modal").classList.remove("hidden");
     }
 
@@ -927,18 +938,44 @@
       if (!v) return;
 
       currentSelectedVariantMap[prodId] = v;
+      currentSelectedColorMap[prodId] = null;
+      const itemStk = parseInt(v.stock_qty !== undefined ? v.stock_qty : (p.stock_qty || 0));
 
-      // Update image & price
+      // Update name / price / stock / description
       const imgEl = document.getElementById("modal-prod-img");
       const priceEl = document.getElementById("modal-prod-price");
+      const nameEl = document.getElementById("modal-prod-name");
+      const stockEl = document.getElementById("modal-prod-stock");
+      const descEl = document.getElementById("modal-prod-desc");
+
+      if (nameEl) nameEl.textContent = v.name || p.name;
+      if (priceEl) priceEl.textContent = '$' + parseFloat(v.price !== undefined ? v.price : p.price).toFixed(2);
+      if (stockEl) {
+        stockEl.textContent = `剩餘數量: ${itemStk} 件`;
+        stockEl.className = "text-xs font-bold mb-1 " + (itemStk > 0 ? "text-line-green" : "text-error");
+      }
+      if (descEl) {
+        if (v.description) {
+          descEl.textContent = v.description;
+          descEl.classList.remove('hidden');
+        } else {
+          descEl.textContent = '';
+          descEl.classList.add('hidden');
+        }
+      }
+
+      renderProductColors(prodId, v);
 
       if (imgEl && v.image_url) imgEl.src = v.image_url;
       // Update button & action area state based on item stock
       const actionArea = document.getElementById(`modal-action-area-${p.id}`);
-      const itemStk = parseInt(v.stock_qty !== undefined ? v.stock_qty : (p.stock_qty || 0));
       if (actionArea) {
         if (itemStk > 0) {
           actionArea.innerHTML = `
+            <div class="flex items-center gap-3">
+              <label class="font-label-caps text-xs font-bold text-gray-300">訂購數量</label>
+              <input type="number" id="modal-prod-qty" min="1" max="999" value="1" class="w-20 bg-surface-container-high border border-outline-variant text-white text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed p-2" />
+            </div>
             <button onclick="addSelectedVariantToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
               <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車
             </button>
@@ -965,19 +1002,73 @@
       });
     }
 
+    function renderProductColors(prodId, variant) {
+      const container = document.getElementById('modal-prod-colors');
+      if (!container) return;
+      const colors = (variant && Array.isArray(variant.colors))
+        ? variant.colors.filter(c => (c && (c.name || '').trim()) || (c && (c.image_url || '').trim()))
+        : [];
+      currentSelectedColorMap[prodId] = null;
+      if (colors.length === 0) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+      }
+      container.classList.remove('hidden');
+      container.innerHTML = `
+        <label class="block text-xs font-bold text-gray-200 flex items-center gap-1 mb-1">
+          <span class="material-symbols-outlined text-primary-fixed text-sm">palette</span> 顏色：
+        </label>
+        <div class="flex flex-wrap gap-2">
+          ${colors.map((c, i) => `
+            <button type="button" onclick="selectProductColor('${prodId}', ${i})" id="color-btn-${prodId}-${i}" class="color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400">
+              ${c.image_url ? `<img src="${c.image_url}" class="w-5 h-5 object-cover rounded-full border border-white/20" />` : ''}
+              <span>${c.name || '顏色'}</span>
+            </button>`).join('')}
+        </div>`;
+    }
+
+    function selectProductColor(prodId, idx) {
+      const p = productsData.find(item => item.id === prodId);
+      const v = currentSelectedVariantMap[prodId];
+      if (!p || !v || !Array.isArray(v.colors)) return;
+      const color = v.colors[idx] || null;
+      currentSelectedColorMap[prodId] = color;
+      const imgEl = document.getElementById("modal-prod-img");
+      if (imgEl && color && color.image_url) imgEl.src = color.image_url;
+      v.colors.forEach((_, i) => {
+        const btn = document.getElementById(`color-btn-${prodId}-${i}`);
+        if (btn) {
+          if (i === idx) {
+            btn.className = "color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-primary-fixed bg-primary-fixed/20 text-primary-fixed shadow-md ring-1 ring-primary-fixed";
+          } else {
+            btn.className = "color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400";
+          }
+        }
+      });
+    }
+
     function addSelectedVariantToCart(prodId) {
       const p = productsData.find(item => item.id === prodId);
       if (!p) return;
 
       const selectedVariant = currentSelectedVariantMap[prodId];
-      const cartItemId = selectedVariant ? `${p.id}_${selectedVariant.id || selectedVariant.name}` : p.id;
+      const selectedColor = currentSelectedColorMap[prodId] || null;
+      let qty = parseInt(document.getElementById('modal-prod-qty') ? document.getElementById('modal-prod-qty').value : 1, 10);
+      if (isNaN(qty) || qty <= 0) qty = 1;
+      if (qty > 999) qty = 999;
+
+      const colorSuffix = selectedColor && selectedColor.name ? '_' + selectedColor.name : '';
+      const cartItemId = selectedVariant ? `${p.id}_${selectedVariant.id || selectedVariant.name}${colorSuffix}` : p.id;
       const itemName = selectedVariant ? `${p.name} - ${selectedVariant.name}` : p.name;
       const itemPrice = selectedVariant && selectedVariant.price !== undefined ? selectedVariant.price : p.price;
-      const itemImg = selectedVariant && selectedVariant.image_url ? selectedVariant.image_url : (p.image_url || p.image);
+      const itemImg = (selectedColor && selectedColor.image_url)
+        ? selectedColor.image_url
+        : (selectedVariant && selectedVariant.image_url ? selectedVariant.image_url : (p.image_url || p.image));
 
       const existing = cart.find(item => item.cart_key === cartItemId || item.id === cartItemId);
       if (existing) {
-        existing.qty += 1;
+        existing.qty += qty;
       } else {
         cart.push({
           cart_key: cartItemId,
@@ -986,7 +1077,8 @@
           price: itemPrice,
           image_url: itemImg,
           variant_name: selectedVariant ? (selectedVariant.name || '') : '',
-          qty: 1
+          color_name: selectedColor ? (selectedColor.name || '') : '',
+          qty: qty
         });
       }
       updateCartUI();
@@ -1038,7 +1130,7 @@
         <div class="bg-surface-container-high p-3 border border-outline-variant flex gap-3 items-center">
           <img src="${item.image_url || item.image}" class="w-14 h-14 object-cover border border-outline-variant" />
           <div class="flex-grow">
-            <h4 class="font-label-caps text-xs font-bold text-white line-clamp-1">${item.name}</h4>
+            <h4 class="font-label-caps text-xs font-bold text-white line-clamp-1">${item.name}${item.color_name ? ' (' + item.color_name + ')' : ''}</h4>
             <span class="font-label-caps text-[10px] text-primary-fixed font-bold">$${parseFloat(item.price).toFixed(2)}</span>
             <div class="flex items-center gap-2 mt-1">
               <input type="number" min="1" max="999" value="${item.qty}" onchange="setCartQty('${item.cart_key || item.id}', this.value)" class="w-14 bg-surface-container border border-outline-variant text-white text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed" />

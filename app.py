@@ -1028,6 +1028,7 @@ def api_create_order():
             "price": unit_price,
             "qty": qty,
             "variant_name": variant_name,
+            "variant_color": (item.get('color_name') or '').strip(),
         })
         total_amount += unit_price * qty
 

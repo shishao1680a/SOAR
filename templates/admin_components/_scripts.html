@@ -359,6 +359,65 @@
     }
   }
 
+  let currentItemColors = [];
+
+  function renderItemColors() {
+    const container = document.getElementById('item-edit-colors-container');
+    if (!container) return;
+    if (currentItemColors.length === 0) {
+      container.innerHTML = `<div class="text-[11px] text-gray-400 italic">未設定顏色時，使用上方「項目圖片」；設定顏色後，前台可依顏色選擇圖片。</div>`;
+      return;
+    }
+    container.innerHTML = currentItemColors.map((c, idx) => `
+      <div class="flex items-center gap-2 p-2 bg-surface-container-low border border-outline-variant rounded">
+        <input type="text" class="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded outline-none text-xs" placeholder="顏色名稱（例如 黑色）" value="${(c.name || '').replace(/"/g, '&quot;')}" oninput="updateItemColorName(${idx}, this.value)" />
+        <input type="text" id="item-color-image-${idx}" class="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded outline-none text-xs" placeholder="顏色圖片網址" value="${(c.image_url || '').replace(/"/g, '&quot;')}" oninput="updateItemColorImage(${idx}, this.value)" />
+        <label class="bg-line-green/20 hover:bg-line-green text-line-green hover:text-white px-2 py-1.5 text-xs font-bold rounded cursor-pointer border border-line-green/40 whitespace-nowrap">
+          上傳<input type="file" accept="image/*" class="hidden" onchange="uploadItemColorImage(this, ${idx})" />
+        </label>
+        <img id="item-color-preview-${idx}" src="${(c.image_url || '').replace(/"/g, '&quot;')}" class="w-8 h-8 object-cover rounded border border-outline-variant ${c.image_url ? '' : 'hidden'}" alt="顏色圖片" />
+        <button type="button" onclick="removeItemColor(${idx})" class="text-error hover:underline font-bold text-xs">✕</button>
+      </div>
+    `).join('');
+  }
+
+  function addItemColor() {
+    currentItemColors.push({ name: '', image_url: '' });
+    renderItemColors();
+  }
+
+  function removeItemColor(idx) {
+    currentItemColors.splice(idx, 1);
+    renderItemColors();
+  }
+
+  function updateItemColorName(idx, val) {
+    if (currentItemColors[idx]) currentItemColors[idx].name = val;
+  }
+
+  function updateItemColorImage(idx, val) {
+    if (!currentItemColors[idx]) return;
+    currentItemColors[idx].image_url = val;
+    const preview = document.getElementById('item-color-preview-' + idx);
+    if (preview) {
+      if (val) {
+        preview.src = val;
+        preview.classList.remove('hidden');
+      } else {
+        preview.removeAttribute('src');
+        preview.classList.add('hidden');
+      }
+    }
+  }
+
+  function uploadItemColorImage(fileInput, idx) {
+    if (!fileInput.files || fileInput.files.length === 0) return;
+    uploadMaterialImageFile(fileInput.files[0], `item-color-image-${idx}`, `item-color-preview-${idx}`, '顏色圖片', () => {
+      const url = document.getElementById(`item-color-image-${idx}`).value;
+      updateItemColorImage(idx, url);
+    });
+  }
+
   function renderProductItemsList() {
     const container = document.getElementById('product-items-list-container');
     if (!container) return;
@@ -415,6 +474,9 @@
       setVal('item-edit-designer-ratio', document.getElementById('prod-edit-designer-ratio').value || 20);
       setVal('item-edit-packager-ratio', document.getElementById('prod-edit-packager-ratio').value || 60);
       setVal('item-edit-platform-ratio', document.getElementById('prod-edit-platform-ratio').value || 20);
+      setVal('item-edit-description', '');
+      currentItemColors = [];
+      renderItemColors();
     } else {
       const item = currentProductItems[index];
       if (titleEl) titleEl.innerHTML = `<span class="material-symbols-outlined text-line-green text-lg">edit_note</span> 編輯項目規格 #${index + 1}`;
@@ -426,6 +488,11 @@
       setVal('item-edit-designer-ratio', item ? (item.designer_ratio !== undefined ? item.designer_ratio : 20) : 20);
       setVal('item-edit-packager-ratio', item ? (item.packager_ratio !== undefined ? item.packager_ratio : 60) : 60);
       setVal('item-edit-platform-ratio', item ? (item.platform_ratio !== undefined ? item.platform_ratio : 20) : 20);
+      setVal('item-edit-description', item ? (item.description || '') : '');
+      currentItemColors = (item && Array.isArray(item.colors))
+        ? item.colors.map(c => ({ name: (c && c.name) || '', image_url: (c && c.image_url) || '' }))
+        : [];
+      renderItemColors();
     }
 
     updateSubItemImagePreview();
@@ -444,6 +511,10 @@
     const designer_ratio = parseFloat(document.getElementById('item-edit-designer-ratio').value || 20);
     const packager_ratio = parseFloat(document.getElementById('item-edit-packager-ratio').value || 60);
     const platform_ratio = parseFloat(document.getElementById('item-edit-platform-ratio').value || 20);
+    const description = document.getElementById('item-edit-description').value.trim();
+    const colors = currentItemColors
+      .filter(c => (c.name || '').trim() || (c.image_url || '').trim())
+      .map(c => ({ name: (c.name || '').trim(), image_url: (c.image_url || '').trim() }));
 
     if (!name) {
       alert('請輸入項目名稱 (例如: 黑色-HELLO純棉款)');
@@ -459,7 +530,9 @@
       image_url: image_url,
       designer_ratio: designer_ratio,
       packager_ratio: packager_ratio,
-      platform_ratio: platform_ratio
+      platform_ratio: platform_ratio,
+      description: description,
+      colors: colors
     };
 
     if (index === -1) {
