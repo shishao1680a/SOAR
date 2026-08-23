@@ -92,7 +92,8 @@ class MaterialRecognizeService:
         if not isinstance(parsed, list):
             return None, "Gemini 回傳格式不是陣列"
 
-        items = []
+        # 同一顏色（字母）在多張圖片/多筆辨識結果中出現時，使用量自動加總
+        aggregated = {}
         for it in parsed:
             letter = str(it.get('letter') or '').strip().upper()
             letter = 'W(F)' if letter in ('WF', 'W(F)', 'W（F）') else letter
@@ -102,9 +103,15 @@ class MaterialRecognizeService:
                 usage = 0.0
             if not letter:
                 continue
-            items.append({
+            d = aggregated.setdefault(letter, {
                 "letter": letter,
-                "usage": round(max(0.0, usage), 3),
+                "usage": 0.0,
                 "unit": (str(it.get('unit') or 'ml').strip() or 'ml'),
             })
+            d["usage"] += max(0.0, usage)
+
+        items = [
+            {"letter": k, "usage": round(v["usage"], 3), "unit": v["unit"]}
+            for k, v in aggregated.items()
+        ]
         return items, None
