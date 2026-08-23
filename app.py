@@ -840,6 +840,16 @@ def api_admin_print_test():
     return jsonify({"status": "error", "message": msg}), 400
 
 
+@app.route('/api/admin/print-test/<order_id>', methods=['DELETE'])
+@admin_or_coach_required
+def api_admin_delete_print_test(order_id):
+    """刪除打印測試訂單：移除耗材消耗紀錄，耗材剩餘量還原。"""
+    ok, msg = db_service.delete_print_test(str(order_id))
+    if ok:
+        return jsonify({"status": "success", "message": msg})
+    return jsonify({"status": "error", "message": msg}), 400
+
+
 @app.route('/api/admin/bonuses', methods=['GET'])
 @admin_or_coach_required
 def api_admin_bonuses():

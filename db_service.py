@@ -1688,6 +1688,27 @@ class DBService:
             print(f"Error saving print test {order_id}: {e}")
             return False, f"建立打印測試失敗：{e}"
 
+    def delete_print_test(self, order_id):
+        """刪除打印測試訂單：移除耗材消耗紀錄（order_materials），耗材剩餘量自動還原。"""
+        try:
+            with self.engine.begin() as conn:
+                row = conn.execute(
+                    text("SELECT status FROM orders WHERE id = :id FOR UPDATE"),
+                    {"id": str(order_id)},
+                ).first()
+                if not row:
+                    return False, "訂單不存在"
+                if row._mapping["status"] != "TEST":
+                    return False, "只有打印測試訂單可以刪除"
+                conn.execute(text("DELETE FROM order_materials WHERE order_id = :id"), {"id": str(order_id)})
+                conn.execute(text("DELETE FROM order_settlements WHERE order_id = :id"), {"id": str(order_id)})
+                conn.execute(text("DELETE FROM sales_logs WHERE order_id = :id"), {"id": str(order_id)})
+                conn.execute(text("DELETE FROM orders WHERE id = :id"), {"id": str(order_id)})
+            return True, "打印測試已刪除，耗材庫存已還原"
+        except Exception as e:
+            print(f"Error deleting print test {order_id}: {e}")
+            return False, f"刪除打印測試失敗：{e}"
+
     def get_bonus_summary(self, date_from, date_to):
         """依結算時間區間回傳獎金統計：每人設計/包裝金額、每筆明細、平台收益總計。"""
         try:

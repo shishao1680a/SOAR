@@ -1999,7 +1999,7 @@
             </span>
           </td>
           <td class="p-3 text-right whitespace-nowrap">
-            ${isTest ? '' : `
+            ${isTest ? `<button onclick="deleteTestOrder('${o.id}')" class="px-2.5 py-1 bg-error/20 hover:bg-error text-error hover:text-white font-bold rounded text-xs">刪除</button>` : `
               ${isCancelled || isShipped ? '' : `<button onclick="openOrderShipmentModal('${o.id}')" class="px-2.5 py-1 bg-line-green hover:bg-line-green/80 text-white font-bold rounded text-xs mr-1 shadow">
                 寄送
               </button>`}
@@ -2933,6 +2933,16 @@
       alert(`取消訂單失敗：${e.message || e}`);
     }
     loadAdminOrdersList();
+  }
+
+  async function deleteTestOrder(orderId) {
+    if (!confirm(`確定刪除此打印測試訂單 #${orderId}？刪除後耗材庫存會還原。`)) return;
+    try {
+      const res = await fetch(`/api/admin/print-test/${orderId}`, { method: 'DELETE' });
+      const json = await res.json();
+      alert(json.message || '處理完成');
+      loadAdminOrdersList();
+    } catch(e) { alert('刪除失敗：' + (e.message || e)); }
   }
 
   // --- 修改訂單 ---
