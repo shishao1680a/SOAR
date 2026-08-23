@@ -8,3 +8,5 @@ sqlalchemy>=2.0
 pytz
 PyMuPDF
 cloudinary
+google-generativeai
+Pillow

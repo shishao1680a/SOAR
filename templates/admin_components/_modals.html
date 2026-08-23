@@ -535,6 +535,45 @@
   </div>
 </div>
 
+<!-- Modal: AI 辨識墨盒用量 -->
+<div id="modal-material-recognize" onpaste="handleMaterialRecognizePaste(event)" class="fixed inset-0 z-[10002] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 10002;">
+  <div class="bg-surface-container border-2 border-primary-fixed max-w-2xl w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[88vh]">
+    <div class="px-5 py-3.5 bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
+      <h4 class="font-headline-md italic text-base font-bold text-white flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary-fixed text-lg">auto_awesome</span> AI 辨識墨盒用量
+      </h4>
+      <button type="button" onclick="closeModal('modal-material-recognize')" class="text-gray-400 hover:text-white font-bold text-base">✕</button>
+    </div>
+    <div class="p-5 space-y-4 text-xs overflow-y-auto flex-grow">
+      <div>
+        <label class="block font-bold text-gray-200 mb-1">耗材名稱基底（辨識後自動加上 - C / - M / - Y ...）</label>
+        <input type="text" id="mrec-base-name" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-primary-fixed" placeholder="例如：eufyMake E1 UV墨盒" />
+      </div>
+      <div>
+        <label class="block font-bold text-gray-200 mb-1">圖片（可多張上傳或 Ctrl+V 貼上）</label>
+        <div class="flex items-center gap-2 flex-wrap">
+          <label class="bg-primary-fixed/20 hover:bg-primary-fixed/40 text-primary-fixed px-3 py-2 text-xs font-bold rounded cursor-pointer border border-primary-fixed/30 flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">upload</span> 上傳多張
+            <input type="file" accept="image/*" multiple class="hidden" onchange="addMaterialRecognizeFiles(this)" />
+          </label>
+          <div tabindex="0" onclick="this.focus()" title="點擊後按 Ctrl+V 貼上圖片" class="material-paste-zone px-3 py-2 text-[11px] text-primary-fixed/80 border border-dashed border-primary-fixed/40 rounded cursor-pointer outline-none focus:border-primary-fixed">Ctrl+V 貼上</div>
+        </div>
+        <div id="mrec-images-container" class="mt-2 flex flex-wrap gap-2"></div>
+      </div>
+      <button onclick="runMaterialRecognize()" id="mrec-run-btn" class="w-full py-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs font-bold italic rounded shadow flex items-center justify-center gap-1">
+        <span class="material-symbols-outlined text-sm">auto_awesome</span> 開始辨識
+      </button>
+      <div id="mrec-result-container" class="hidden space-y-2">
+        <label class="block font-bold text-line-green mb-1">辨識結果（可編輯，確認後帶入結算）</label>
+        <div id="mrec-result-rows" class="space-y-1.5"></div>
+        <button onclick="confirmMaterialRecognize()" class="w-full py-2 bg-line-green hover:bg-line-green/80 text-white font-label-caps text-xs font-bold italic rounded shadow flex items-center justify-center gap-1">
+          <span class="material-symbols-outlined text-sm">check_circle</span> 確認帶入結算
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: 耗材明細（進貨 / 消耗） -->
 <div id="modal-material-management-detail" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
   <div class="bg-surface-container border-2 border-cyan-500 max-w-3xl w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]">

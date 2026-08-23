@@ -3,15 +3,18 @@ import uuid
 import json
 import threading
 import time
+import io
 from urllib.parse import quote
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, make_response
 from dotenv import load_dotenv
 from db_service import DBService, StockError
 from cloudinary_service import CloudinaryService
+from material_recognize_service import MaterialRecognizeService
 from line_service import LineService
 from pdf_service import convert_pdf_to_images
 from linebot.models import TextSendMessage, ImageSendMessage
 from functools import wraps
+from PIL import Image
 
 load_dotenv(override=False)
 
@@ -25,6 +28,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db_service = DBService()
 cloudinary_service = CloudinaryService()
+material_recognize_service = MaterialRecognizeService()
 line_service = LineService()
 
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # 20MB
@@ -609,6 +613,33 @@ def api_admin_material_consumptions_detail(log_id):
         if deleted:
             return jsonify({"status": "success", "message": "消耗記錄已刪除！"})
         return jsonify({"status": "error", "message": "刪除失敗"}), 500
+
+@app.route('/api/admin/material-recognize', methods=['POST'])
+@admin_or_coach_required
+def api_admin_material_recognize():
+    """上傳墨盒用量圖片（可多張），以 Gemini Vision 辨識各色使用量。"""
+    files = request.files.getlist('files') or request.files.getlist('file')
+    if not files:
+        return jsonify({"status": "error", "message": "請選擇至少一張圖片"}), 400
+
+    images = []
+    for f in files:
+        ok, msg, ext = _validate_upload(f, ALLOWED_IMAGE_EXTS)
+        if not ok:
+            return jsonify({"status": "error", "message": msg}), 400
+        try:
+            img = Image.open(io.BytesIO(f.read()))
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            images.append(img)
+        except Exception as e:
+            print(f"Image open error: {e}")
+            return jsonify({"status": "error", "message": "圖片讀取失敗"}), 400
+
+    items, err = material_recognize_service.recognize_ink_usage(images)
+    if err:
+        return jsonify({"status": "error", "message": err}), 400
+    return jsonify({"status": "success", "data": {"items": items}})
 
 @app.route('/api/admin/material-suppliers', methods=['GET'])
 @admin_or_coach_required

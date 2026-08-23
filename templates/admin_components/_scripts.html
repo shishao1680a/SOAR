@@ -2313,6 +2313,7 @@
       <td class="p-1.5 relative">
         <div class="flex items-center gap-2">
           <input type="text" class="shipment-mat-name flex-1 min-w-0 bg-surface-container border border-outline-variant text-white p-1 rounded outline-none text-xs" placeholder="點選或輸入關鍵字搜尋耗材" onfocus="onMaterialSearchInput(event, '${rowId}')" oninput="onMaterialSearchInput(event, '${rowId}')" onchange="recalcShipmentMaterialRow(${idx}, '${rowId}')" onblur="setTimeout(() => hideMaterialSuggest('${rowId}'), 150)" />
+          <button type="button" onclick="openMaterialRecognizeModal(${idx}, '${rowId}')" title="AI 辨識墨盒用量（上傳圖片自動帶入）" class="px-1.5 py-1 bg-primary-fixed/20 text-primary-fixed hover:bg-primary-fixed hover:text-black font-bold rounded text-[10px] border border-primary-fixed/30 whitespace-nowrap shrink-0">AI</button>
           <img class="shipment-mat-img w-12 h-12 object-cover rounded border border-outline-variant hidden cursor-zoom-in" alt="耗材圖片" onmouseenter="showMaterialZoom(this)" onmousemove="moveMaterialZoom(event)" onmouseleave="hideMaterialZoom()" />
         </div>
         <div class="shipment-mat-suggest hidden absolute left-0 right-0 top-full mt-0.5 max-h-44 overflow-y-auto bg-surface-container-high border border-outline-variant rounded-lg shadow-2xl z-30 text-xs"></div>
@@ -2460,6 +2461,151 @@
     if (!tr) return;
     const suggest = tr.querySelector('.shipment-mat-suggest');
     if (suggest) suggest.classList.add('hidden');
+  }
+
+  // --- AI 辨識墨盒用量 ---
+  let materialRecognizeImages = [];
+  let materialRecognizeTarget = { idx: -1, rowId: '' };
+  let materialRecognizeResult = [];
+
+  function openMaterialRecognizeModal(idx, rowId) {
+    materialRecognizeTarget = { idx: idx, rowId: rowId };
+    const tr = document.getElementById(rowId);
+    let base = '';
+    if (tr) {
+      const nameInput = tr.querySelector('.shipment-mat-name');
+      base = (nameInput ? nameInput.value : '').trim();
+      base = base.replace(/\s*-\s*[A-Za-z](?:\([A-Za-z0-9]+\))?$/, '').trim();
+    }
+    setVal('mrec-base-name', base);
+    materialRecognizeImages = [];
+    materialRecognizeResult = [];
+    renderMaterialRecognizeImages();
+    document.getElementById('mrec-result-container').classList.add('hidden');
+    document.getElementById('mrec-result-rows').innerHTML = '';
+    document.getElementById('modal-material-recognize').classList.remove('hidden');
+  }
+
+  function renderMaterialRecognizeImages() {
+    const container = document.getElementById('mrec-images-container');
+    if (!container) return;
+    if (materialRecognizeImages.length === 0) {
+      container.innerHTML = `<span class="text-[11px] text-gray-400 italic">尚未加入圖片</span>`;
+      return;
+    }
+    container.innerHTML = materialRecognizeImages.map((img, i) => `
+      <div class="relative">
+        <img src="${URL.createObjectURL(img)}" class="w-16 h-16 object-cover rounded border border-outline-variant" alt="辨識圖片 ${i + 1}" />
+        <button type="button" onclick="removeMaterialRecognizeImage(${i})" class="absolute -top-1.5 -right-1.5 bg-error text-white w-4 h-4 rounded-full text-[10px] leading-none font-bold">✕</button>
+      </div>
+    `).join('');
+  }
+
+  function addMaterialRecognizeFiles(input) {
+    if (!input.files) return;
+    Array.from(input.files).forEach(f => {
+      if (f && f.type && f.type.indexOf('image/') === 0) materialRecognizeImages.push(f);
+    });
+    input.value = '';
+    renderMaterialRecognizeImages();
+  }
+
+  function removeMaterialRecognizeImage(i) {
+    materialRecognizeImages.splice(i, 1);
+    renderMaterialRecognizeImages();
+  }
+
+  function handleMaterialRecognizePaste(e) {
+    if (!e.clipboardData) return;
+    const items = e.clipboardData.items || [];
+    for (const item of items) {
+      if (item.type && item.type.indexOf('image/') === 0) {
+        const f = item.getAsFile && item.getAsFile();
+        if (f) {
+          e.preventDefault();
+          materialRecognizeImages.push(f);
+          renderMaterialRecognizeImages();
+          return;
+        }
+      }
+    }
+  }
+
+  async function runMaterialRecognize() {
+    if (materialRecognizeImages.length === 0) return alert('請先加入至少一張圖片');
+    const btn = document.getElementById('mrec-run-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin material-symbols-outlined text-sm">sync</span> 辨識中，請稍候...';
+    const formData = new FormData();
+    materialRecognizeImages.forEach(f => formData.append('files', f));
+    try {
+      const res = await fetch('/api/admin/material-recognize', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (json.status === 'success') {
+        materialRecognizeResult = (json.data && json.data.items) || [];
+        renderMaterialRecognizeResult();
+      } else {
+        alert(json.message || '辨識失敗');
+      }
+    } catch(e) { alert('辨識失敗：' + (e.message || e)); }
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined text-sm">auto_awesome</span> 開始辨識';
+  }
+
+  function renderMaterialRecognizeResult() {
+    const container = document.getElementById('mrec-result-rows');
+    const wrap = document.getElementById('mrec-result-container');
+    if (!container || !wrap) return;
+    wrap.classList.remove('hidden');
+    if (materialRecognizeResult.length === 0) {
+      container.innerHTML = `<div class="text-xs text-gray-400 italic">沒有辨識到可用的墨盒用量</div>`;
+      return;
+    }
+    container.innerHTML = materialRecognizeResult.map((it, i) => `
+      <div class="flex items-center gap-2">
+        <span class="w-16 font-bold text-white text-xs">${it.letter}</span>
+        <input type="number" step="0.001" min="0" value="${it.usage}" oninput="updateMaterialRecognizeUsage(${i}, this.value)" class="flex-1 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded text-xs" />
+        <span class="text-gray-400 text-[11px] w-8">${it.unit || 'ml'}</span>
+      </div>
+    `).join('');
+  }
+
+  function updateMaterialRecognizeUsage(i, val) {
+    if (materialRecognizeResult[i]) materialRecognizeResult[i].usage = parseFloat(val || 0);
+  }
+
+  function confirmMaterialRecognize() {
+    const base = document.getElementById('mrec-base-name').value.trim();
+    if (!base) return alert('請填寫耗材名稱基底');
+    const idx = materialRecognizeTarget.idx;
+    const applied = [];
+    materialRecognizeResult.forEach(it => {
+      const usage = parseFloat(it.usage || 0);
+      if (!it.letter || usage <= 0) return;
+      const materialName = `${base} - ${it.letter}`;
+      let found = false;
+      const tbody = document.getElementById('shipment-materials-tbody-' + idx);
+      if (tbody) {
+        tbody.querySelectorAll('tr').forEach(tr => {
+          const nameInput = tr.querySelector('.shipment-mat-name');
+          if (nameInput && nameInput.value.trim() === materialName) {
+            const qtyInput = tr.querySelector('.shipment-mat-qty');
+            if (qtyInput) { qtyInput.value = usage; found = true; }
+          }
+        });
+      }
+      if (!found) {
+        addShipmentMaterialRow(idx, { material_name: materialName, qty_used: usage });
+      }
+      applied.push(materialName);
+    });
+    calculateShipmentNetProfit();
+    closeModal('modal-material-recognize');
+    if (applied.length === 0) {
+      alert('沒有可帶入的墨盒用量（請確認辨識結果）');
+    } else {
+      alert(`已帶入：${applied.join('、')}`);
+    }
   }
 
   function round2(v) { return Math.round((v + Number.EPSILON) * 100) / 100; }
