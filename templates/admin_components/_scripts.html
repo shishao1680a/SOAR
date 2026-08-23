@@ -1929,7 +1929,7 @@
     if (adminOrdersList.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" class="p-6 text-center text-gray-400 italic">尚無訂單資料。當使用者在前端購物車結帳時，訂單將自動即時顯示於此。</td>
+          <td colspan="10" class="p-6 text-center text-gray-400 italic">尚無訂單資料。當使用者在前端購物車結帳時，訂單將自動即時顯示於此。</td>
         </tr>
       `;
       return;
@@ -1947,7 +1947,7 @@
     if (filtered.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" class="p-6 text-center text-gray-400 italic">此狀態目前沒有訂單。</td>
+          <td colspan="10" class="p-6 text-center text-gray-400 italic">此狀態目前沒有訂單。</td>
         </tr>
       `;
       return;
@@ -1993,12 +1993,14 @@
           <td class="p-3 text-primary-fixed font-bold">${unitPriceLines || '-'}</td>
           <td class="p-3 text-gray-200 font-bold">${o.user_name || '線上會員'} (${o.user_line_id || '-'})</td>
           <td class="p-3 text-primary-fixed font-black">$${parseFloat(o.total_amount || 0).toFixed(2)}</td>
+          <td class="p-3 text-amber-400 font-bold">$${parseFloat(o.total_cost || 0).toFixed(2)}</td>
           <td class="p-3">
             <span class="px-2 py-0.5 text-[11px] rounded font-bold ${isTest ? 'bg-cyan-400/20 text-cyan-300 border border-cyan-400' : isCancelled ? 'bg-error/20 text-error border border-error' : isShipped ? 'bg-line-green/20 text-line-green border border-line-green' : 'bg-secondary-container/20 text-secondary-container border border-secondary-container'}">
               ${isTest ? '打印測試' : isCancelled ? '已取消' : isShipped ? '已寄送' : '待處理解算'}
             </span>
           </td>
           <td class="p-3 text-right whitespace-nowrap">
+            <button onclick="viewOrderDetail('${o.id}')" class="px-2.5 py-1 bg-primary-fixed/20 hover:bg-primary-fixed text-primary-fixed hover:text-black font-bold rounded text-xs mr-1">查詢</button>
             ${isTest ? `<button onclick="deleteTestOrder('${o.id}')" class="px-2.5 py-1 bg-error/20 hover:bg-error text-error hover:text-white font-bold rounded text-xs">刪除</button>` : `
               ${isCancelled || isShipped ? '' : `<button onclick="openOrderShipmentModal('${o.id}')" class="px-2.5 py-1 bg-line-green hover:bg-line-green/80 text-white font-bold rounded text-xs mr-1 shadow">
                 寄送
@@ -2943,6 +2945,81 @@
       alert(json.message || '處理完成');
       loadAdminOrdersList();
     } catch(e) { alert('刪除失敗：' + (e.message || e)); }
+  }
+
+  async function viewOrderDetail(orderId) {
+    const order = adminOrdersList.find(o => String(o.id) === String(orderId));
+    if (!order) return;
+    document.getElementById('order-detail-id').textContent = order.id;
+
+    let settlement = { settlements: [], materials: [] };
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/settlement`);
+      const json = await res.json();
+      if (json.status === 'success') settlement = json.data || settlement;
+    } catch(e) {}
+
+    const statusMap = { SHIPPED: '已寄送', COMPLETED: '已完成', CANCELLED: '已取消', TEST: '打印測試', PENDING: '待處理解算' };
+    const statusText = statusMap[order.status] || order.status || '待處理解算';
+    const materialCost = parseFloat(order.material_cost || 0);
+    const otherCost = parseFloat(order.other_cost || 0);
+    const shippingCost = parseFloat(order.shipping_cost || 0);
+    const totalCost = parseFloat(order.total_cost || 0);
+    const netProfit = parseFloat(order.net_profit || 0);
+
+    document.getElementById('order-detail-basic').innerHTML = `
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">訂單編號</div><div class="font-mono text-cyan-300 font-bold">${order.id}</div></div>
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">訂單時間</div><div>${order.created_at || '-'}</div></div>
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">狀態</div><div class="font-bold">${statusText}</div></div>
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">訂購人</div><div>${order.user_name || '線上會員'}</div></div>
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">LINE</div><div>${order.user_line_id || '-'}</div></div>
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">總金額</div><div class="text-primary-fixed font-black">$${parseFloat(order.total_amount || 0).toFixed(2)}</div></div>
+    `;
+
+    let items = [];
+    try { items = typeof order.items_json === 'string' ? JSON.parse(order.items_json || '[]') : (order.items_json || []); } catch(e) {}
+    if (!Array.isArray(items) || items.length === 0) items = [{ name: '線上列印作品', qty: 1, price: order.total_amount || 0 }];
+    document.getElementById('order-detail-items').innerHTML = `<table class="w-full text-left text-xs">
+      <thead class="text-gray-400 border-b border-outline-variant/60"><tr><th class="p-2">商品</th><th class="p-2">規格</th><th class="p-2 text-center">數量</th><th class="p-2 text-right">單價</th><th class="p-2 text-right">小計</th></tr></thead><tbody>` +
+      items.map(i => {
+        const qty = parseInt(i.qty || 1, 10) || 1;
+        const price = parseFloat(i.price !== undefined ? i.price : ((order.total_amount || 0) / qty));
+        return `<tr class="border-b border-outline-variant/30">
+          <td class="p-2">${i.name || i.product_name || '-'}</td>
+          <td class="p-2 text-cyan-300">${i.variant_name || i.item_name || '-'}${i.variant_color ? '（' + i.variant_color + '）' : ''}</td>
+          <td class="p-2 text-center">${qty}</td>
+          <td class="p-2 text-right">$${price.toFixed(2)}</td>
+          <td class="p-2 text-right text-primary-fixed font-bold">$${(qty * price).toFixed(2)}</td>
+        </tr>`;
+      }).join('') + `</tbody></table>`;
+
+    document.getElementById('order-detail-costs').innerHTML = `
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">耗材成本</div><div class="text-amber-400 font-bold">$${materialCost.toFixed(2)}</div></div>
+        <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">其它成本</div><div>$${otherCost.toFixed(2)}</div></div>
+        <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">郵寄成本</div><div>$${shippingCost.toFixed(2)}</div></div>
+        <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">總成本</div><div class="text-amber-400 font-black">$${totalCost.toFixed(2)}</div></div>
+        <div class="p-2 bg-line-green/10 rounded border border-line-green/40"><div class="text-[10px] text-line-green">淨利潤</div><div class="text-line-green font-black">$${netProfit.toFixed(2)}</div></div>
+      </div>`;
+
+    const materials = settlement.materials || [];
+    if (materials.length === 0) {
+      document.getElementById('order-detail-materials').innerHTML = `<div class="text-xs text-gray-400 italic">此訂單沒有耗材消耗紀錄</div>`;
+    } else {
+      document.getElementById('order-detail-materials').innerHTML = `<table class="w-full text-left text-xs">
+        <thead class="text-gray-400 border-b border-outline-variant/60"><tr><th class="p-2">耗材</th><th class="p-2 text-right">消耗量</th><th class="p-2 text-right">單位成本</th><th class="p-2 text-right">成本</th></tr></thead><tbody>` +
+        materials.map(m => {
+          const amount = parseFloat(m.capacity_used || 0) + parseFloat(m.qty_used || 0);
+          return `<tr class="border-b border-outline-variant/30">
+            <td class="p-2">${m.material_name || '-'}</td>
+            <td class="p-2 text-right text-cyan-300 font-bold">${amount}</td>
+            <td class="p-2 text-right">$${parseFloat(m.unit_cost || 0).toFixed(4)}</td>
+            <td class="p-2 text-right text-amber-400 font-bold">$${parseFloat(m.cost || 0).toFixed(2)}</td>
+          </tr>`;
+        }).join('') + `</tbody></table>`;
+    }
+
+    document.getElementById('modal-order-detail').classList.remove('hidden');
   }
 
   // --- 修改訂單 ---

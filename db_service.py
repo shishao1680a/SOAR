@@ -1145,7 +1145,23 @@ class DBService:
 
     def get_all_orders(self):
         try:
-            return self._fetch_dicts("SELECT * FROM orders ORDER BY created_at DESC NULLS LAST, id DESC")
+            rows = self._fetch_dicts("SELECT * FROM orders ORDER BY created_at DESC NULLS LAST, id DESC")
+            if rows:
+                order_ids = [r['id'] for r in rows]
+                mat_rows = self._fetch_dicts("""
+                    SELECT order_id, COALESCE(SUM(cost), 0) AS material_cost
+                    FROM order_materials WHERE order_id = ANY(:ids) GROUP BY order_id
+                """, {"ids": order_ids})
+                mat_map = {m['order_id']: float(m['material_cost'] or 0) for m in mat_rows}
+                for r in rows:
+                    r['material_cost'] = round(mat_map.get(r['id'], 0.0), 2)
+                    r['total_cost'] = round(
+                        r['material_cost']
+                        + float(r.get('other_cost') or 0)
+                        + float(r.get('shipping_cost') or 0),
+                        2,
+                    )
+            return rows
         except Exception as e:
             print(f"Error fetching orders: {e}")
             return []
