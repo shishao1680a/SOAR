@@ -671,6 +671,67 @@
 <!-- 耗材圖片放大預覽（跟隨滑鼠） -->
 <img id="shipment-material-zoom" src="" alt="耗材圖片放大" class="hidden fixed w-72 h-72 object-contain bg-surface-container-high border-2 border-primary-fixed/60 rounded-xl p-2 shadow-2xl pointer-events-none z-[10000]" style="z-index: 10000;" />
 
+<!-- Modal: 打印測試 -->
+<div id="modal-print-test" class="fixed inset-0 z-[10002] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 10002;">
+  <div class="bg-surface-container border-2 border-cyan-500 max-w-3xl w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
+    <div class="px-5 py-3.5 bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
+      <h4 class="font-headline-md italic text-base font-bold text-white flex items-center gap-2">
+        <span class="material-symbols-outlined text-cyan-400 text-lg">print</span> 打印測試（耗材與成本試算）
+      </h4>
+      <button type="button" onclick="closeModal('modal-print-test')" class="text-gray-400 hover:text-white font-bold text-base">✕</button>
+    </div>
+    <div class="p-5 space-y-4 text-xs overflow-y-auto flex-grow">
+      <div>
+        <label class="block font-bold text-gray-200 mb-1">作品名稱</label>
+        <input type="text" id="print-test-work-name" class="w-full bg-surface-container-high border border-outline-variant text-white p-2.5 rounded outline-none focus:border-cyan-400" placeholder="例如：測試紀念幣 - 小樹款" />
+      </div>
+      <div class="space-y-1.5">
+        <div class="flex justify-between items-center">
+          <label class="block font-bold text-cyan-400">耗材消耗明細（成本 = 消耗量 × 加權單位成本）</label>
+          <button type="button" onclick="addPrintTestMaterialRow()" class="px-2 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[11px] rounded">+ 新增耗材</button>
+        </div>
+        <table class="w-full text-left text-xs">
+          <thead class="text-gray-400 border-b border-outline-variant/60">
+            <tr>
+              <th class="p-1.5">耗材名稱</th>
+              <th class="p-1.5 text-center w-28">消耗量</th>
+              <th class="p-1.5 text-right w-28">單位成本</th>
+              <th class="p-1.5 text-right w-28">成本 ($)</th>
+              <th class="p-1.5 text-center w-10"></th>
+            </tr>
+          </thead>
+          <tbody id="print-test-materials-tbody"></tbody>
+        </table>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-[10px] font-bold text-gray-300 mb-1">其它成本 ($)</label>
+          <input type="number" step="0.01" id="print-test-other-cost" value="0" oninput="calcPrintTestTotals()" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-gray-300 mb-1">郵寄成本 ($)</label>
+          <input type="number" step="0.01" id="print-test-shipping-cost" value="0" oninput="calcPrintTestTotals()" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
+        </div>
+      </div>
+      <div class="bg-surface-container-high border border-cyan-500/60 rounded-xl p-4 space-y-2">
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-bold text-gray-300">總耗材成本</span>
+          <span id="print-test-material-total" class="font-black text-amber-400">$0</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-bold text-gray-300">總成本</span>
+          <span id="print-test-total" class="font-black text-white">$0</span>
+        </div>
+      </div>
+      <p class="text-[10px] text-amber-400/90">儲存後會建立一筆「打印測試」訂單並記錄耗材消耗（影響耗材剩餘量），不會扣商品庫存、不會產生分潤。</p>
+    </div>
+    <div class="px-5 py-3 bg-surface-container-high border-t border-outline-variant flex gap-2">
+      <button type="button" onclick="closeModal('modal-print-test')" class="py-2 px-4 bg-surface-container border border-outline-variant text-on-surface-variant font-label-caps text-xs font-bold rounded">取消</button>
+      <button type="button" onclick="savePrintTestSubmit()" class="flex-1 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-label-caps text-xs font-bold italic rounded shadow">儲存打印測試</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Edit Order (修改訂單) -->
 <div id="modal-order-edit" class="fixed inset-0 z-[9999] bg-black/90 hidden flex items-center justify-center p-4" style="z-index: 9999;">
   <div class="bg-surface-container border-2 border-primary-fixed max-w-2xl w-full rounded-xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[85vh]">

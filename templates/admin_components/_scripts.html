@@ -1099,7 +1099,7 @@
 
     let html = '';
     if (orderCons.length > 0) {
-      html += `<div class="mb-2 text-[10px] text-gray-400 font-bold">來源：訂單結算（寄送）</div>`;
+      html += `<div class="mb-2 text-[10px] text-gray-400 font-bold">來源：訂單消耗（寄送／打印測試）</div>`;
       html += `<table class="w-full text-left text-xs mb-3">
         <thead class="text-gray-400 border-b border-outline-variant/60"><tr>
           <th class="p-2">日期</th><th class="p-2">訂單編號</th><th class="p-2">商品項目</th><th class="p-2">消耗量</th><th class="p-2">成本 ($)</th>
@@ -1937,7 +1937,7 @@
 
     let filtered = adminOrdersList;
     if (ordersStatusFilter === 'pending') {
-      filtered = adminOrdersList.filter(o => !['SHIPPED', 'COMPLETED', 'CANCELLED'].includes(o.status));
+      filtered = adminOrdersList.filter(o => !['SHIPPED', 'COMPLETED', 'CANCELLED', 'TEST'].includes(o.status));
     } else if (ordersStatusFilter === 'shipped') {
       filtered = adminOrdersList.filter(o => o.status === 'SHIPPED' || o.status === 'COMPLETED');
     } else if (ordersStatusFilter === 'cancelled') {
@@ -1982,6 +1982,7 @@
 
       const isShipped = o.status === 'SHIPPED' || o.status === 'COMPLETED';
       const isCancelled = o.status === 'CANCELLED';
+      const isTest = o.status === 'TEST';
 
       return `
         <tr class="hover:bg-surface-container/50">
@@ -1993,20 +1994,22 @@
           <td class="p-3 text-gray-200 font-bold">${o.user_name || '線上會員'} (${o.user_line_id || '-'})</td>
           <td class="p-3 text-primary-fixed font-black">$${parseFloat(o.total_amount || 0).toFixed(2)}</td>
           <td class="p-3">
-            <span class="px-2 py-0.5 text-[11px] rounded font-bold ${isCancelled ? 'bg-error/20 text-error border border-error' : isShipped ? 'bg-line-green/20 text-line-green border border-line-green' : 'bg-secondary-container/20 text-secondary-container border border-secondary-container'}">
-              ${isCancelled ? '已取消' : isShipped ? '已寄送' : '待處理解算'}
+            <span class="px-2 py-0.5 text-[11px] rounded font-bold ${isTest ? 'bg-cyan-400/20 text-cyan-300 border border-cyan-400' : isCancelled ? 'bg-error/20 text-error border border-error' : isShipped ? 'bg-line-green/20 text-line-green border border-line-green' : 'bg-secondary-container/20 text-secondary-container border border-secondary-container'}">
+              ${isTest ? '打印測試' : isCancelled ? '已取消' : isShipped ? '已寄送' : '待處理解算'}
             </span>
           </td>
           <td class="p-3 text-right whitespace-nowrap">
-            ${isCancelled || isShipped ? '' : `<button onclick="openOrderShipmentModal('${o.id}')" class="px-2.5 py-1 bg-line-green hover:bg-line-green/80 text-white font-bold rounded text-xs mr-1 shadow">
-              寄送
-            </button>`}
-            <button onclick="editAdminOrder('${o.id}')" class="px-2.5 py-1 bg-surface-container border border-outline-variant text-gray-200 hover:text-white font-bold rounded text-xs">
-              修改
-            </button>
-            ${isShipped || isCancelled ? '' : `<button onclick="cancelAdminOrder('${o.id}')" class="px-2.5 py-1 bg-error/20 hover:bg-error text-error hover:text-white font-bold rounded text-xs mr-1 shadow">
-              取消
-            </button>`}
+            ${isTest ? '' : `
+              ${isCancelled || isShipped ? '' : `<button onclick="openOrderShipmentModal('${o.id}')" class="px-2.5 py-1 bg-line-green hover:bg-line-green/80 text-white font-bold rounded text-xs mr-1 shadow">
+                寄送
+              </button>`}
+              <button onclick="editAdminOrder('${o.id}')" class="px-2.5 py-1 bg-surface-container border border-outline-variant text-gray-200 hover:text-white font-bold rounded text-xs">
+                修改
+              </button>
+              ${isShipped || isCancelled ? '' : `<button onclick="cancelAdminOrder('${o.id}')" class="px-2.5 py-1 bg-error/20 hover:bg-error text-error hover:text-white font-bold rounded text-xs mr-1 shadow">
+                取消
+              </button>`}
+            `}
           </td>
         </tr>
       `;
@@ -2578,13 +2581,15 @@
     const base = document.getElementById('mrec-base-name').value.trim();
     if (!base) return alert('請填寫耗材名稱基底');
     const idx = materialRecognizeTarget.idx;
+    const isTest = idx === -1;
+    const tbodyId = isTest ? 'print-test-materials-tbody' : ('shipment-materials-tbody-' + idx);
     const applied = [];
     materialRecognizeResult.forEach(it => {
       const usage = parseFloat(it.usage || 0);
       if (!it.letter || usage <= 0) return;
       const materialName = `${base} - ${it.letter}`;
       let found = false;
-      const tbody = document.getElementById('shipment-materials-tbody-' + idx);
+      const tbody = document.getElementById(tbodyId);
       if (tbody) {
         tbody.querySelectorAll('tr').forEach(tr => {
           const nameInput = tr.querySelector('.shipment-mat-name');
@@ -2595,17 +2600,179 @@
         });
       }
       if (!found) {
-        addShipmentMaterialRow(idx, { material_name: materialName, qty_used: usage });
+        if (isTest) {
+          addPrintTestMaterialRow({ material_name: materialName, qty_used: usage });
+        } else {
+          addShipmentMaterialRow(idx, { material_name: materialName, qty_used: usage });
+        }
       }
       applied.push(materialName);
     });
-    calculateShipmentNetProfit();
+    if (isTest) {
+      calcPrintTestTotals();
+    } else {
+      calculateShipmentNetProfit();
+    }
     closeModal('modal-material-recognize');
     if (applied.length === 0) {
       alert('沒有可帶入的墨盒用量（請確認辨識結果）');
     } else {
       alert(`已帶入：${applied.join('、')}`);
     }
+  }
+
+  // --- 打印測試 ---
+  function openPrintTestModal() {
+    setVal('print-test-work-name', '');
+    setVal('print-test-other-cost', '0');
+    setVal('print-test-shipping-cost', '0');
+    const tbody = document.getElementById('print-test-materials-tbody');
+    if (tbody) tbody.innerHTML = '';
+    addPrintTestMaterialRow();
+    calcPrintTestTotals();
+    loadMaterialNamesForDatalist();
+    loadMaterialUnitCosts();
+    loadMaterialMeasureTypes();
+    loadMaterialImages();
+    document.getElementById('modal-print-test').classList.remove('hidden');
+  }
+
+  function addPrintTestMaterialRow(prefill) {
+    const tbody = document.getElementById('print-test-materials-tbody');
+    if (!tbody) return;
+    const rowId = 'pt-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const tr = document.createElement('tr');
+    tr.id = rowId;
+    tr.innerHTML = `
+      <td class="p-1.5 relative">
+        <div class="flex items-center gap-2">
+          <input type="text" class="shipment-mat-name flex-1 min-w-0 bg-surface-container border border-outline-variant text-white p-1 rounded outline-none text-xs" placeholder="點選或輸入關鍵字搜尋耗材" onfocus="onMaterialSearchInput(event, '${rowId}')" oninput="onMaterialSearchInput(event, '${rowId}')" onchange="recalcPrintTestMaterialRow('${rowId}')" onblur="setTimeout(() => hideMaterialSuggest('${rowId}'), 150)" />
+          <button type="button" onclick="openMaterialRecognizeModal(-1, '${rowId}')" title="AI 辨識墨盒用量（上傳圖片自動帶入）" class="px-1.5 py-1 bg-primary-fixed/20 text-primary-fixed hover:bg-primary-fixed hover:text-black font-bold rounded text-[10px] border border-primary-fixed/30 whitespace-nowrap shrink-0">AI</button>
+          <img class="shipment-mat-img w-10 h-10 object-cover rounded border border-outline-variant hidden cursor-zoom-in" alt="耗材圖片" onmouseenter="showMaterialZoom(this)" onmousemove="moveMaterialZoom(event)" onmouseleave="hideMaterialZoom()" />
+        </div>
+        <div class="shipment-mat-suggest hidden absolute left-0 right-0 top-full mt-0.5 max-h-44 overflow-y-auto bg-surface-container-high border border-outline-variant rounded-lg shadow-2xl z-30 text-xs"></div>
+      </td>
+      <td class="p-1.5 text-center">
+        <input type="number" step="1" min="0" class="shipment-mat-qty w-full bg-surface-container border border-outline-variant text-cyan-300 font-bold p-1 text-center rounded outline-none text-xs" value="0" placeholder="消耗容量" oninput="recalcPrintTestMaterialRow('${rowId}')" />
+      </td>
+      <td class="p-1.5 text-right">
+        <input type="number" step="0.0001" readonly class="shipment-mat-unit-cost w-full bg-surface-container border border-outline-variant text-cyan-200 font-bold p-1 text-right rounded outline-none text-xs" value="0.0000" />
+      </td>
+      <td class="p-1.5 text-right">
+        <input type="number" step="0.01" readonly class="shipment-mat-cost w-full bg-surface-container border border-outline-variant text-amber-400 font-bold p-1 text-right rounded outline-none text-xs" value="0.00" />
+      </td>
+      <td class="p-1.5 text-center">
+        <button type="button" onclick="removePrintTestMaterialRow('${rowId}')" class="text-error font-bold text-xs hover:underline">✕</button>
+      </td>
+    `;
+    if (prefill) {
+      const nameInput = tr.querySelector('.shipment-mat-name');
+      const qtyInput = tr.querySelector('.shipment-mat-qty');
+      if (nameInput && prefill.material_name) nameInput.value = prefill.material_name;
+      if (qtyInput) {
+        const cap = parseFloat(prefill.capacity_used || 0);
+        const qty = parseFloat(prefill.qty_used || 0);
+        qtyInput.value = cap > 0 ? cap : qty;
+      }
+    }
+    tbody.appendChild(tr);
+    recalcPrintTestMaterialRow(rowId);
+  }
+
+  function removePrintTestMaterialRow(rowId) {
+    const tr = document.getElementById(rowId);
+    if (tr) tr.remove();
+    calcPrintTestTotals();
+  }
+
+  function recalcPrintTestMaterialRow(rowId) {
+    const tr = document.getElementById(rowId);
+    if (!tr) return;
+    const name = tr.querySelector('.shipment-mat-name').value.trim();
+    const amount = parseFloat(tr.querySelector('.shipment-mat-qty').value || 0);
+    const measureType = (name && materialMeasureTypes[name]) || 'capacity';
+    const amountInput = tr.querySelector('.shipment-mat-qty');
+    if (amountInput) {
+      amountInput.placeholder = measureType === 'quantity' ? '消耗數量' : '消耗容量';
+      amountInput.title = measureType === 'quantity' ? '消耗數量' : '消耗容量';
+    }
+    const unitCost = materialUnitCosts[name] || 0;
+    tr.querySelector('.shipment-mat-unit-cost').value = unitCost.toFixed(4);
+    tr.querySelector('.shipment-mat-cost').value = roundInt(amount * unitCost);
+    const img = tr.querySelector('.shipment-mat-img');
+    const imageUrl = materialImages[name] || '';
+    if (img) {
+      if (imageUrl) {
+        img.src = imageUrl;
+        img.classList.remove('hidden');
+      } else {
+        img.removeAttribute('src');
+        img.classList.add('hidden');
+      }
+    }
+    calcPrintTestTotals();
+  }
+
+  function calcPrintTestTotals() {
+    let materialTotal = 0;
+    const tbody = document.getElementById('print-test-materials-tbody');
+    if (tbody) {
+      tbody.querySelectorAll('.shipment-mat-cost').forEach(inp => {
+        materialTotal += parseFloat(inp.value || 0);
+      });
+    }
+    const otherCost = parseFloat(document.getElementById('print-test-other-cost').value || 0);
+    const shippingCost = parseFloat(document.getElementById('print-test-shipping-cost').value || 0);
+    const total = materialTotal + otherCost + shippingCost;
+    document.getElementById('print-test-material-total').textContent = '$' + roundInt(materialTotal);
+    document.getElementById('print-test-total').textContent = '$' + roundInt(total);
+  }
+
+  async function savePrintTestSubmit() {
+    const work_name = document.getElementById('print-test-work-name').value.trim();
+    if (!work_name) return alert('請輸入作品名稱');
+    const materials = [];
+    const tbody = document.getElementById('print-test-materials-tbody');
+    if (tbody) {
+      tbody.querySelectorAll('tr').forEach(tr => {
+        const name = tr.querySelector('.shipment-mat-name').value.trim();
+        const amount = parseFloat(tr.querySelector('.shipment-mat-qty').value || 0);
+        const cost = parseFloat(tr.querySelector('.shipment-mat-cost').value || 0);
+        const unitCost = name ? (materialUnitCosts[name] || 0) : 0;
+        const measureType = (name && materialMeasureTypes[name]) || 'capacity';
+        if (name && amount > 0) {
+          materials.push({
+            material_name: name,
+            capacity_used: measureType === 'capacity' ? amount : 0,
+            qty_used: measureType === 'quantity' ? amount : 0,
+            unit_cost: unitCost,
+            cost: round2(cost)
+          });
+        }
+      });
+    }
+    if (materials.length === 0) return alert('請至少填寫一筆耗材消耗量');
+    const payload = {
+      work_name: work_name,
+      materials: materials,
+      other_cost: parseFloat(document.getElementById('print-test-other-cost').value || 0),
+      shipping_cost: parseFloat(document.getElementById('print-test-shipping-cost').value || 0)
+    };
+    try {
+      const res = await fetch('/api/admin/print-test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        alert(`${json.message}（訂單編號：${json.order_id}）`);
+        closeModal('modal-print-test');
+        loadAdminOrdersList();
+      } else {
+        alert(json.message || '儲存失敗');
+      }
+    } catch(e) { alert('儲存失敗：' + (e.message || e)); }
   }
 
   function round2(v) { return Math.round((v + Number.EPSILON) * 100) / 100; }

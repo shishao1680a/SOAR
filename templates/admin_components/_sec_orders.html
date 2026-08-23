@@ -7,9 +7,14 @@
       </h2>
       <p class="font-label-caps text-xs text-on-surface-variant">查看線上訂單紀錄、發送狀態與耗材淨利潤精準結算試算。</p>
     </div>
-    <button onclick="loadAdminOrdersList()" class="px-3.5 py-2 bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs font-bold italic flex items-center gap-1 hover:border-primary-fixed transition-all">
-      <span class="material-symbols-outlined text-sm">refresh</span> 重新整理訂單
-    </button>
+    <div class="flex gap-2">
+      <button onclick="openPrintTestModal()" class="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-label-caps text-xs font-bold italic flex items-center gap-1 shadow">
+        <span class="material-symbols-outlined text-sm">print</span> 🖨 打印測試
+      </button>
+      <button onclick="loadAdminOrdersList()" class="px-3.5 py-2 bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs font-bold italic flex items-center gap-1 hover:border-primary-fixed transition-all">
+        <span class="material-symbols-outlined text-sm">refresh</span> 重新整理訂單
+      </button>
+    </div>
   </div>
 
   <div class="flex flex-wrap gap-2 border-b border-outline-variant pb-3">

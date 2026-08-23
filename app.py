@@ -813,6 +813,33 @@ def api_admin_orders_update_shipment(order_id):
     return jsonify({"status": "error", "message": msg}), 400
 
 
+@app.route('/api/admin/print-test', methods=['POST'])
+@admin_or_coach_required
+def api_admin_print_test():
+    """打印測試：建立 TEST 訂單並記錄耗材消耗（影響耗材庫存）。"""
+    data = request.get_json() or {}
+    work_name = data.get('work_name', '').strip()
+    materials = data.get('materials')
+    if not work_name:
+        return jsonify({"status": "error", "message": "請輸入作品名稱"}), 400
+    if not isinstance(materials, list) or not materials:
+        return jsonify({"status": "error", "message": "請至少填寫一筆耗材"}), 400
+    try:
+        other_cost = float(data.get('other_cost', 0) or 0)
+        shipping_cost = float(data.get('shipping_cost', 0) or 0)
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "成本格式錯誤"}), 400
+
+    session_user = session.get('user', {}) or {}
+    operator_name = session_user.get('name') or session_user.get('username') or '管理員'
+    order_id = f"TEST-{uuid.uuid4().hex[:8].upper()}"
+
+    ok, msg = db_service.save_print_test(order_id, work_name, materials, other_cost, shipping_cost, operator_name)
+    if ok:
+        return jsonify({"status": "success", "message": msg, "order_id": order_id})
+    return jsonify({"status": "error", "message": msg}), 400
+
+
 @app.route('/api/admin/bonuses', methods=['GET'])
 @admin_or_coach_required
 def api_admin_bonuses():

@@ -969,10 +969,9 @@ class DBService:
                 FROM material_purchases ORDER BY purchase_date DESC NULLS LAST, id DESC
             """)
             order_rows = self._fetch_dicts("""
-                SELECT om.material_name, om.capacity_used, om.qty_used, om.cost, s.settled_at
+                SELECT om.material_name, om.capacity_used, om.qty_used, om.cost, o.created_at AS settled_at
                 FROM order_materials om
-                JOIN order_settlements s
-                  ON s.order_id = om.order_id AND s.product_id = om.product_id AND s.item_name = om.item_name
+                JOIN orders o ON o.id = om.order_id
             """)
             log_rows = self._fetch_dicts("""
                 SELECT material_name, amount, cost, consumed_at FROM material_consumption_logs
@@ -1047,12 +1046,12 @@ class DBService:
             """, {"name": material_name, "f": date_from, "t": date_to})
 
             order_cons = self._fetch_dicts("""
-                SELECT om.order_id, om.item_name, om.capacity_used, om.qty_used, om.cost, s.settled_at
+                SELECT om.order_id, om.item_name, om.capacity_used, om.qty_used, om.cost,
+                       o.created_at AS settled_at, o.status AS order_status
                 FROM order_materials om
-                JOIN order_settlements s
-                  ON s.order_id = om.order_id AND s.product_id = om.product_id AND s.item_name = om.item_name
-                WHERE om.material_name = :name AND s.settled_at >= :f AND s.settled_at <= :t
-                ORDER BY s.settled_at DESC, om.id DESC
+                JOIN orders o ON o.id = om.order_id
+                WHERE om.material_name = :name AND o.created_at >= :f AND o.created_at <= :t
+                ORDER BY o.created_at DESC, om.id DESC
             """, {"name": material_name, "f": date_from, "t": date_to})
 
             manual_cons = self._fetch_dicts("""
@@ -1642,6 +1641,52 @@ class DBService:
         except Exception as e:
             print(f"Error saving order settlement: {e}")
             return False
+
+    def save_print_test(self, order_id, work_name, materials, other_cost=0, shipping_cost=0,
+                        operator_name='管理員'):
+        """打印測試：寫入訂單（狀態 TEST）與耗材消耗紀錄（order_materials）。
+        耗材管理頁面的剩餘量會因 order_materials 消耗而下降；不會扣商品庫存、不做分潤。
+        """
+        try:
+            now_str = self._get_taiwan_now_str()
+            items_json = json.dumps([{
+                "id": None,
+                "name": work_name or '打印測試',
+                "price": 0,
+                "qty": 1,
+                "variant_name": '',
+            }], ensure_ascii=False)
+            with self.engine.begin() as conn:
+                conn.execute(text("""
+                    INSERT INTO orders (id, user_id, user_name, user_line_id, items_json, total_amount,
+                                        status, other_cost, shipping_cost, net_profit, created_at)
+                    VALUES (:id, :user_id, :user_name, :user_line_id, :items_json, 0,
+                            'TEST', :other_cost, :shipping_cost, 0, :created_at)
+                """), {
+                    "id": str(order_id), "user_id": 'USER_TEST', "user_name": operator_name,
+                    "user_line_id": 'TEST', "items_json": items_json,
+                    "other_cost": float(other_cost or 0), "shipping_cost": float(shipping_cost or 0),
+                    "created_at": now_str,
+                })
+                for m in materials:
+                    conn.execute(text("""
+                        INSERT INTO order_materials (order_id, product_id, item_name, material_name,
+                            capacity_used, qty_used, unit_cost, cost)
+                        VALUES (:order_id, :product_id, :item_name, :material_name,
+                            :capacity_used, :qty_used, :unit_cost, :cost)
+                    """), {
+                        "order_id": str(order_id), "product_id": None,
+                        "item_name": work_name or '打印測試',
+                        "material_name": m.get("material_name"),
+                        "capacity_used": m.get("capacity_used", 0),
+                        "qty_used": m.get("qty_used", 0),
+                        "unit_cost": m.get("unit_cost", 0),
+                        "cost": m.get("cost", 0),
+                    })
+            return True, "打印測試已建立，耗材消耗已記錄"
+        except Exception as e:
+            print(f"Error saving print test {order_id}: {e}")
+            return False, f"建立打印測試失敗：{e}"
 
     def get_bonus_summary(self, date_from, date_to):
         """依結算時間區間回傳獎金統計：每人設計/包裝金額、每筆明細、平台收益總計。"""
