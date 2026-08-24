@@ -806,7 +806,8 @@ def api_admin_orders_update_shipment(order_id):
         order_totals["shipping_cost"] += float(p.get('shipping_cost', 0) or 0)
         order_totals["net_profit"] += float(p.get('net_profit', 0) or 0)
 
-    ok, msg = db_service.update_order_settlement(str(order_id), items, products, order_totals)
+    make_settlement = bool(data.get('make_settlement', True))
+    ok, msg = db_service.update_order_settlement(str(order_id), items, products, order_totals, make_settlement)
     print(f"[TIMING] update-shipment {order_id}: total={round((time.time() - t_start) * 1000)}ms ok={ok}")
     if ok:
         return jsonify({"status": "success", "message": msg})
@@ -840,14 +841,34 @@ def api_admin_print_test():
     return jsonify({"status": "error", "message": msg}), 400
 
 
-@app.route('/api/admin/print-test/<order_id>', methods=['DELETE'])
+@app.route('/api/admin/print-test/<order_id>', methods=['PUT', 'DELETE'])
 @admin_or_coach_required
-def api_admin_delete_print_test(order_id):
-    """刪除打印測試訂單：移除耗材消耗紀錄，耗材剩餘量還原。"""
-    ok, msg = db_service.delete_print_test(str(order_id))
-    if ok:
-        return jsonify({"status": "success", "message": msg})
-    return jsonify({"status": "error", "message": msg}), 400
+def api_admin_print_test_detail(order_id):
+    if request.method == 'PUT':
+        """修改打印測試訂單：更新作品名稱與耗材消耗。"""
+        data = request.get_json() or {}
+        work_name = data.get('work_name', '').strip()
+        materials = data.get('materials')
+        if not work_name:
+            return jsonify({"status": "error", "message": "請輸入作品名稱"}), 400
+        if not isinstance(materials, list):
+            return jsonify({"status": "error", "message": "耗材明細格式錯誤"}), 400
+        try:
+            other_cost = float(data.get('other_cost', 0) or 0)
+            shipping_cost = float(data.get('shipping_cost', 0) or 0)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "成本格式錯誤"}), 400
+
+        ok, msg = db_service.update_print_test(str(order_id), work_name, materials, other_cost, shipping_cost)
+        if ok:
+            return jsonify({"status": "success", "message": msg})
+        return jsonify({"status": "error", "message": msg}), 400
+    else:
+        """刪除打印測試訂單：移除耗材消耗紀錄，耗材剩餘量還原。"""
+        ok, msg = db_service.delete_print_test(str(order_id))
+        if ok:
+            return jsonify({"status": "success", "message": msg})
+        return jsonify({"status": "error", "message": msg}), 400
 
 
 @app.route('/api/admin/bonuses', methods=['GET'])

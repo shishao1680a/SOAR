@@ -2001,7 +2001,10 @@
           </td>
           <td class="p-3 text-right whitespace-nowrap">
             <button onclick="viewOrderDetail('${o.id}')" class="px-2.5 py-1 bg-primary-fixed/20 hover:bg-primary-fixed text-primary-fixed hover:text-black font-bold rounded text-xs mr-1">查詢</button>
-            ${isTest ? `<button onclick="deleteTestOrder('${o.id}')" class="px-2.5 py-1 bg-error/20 hover:bg-error text-error hover:text-white font-bold rounded text-xs">刪除</button>` : `
+            ${isTest ? `
+              <button onclick="editAdminOrder('${o.id}')" class="px-2.5 py-1 bg-surface-container border border-outline-variant text-gray-200 hover:text-white font-bold rounded text-xs mr-1">修改</button>
+              <button onclick="deleteTestOrder('${o.id}')" class="px-2.5 py-1 bg-error/20 hover:bg-error text-error hover:text-white font-bold rounded text-xs">刪除</button>
+            ` : `
               ${isCancelled || isShipped ? '' : `<button onclick="openOrderShipmentModal('${o.id}')" class="px-2.5 py-1 bg-line-green hover:bg-line-green/80 text-white font-bold rounded text-xs mr-1 shadow">
                 寄送
               </button>`}
@@ -2102,11 +2105,13 @@
   let shipmentProducts = [];
   let shipmentEditMode = false;
 
-  async function openOrderShipmentModal(orderId) {
+  async function openOrderShipmentModal(orderId, editMode) {
     const order = adminOrdersList.find(o => String(o.id) === String(orderId));
     if (!order) return;
     currentShipmentOrder = order;
-    shipmentEditMode = order.status === 'SHIPPED' || order.status === 'COMPLETED';
+    shipmentEditMode = (editMode !== undefined)
+      ? editMode
+      : (order.status === 'SHIPPED' || order.status === 'COMPLETED');
     document.getElementById('shipment-order-id').value = order.id;
 
     await Promise.all([ensureProductsLoaded(), ensureUsersLoaded(), loadMaterialUnitCosts(), loadMaterialNamesForDatalist(), loadMaterialImages(), loadMaterialMeasureTypes()]);
@@ -2119,6 +2124,8 @@
       items = [{ id: null, name: `訂單作品 #${order.id}`, qty: 1, price: parseFloat(order.total_amount || 0) }];
     }
 
+    const baseOther = parseFloat(order.other_cost || 0);
+    const baseShipping = parseFloat(order.shipping_cost || 0);
     shipmentProducts = items.map((itm, idx) => {
       const qty = parseInt(itm.qty || 1, 10) || 1;
       const unitPrice = roundInt(parseFloat(itm.price !== undefined ? itm.price : ((order.total_amount || 0) / qty)) || 0);
@@ -2132,8 +2139,8 @@
         unitPrice: unitPrice,
         salesAmount: roundInt(qty * unitPrice),
         materials: [],
-        otherCost: 0,
-        shippingCost: idx === 0 ? 60 : 0,
+        otherCost: baseOther,
+        shippingCost: baseShipping,
         netProfit: 0,
         designerId: '',
         packagerId: '',
@@ -2624,18 +2631,52 @@
   }
 
   // --- 打印測試 ---
-  function openPrintTestModal() {
+  let printTestEditOrderId = '';
+
+  async function openPrintTestModal(order) {
+    printTestEditOrderId = order ? order.id : '';
     setVal('print-test-work-name', '');
     setVal('print-test-other-cost', '0');
     setVal('print-test-shipping-cost', '0');
     const tbody = document.getElementById('print-test-materials-tbody');
     if (tbody) tbody.innerHTML = '';
-    addPrintTestMaterialRow();
+    const titleEl = document.getElementById('print-test-title');
+    if (titleEl) titleEl.textContent = order ? `修改打印測試：${order.id}` : '打印測試（耗材與成本試算）';
+
+    if (order) {
+      let workName = '';
+      try {
+        const items = typeof order.items_json === 'string' ? JSON.parse(order.items_json || '[]') : (order.items_json || []);
+        workName = (items[0] && items[0].name) || '';
+      } catch(e) {}
+      setVal('print-test-work-name', workName);
+      setVal('print-test-other-cost', parseFloat(order.other_cost || 0));
+      setVal('print-test-shipping-cost', parseFloat(order.shipping_cost || 0));
+    }
+
+    await Promise.all([
+      loadMaterialNamesForDatalist(),
+      loadMaterialUnitCosts(),
+      loadMaterialMeasureTypes(),
+      loadMaterialImages()
+    ]);
+
+    if (order) {
+      try {
+        const res = await fetch(`/api/admin/orders/${order.id}/settlement`);
+        const json = await res.json();
+        const mats = (json.status === 'success' && json.data && json.data.materials) || [];
+        if (mats.length > 0) {
+          mats.forEach(m => addPrintTestMaterialRow({ material_name: m.material_name, capacity_used: m.capacity_used, qty_used: m.qty_used }));
+        } else {
+          addPrintTestMaterialRow();
+        }
+      } catch(e) { addPrintTestMaterialRow(); }
+    } else {
+      addPrintTestMaterialRow();
+    }
+
     calcPrintTestTotals();
-    loadMaterialNamesForDatalist();
-    loadMaterialUnitCosts();
-    loadMaterialMeasureTypes();
-    loadMaterialImages();
     document.getElementById('modal-print-test').classList.remove('hidden');
   }
 
@@ -2760,16 +2801,19 @@
       other_cost: parseFloat(document.getElementById('print-test-other-cost').value || 0),
       shipping_cost: parseFloat(document.getElementById('print-test-shipping-cost').value || 0)
     };
+    const method = printTestEditOrderId ? 'PUT' : 'POST';
+    const url = printTestEditOrderId ? `/api/admin/print-test/${printTestEditOrderId}` : '/api/admin/print-test';
     try {
-      const res = await fetch('/api/admin/print-test', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method: method,
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload)
       });
       const json = await res.json();
       if (json.status === 'success') {
-        alert(`${json.message}（訂單編號：${json.order_id}）`);
+        alert(json.message + (json.order_id ? `（訂單編號：${json.order_id}）` : ''));
         closeModal('modal-print-test');
+        printTestEditOrderId = '';
         loadAdminOrdersList();
       } else {
         alert(json.message || '儲存失敗');
@@ -2898,6 +2942,7 @@
         price: p.unitPrice,
         qty: p.qty
       }));
+      body.make_settlement = currentShipmentOrder.status === 'SHIPPED' || currentShipmentOrder.status === 'COMPLETED';
     }
 
     const t0 = Date.now();
@@ -3029,37 +3074,11 @@
   function editAdminOrder(orderId) {
     const order = adminOrdersList.find(o => String(o.id) === String(orderId));
     if (!order) return;
-    const isShipped = order.status === 'SHIPPED' || order.status === 'COMPLETED';
-    if (isShipped) {
-      openOrderShipmentModal(order.id);
+    if (order.status === 'TEST') {
+      openPrintTestModal(order);
       return;
     }
-    currentEditOrder = order;
-    document.getElementById('order-edit-id').textContent = order.id;
-
-    let items = [];
-    try {
-      items = typeof order.items_json === 'string' ? JSON.parse(order.items_json || '[]') : (order.items_json || []);
-    } catch(e) { items = []; }
-    if (!Array.isArray(items) || items.length === 0) {
-      items = [{ id: null, name: `訂單作品 #${order.id}`, price: parseFloat(order.total_amount || 0), qty: 1, variant_name: '' }];
-    }
-
-    currentEditOrderItems = items.map((itm, i) => {
-      const qty = parseInt(itm.qty || 1, 10) || 1;
-      const price = parseFloat(itm.price !== undefined ? itm.price : ((order.total_amount || 0) / qty));
-      return {
-        idx: i,
-        id: itm.id || itm.product_id || null,
-        name: itm.name || itm.product_name || '-',
-        variantName: itm.variant_name || itm.item_name || '',
-        price: round2(isNaN(price) ? 0 : price),
-        qty: qty
-      };
-    });
-
-    renderOrderEditItems();
-    document.getElementById('modal-order-edit').classList.remove('hidden');
+    openOrderShipmentModal(order.id, true);
   }
 
   function renderOrderEditItems() {

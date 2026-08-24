@@ -1422,8 +1422,11 @@ class DBService:
             print(f"Error fetching order settlement {order_id}: {e}")
             return {}
 
-    def update_order_settlement(self, order_id, items, products, order_totals):
-        """已寄送訂單修改：更新明細（單價/數量、重扣庫存）、重建結算與耗材明細、重算總額與淨利潤。"""
+    def update_order_settlement(self, order_id, items, products, order_totals, make_settlement=True):
+        """修改訂單：更新明細（單價/數量、重扣庫存）、重建耗材明細、重算總額與淨利潤。
+        make_settlement=True 時（已寄送）重建結算並維持 SHIPPED；
+        False 時（待處理編輯）不寫結算、狀態維持原狀。
+        """
         import time as _t
         _t0 = _t.time()
         try:
@@ -1441,6 +1444,7 @@ class DBService:
                     return False, "訂單不存在"
                 if row._mapping["status"] == "CANCELLED":
                     return False, "已取消的訂單無法修改"
+                current_status = row._mapping["status"]
 
                 # 1) 釋放舊庫存，依新明細重新扣減
                 conn.execute(text("DELETE FROM sales_logs WHERE order_id = :id"), {"id": str(order_id)})
@@ -1508,11 +1512,12 @@ class DBService:
 
                 # 2) 更新訂單明細、總額與淨利潤
                 conn.execute(text("""
-                    UPDATE orders SET items_json = :items_json, total_amount = :total_amount, status = 'SHIPPED',
+                    UPDATE orders SET items_json = :items_json, total_amount = :total_amount, status = :status,
                         other_cost = :oc, shipping_cost = :sc, net_profit = :np
                     WHERE id = :id
                 """), {
                     "items_json": items_json, "total_amount": total_amount,
+                    "status": 'SHIPPED' if make_settlement else current_status,
                     "oc": order_totals.get("other_cost", 0),
                     "sc": order_totals.get("shipping_cost", 0),
                     "np": order_totals.get("net_profit", 0),
@@ -1524,36 +1529,37 @@ class DBService:
                 conn.execute(text("DELETE FROM order_materials WHERE order_id = :id"), {"id": str(order_id)})
 
                 for p in products:
-                    conn.execute(text("""
-                        INSERT INTO order_settlements (order_id, product_id, item_name, sales_amount,
-                            material_cost, other_cost, shipping_cost, net_profit,
-                            designer_user_id, packager_user_id,
-                            designer_ratio, packager_ratio, platform_ratio,
-                            designer_amount, packager_amount, platform_amount, settled_at)
-                        VALUES (:order_id, :product_id, :item_name, :sales_amount,
-                            :material_cost, :other_cost, :shipping_cost, :net_profit,
-                            :designer_user_id, :packager_user_id,
-                            :designer_ratio, :packager_ratio, :platform_ratio,
-                            :designer_amount, :packager_amount, :platform_amount, :settled_at)
-                    """), {
-                        "order_id": str(order_id),
-                        "product_id": p.get("product_id"),
-                        "item_name": p.get("item_name") or '-',
-                        "sales_amount": p.get("sales_amount", 0),
-                        "material_cost": p.get("material_cost", 0),
-                        "other_cost": p.get("other_cost", 0),
-                        "shipping_cost": p.get("shipping_cost", 0),
-                        "net_profit": p.get("net_profit", 0),
-                        "designer_user_id": p.get("designer_user_id") or None,
-                        "packager_user_id": p.get("packager_user_id") or None,
-                        "designer_ratio": p.get("designer_ratio", 20),
-                        "packager_ratio": p.get("packager_ratio", 60),
-                        "platform_ratio": p.get("platform_ratio", 20),
-                        "designer_amount": p.get("designer_amount", 0),
-                        "packager_amount": p.get("packager_amount", 0),
-                        "platform_amount": p.get("platform_amount", 0),
-                        "settled_at": now_str,
-                    })
+                    if make_settlement:
+                        conn.execute(text("""
+                            INSERT INTO order_settlements (order_id, product_id, item_name, sales_amount,
+                                material_cost, other_cost, shipping_cost, net_profit,
+                                designer_user_id, packager_user_id,
+                                designer_ratio, packager_ratio, platform_ratio,
+                                designer_amount, packager_amount, platform_amount, settled_at)
+                            VALUES (:order_id, :product_id, :item_name, :sales_amount,
+                                :material_cost, :other_cost, :shipping_cost, :net_profit,
+                                :designer_user_id, :packager_user_id,
+                                :designer_ratio, :packager_ratio, :platform_ratio,
+                                :designer_amount, :packager_amount, :platform_amount, :settled_at)
+                        """), {
+                            "order_id": str(order_id),
+                            "product_id": p.get("product_id"),
+                            "item_name": p.get("item_name") or '-',
+                            "sales_amount": p.get("sales_amount", 0),
+                            "material_cost": p.get("material_cost", 0),
+                            "other_cost": p.get("other_cost", 0),
+                            "shipping_cost": p.get("shipping_cost", 0),
+                            "net_profit": p.get("net_profit", 0),
+                            "designer_user_id": p.get("designer_user_id") or None,
+                            "packager_user_id": p.get("packager_user_id") or None,
+                            "designer_ratio": p.get("designer_ratio", 20),
+                            "packager_ratio": p.get("packager_ratio", 60),
+                            "platform_ratio": p.get("platform_ratio", 20),
+                            "designer_amount": p.get("designer_amount", 0),
+                            "packager_amount": p.get("packager_amount", 0),
+                            "platform_amount": p.get("platform_amount", 0),
+                            "settled_at": now_str,
+                        })
 
                     for m in p.get("materials", []):
                         conn.execute(text("""
@@ -1724,6 +1730,55 @@ class DBService:
         except Exception as e:
             print(f"Error deleting print test {order_id}: {e}")
             return False, f"刪除打印測試失敗：{e}"
+
+    def update_print_test(self, order_id, work_name, materials, other_cost=0, shipping_cost=0):
+        """修改打印測試訂單：更新作品名稱與耗材消耗紀錄（耗材剩餘量同步重算）。"""
+        try:
+            items_json = json.dumps([{
+                "id": None,
+                "name": work_name or '打印測試',
+                "price": 0,
+                "qty": 1,
+                "variant_name": '',
+            }], ensure_ascii=False)
+            with self.engine.begin() as conn:
+                row = conn.execute(
+                    text("SELECT status FROM orders WHERE id = :id FOR UPDATE"),
+                    {"id": str(order_id)},
+                ).first()
+                if not row:
+                    return False, "訂單不存在"
+                if row._mapping["status"] != "TEST":
+                    return False, "只有打印測試訂單可以修改"
+                conn.execute(text("DELETE FROM order_materials WHERE order_id = :id"), {"id": str(order_id)})
+                conn.execute(text("""
+                    UPDATE orders SET items_json = :items_json, other_cost = :oc, shipping_cost = :sc
+                    WHERE id = :id
+                """), {
+                    "items_json": items_json,
+                    "oc": float(other_cost or 0),
+                    "sc": float(shipping_cost or 0),
+                    "id": str(order_id),
+                })
+                for m in materials:
+                    conn.execute(text("""
+                        INSERT INTO order_materials (order_id, product_id, item_name, material_name,
+                            capacity_used, qty_used, unit_cost, cost)
+                        VALUES (:order_id, :product_id, :item_name, :material_name,
+                            :capacity_used, :qty_used, :unit_cost, :cost)
+                    """), {
+                        "order_id": str(order_id), "product_id": None,
+                        "item_name": work_name or '打印測試',
+                        "material_name": m.get("material_name"),
+                        "capacity_used": m.get("capacity_used", 0),
+                        "qty_used": m.get("qty_used", 0),
+                        "unit_cost": m.get("unit_cost", 0),
+                        "cost": m.get("cost", 0),
+                    })
+            return True, "打印測試已更新，耗材消耗已同步"
+        except Exception as e:
+            print(f"Error updating print test {order_id}: {e}")
+            return False, f"修改打印測試失敗：{e}"
 
     def get_bonus_summary(self, date_from, date_to):
         """依結算時間區間回傳獎金統計：每人設計/包裝金額、每筆明細、平台收益總計。"""
