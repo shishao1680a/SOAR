@@ -24,25 +24,13 @@
     <button type="button" id="orders-tab-cancelled" onclick="setOrdersStatusFilter('cancelled')" class="px-4 py-2 rounded-t font-bold italic text-xs transition-all bg-surface-container-high border border-outline-variant text-gray-300 hover:text-white">已取消</button>
   </div>
 
-  <div class="bg-surface-container-low border border-outline-variant overflow-x-auto shadow-2xl">
-    <table class="w-full text-left font-label-caps text-xs">
-      <thead class="bg-surface-container border-b border-outline-variant text-primary-fixed">
-        <tr>
-          <th class="p-3">訂單時間</th>
-          <th class="p-3">訂單編號</th>
-          <th class="p-3">購買商品 / 款式</th>
-          <th class="p-3">數量</th>
-            <th class="p-3">單價金額 ($)</th>
-            <th class="p-3">訂購人 (LINE)</th>
-            <th class="p-3">總金額 ($)</th>
-            <th class="p-3">總成本 ($)</th>
-            <th class="p-3">狀態 / 淨利潤</th>
-          <th class="p-3 text-right">操作</th>
-        </tr>
-      </thead>
-      <tbody id="orders-table-body" class="divide-y divide-outline-variant/40">
-        <!-- Dynamically rendered -->
-      </tbody>
-    </table>
+  <div class="bg-surface-container-low border border-outline-variant rounded-xl p-3 flex flex-wrap items-center gap-2">
+    <div class="flex-1 min-w-[220px] relative">
+      <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">search</span>
+      <input type="text" id="orders-search-input" oninput="setOrdersSearch(this.value)" placeholder="搜尋訂單編號、訂購人、LINE、商品名稱..." class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 pl-8 rounded outline-none focus:border-primary-fixed" />
+    </div>
+    <button onclick="document.getElementById('orders-search-input').value=''; setOrdersSearch('');" class="px-3 py-2 bg-surface-container-high border border-outline-variant text-gray-300 hover:text-white font-label-caps text-xs rounded">清除</button>
   </div>
+
+  <div id="orders-cards-container" class="space-y-4"></div>
 </div>
