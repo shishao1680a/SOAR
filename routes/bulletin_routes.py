@@ -30,7 +30,7 @@ def api_admin_save_bulletin():
             _run_in_background(
                 line_service.push_text_message,
                 None,
-                f"📢 【社團最新公告】\n{title}\n\n{summary}\n\n詳情請至 UX-PRINT 首頁查看！"
+                f"📢 【社團最新公告】\n{title}\n\n{summary}\n\n詳情請至 展夢.飛翔 首頁查看！"
             )
         return jsonify({"status": "success", "message": "公告已成功發佈！"})
     return jsonify({"status": "error", "message": "發佈失敗"}), 500

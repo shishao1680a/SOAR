@@ -106,7 +106,7 @@ def api_create_order():
             for it in validated_items
         ])
         line_msg = (
-            f"🛒 【UX-PRINT 3D/UV 新訂單通知】\n"
+            f"🛒 【展夢.飛翔 新訂單通知】\n"
             f"----------------------------\n"
             f"訂單編號: {order_id}\n"
             f"訂購人: {user_name} ({user_line_id})\n"

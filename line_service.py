@@ -40,7 +40,7 @@ class LineService:
             
             if text_content == 'flbr':
                 source_id = getattr(event.source, 'group_id', None) or getattr(event.source, 'room_id', None) or getattr(event.source, 'user_id', None)
-                reply_text = f"【UX-PRINT 群組 ID 通知】\n本群組的 GID 為：\n{source_id}\n\n請複製上方 GID 貼至管理員後台【LINE 群組維護】即可完成設定！"
+                reply_text = f"【展夢.飛翔 群組 ID 通知】\n本群組的 GID 為：\n{source_id}\n\n請複製上方 GID 貼至管理員後台【LINE 群組維護】即可完成設定！"
                 
                 if self.line_bot_api:
                     try:
