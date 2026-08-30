@@ -30,28 +30,38 @@ class MaterialRecognizeService:
         genai.configure(api_key=key)
 
         prompt = (
-            "你是 UV 印表機墨盒用量辨識助手。請仔細閱讀圖片中的墨水用量數值"
+            "你是 UV 印表機墨盒用量辨識助手。請仔細閱讀圖片中每一行或每一個列印記錄的墨水用量數值"
             "（例如：C<0.01 | M<0.01 | Y0.01 | W0.46 | W(F)0.00 | G0.44），"
-            "把每一種顏色的使用量抽出來，輸出成純 JSON 陣列，格式："
+            "將所有記錄中每一種顏色的使用量抽出來，輸出成純 JSON 陣列，格式："
             '[{"letter": "C", "usage": 0.01, "unit": "ml"}, ...]。'
             "字母請統一使用大寫：C / M / Y / K / W / W(F) / G；"
             "數值前面有 < 符號時，直接以該數值為準（例如 <0.01 視為 0.01）；"
-            "只要輸出 JSON，不要其他文字。"
+            "請將所有記錄中相同的顏色各自抽取或加總；"
+            "只要輸出 JSON，不要其他任何說明文字。"
         )
 
-        contents = [prompt] + list(images)
+        # 適度縮小過大圖片，加快傳輸與辨識速度，避免連線逾時
+        processed_images = []
+        for img in images:
+            try:
+                max_dim = 1600
+                if max(img.size) > max_dim:
+                    scale = max_dim / max(img.size)
+                    new_size = (int(img.size[0] * scale), int(img.size[1] * scale))
+                    processed_images.append(img.resize(new_size))
+                else:
+                    processed_images.append(img)
+            except Exception:
+                processed_images.append(img)
 
-        avail = []
-        try:
-            for m in genai.list_models():
-                if 'generateContent' in getattr(m, 'supported_generation_methods', []):
-                    avail.append(m.name.replace('models/', ''))
-        except Exception:
-            pass
+        contents = [prompt] + processed_images
 
-        candidates = avail or [
-            'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash',
-            'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-pro',
+        # 優先呼叫穩定且快速的模型
+        candidates = [
+            'gemini-2.0-flash',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro',
+            'gemini-2.5-flash',
         ]
 
         response = None

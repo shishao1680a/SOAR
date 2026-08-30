@@ -65,11 +65,14 @@ def _run_in_background(target_fn, *args, **kwargs):
 
 
 def admin_or_coach_required(f):
-    """管理者或助教權限檢查裝飾器"""
+    """管理者或助教權限檢查裝飾器（針對 API 請求回傳 401 JSON，一般頁面則重導向）"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         user = session.get('user')
         if not user or user.get('role') not in ['admin', 'assistant_coach']:
+            if request.path.startswith('/api/') or request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'multipart/form-data' in (request.content_type or ''):
+                from flask import jsonify
+                return jsonify({"status": "error", "message": "登入逾時或無管理者權限，請重新登入！"}), 401
             return redirect(url_for('auth.login_page', next=request.url))
         return f(*args, **kwargs)
     return decorated_function

@@ -2552,14 +2552,28 @@
     materialRecognizeImages.forEach(f => formData.append('files', f));
     try {
       const res = await fetch('/api/admin/material-recognize', { method: 'POST', body: formData });
-      const json = await res.json();
+      if (res.status === 401) {
+        alert('登入已逾時，請重新登入！');
+        window.location.href = '/login';
+        return;
+      }
+      const text = await res.text();
+      let json = {};
+      try {
+        json = JSON.parse(text);
+      } catch (parseErr) {
+        alert(`辨識伺服器回應異常 (HTTP ${res.status})，請確認網路連線或重新登入後再試！`);
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined text-sm">auto_awesome</span> 開始辨識';
+        return;
+      }
       if (json.status === 'success') {
         materialRecognizeResult = (json.data && json.data.items) || [];
         renderMaterialRecognizeResult();
       } else {
         alert(json.message || '辨識失敗');
       }
-    } catch(e) { alert('辨識失敗：' + (e.message || e)); }
+    } catch(e) { alert('辨識連線失敗：' + (e.message || e)); }
     btn.disabled = false;
     btn.innerHTML = '<span class="material-symbols-outlined text-sm">auto_awesome</span> 開始辨識';
   }

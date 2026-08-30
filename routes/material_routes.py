@@ -174,28 +174,32 @@ def api_admin_material_consumptions_detail(log_id):
 @admin_or_coach_required
 def api_admin_material_recognize():
     """上傳墨盒用量圖片（可多張），以 Gemini Vision 辨識各色使用量"""
-    files = request.files.getlist('files') or request.files.getlist('file')
-    if not files:
-        return jsonify({"status": "error", "message": "請選擇至少一張圖片"}), 400
+    try:
+        files = request.files.getlist('files') or request.files.getlist('file')
+        if not files:
+            return jsonify({"status": "error", "message": "請選擇至少一張圖片"}), 400
 
-    images = []
-    for f in files:
-        ok, msg, ext = _validate_upload(f, ALLOWED_IMAGE_EXTS)
-        if not ok:
-            return jsonify({"status": "error", "message": msg}), 400
-        try:
-            img = Image.open(io.BytesIO(f.read()))
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-            images.append(img)
-        except Exception as e:
-            print(f"Image open error: {e}")
-            return jsonify({"status": "error", "message": "圖片讀取失敗"}), 400
+        images = []
+        for f in files:
+            ok, msg, ext = _validate_upload(f, ALLOWED_IMAGE_EXTS)
+            if not ok:
+                return jsonify({"status": "error", "message": msg}), 400
+            try:
+                img = Image.open(io.BytesIO(f.read()))
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                images.append(img)
+            except Exception as e:
+                print(f"Image open error: {e}")
+                return jsonify({"status": "error", "message": f"圖片讀取失敗: {e}"}), 400
 
-    items, err = material_recognize_service.recognize_ink_usage(images)
-    if err:
-        return jsonify({"status": "error", "message": err}), 400
-    return jsonify({"status": "success", "data": {"items": items}})
+        items, err = material_recognize_service.recognize_ink_usage(images)
+        if err:
+            return jsonify({"status": "error", "message": err}), 400
+        return jsonify({"status": "success", "data": {"items": items}})
+    except Exception as e:
+        print(f"Material recognize unexpected error: {e}")
+        return jsonify({"status": "error", "message": f"辨識伺服器發生非預期錯誤: {e}"}), 500
 
 @material_bp.route('/api/admin/material-suppliers', methods=['GET'])
 @admin_or_coach_required
