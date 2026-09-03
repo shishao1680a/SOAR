@@ -87,43 +87,70 @@ def api_admin_line_broadcast():
         message_objects = []
         image_count = 0
         pdf_count = 0
+        local_temp_cleanup_list = []  # 記錄待清理的本機暫存檔案
 
-        if message_text:
-            message_objects.append(TextSendMessage(text=message_text))
+        try:
+            if message_text:
+                message_objects.append(TextSendMessage(text=message_text))
 
-        for file_path, ext in saved_files:
-            fname = os.path.basename(file_path)
-            if ext == '.pdf':
-                pdf_count += 1
+            for file_path, ext in saved_files:
+                fname = os.path.basename(file_path)
+                if ext == '.pdf':
+                    pdf_count += 1
+                    try:
+                        converted_imgs = convert_pdf_to_images(file_path, output_folder=UPLOAD_FOLDER)
+                        for img_fname in converted_imgs:
+                            img_path = os.path.join(UPLOAD_FOLDER, img_fname)
+                            img_url = cloudinary_service.upload_image(img_path, folder="uxprint/temp_line")
+                            if img_url:
+                                local_temp_cleanup_list.append(img_path)
+                            else:
+                                img_url = f"{host_base}/uploads/{img_fname}"
+                            message_objects.append(ImageSendMessage(original_content_url=img_url, preview_image_url=img_url))
+                            image_count += 1
+                    except Exception as pdf_err:
+                        print(f"Error converting PDF to images: {pdf_err}")
+                    
+                    pdf_url = cloudinary_service.upload_file(file_path, raw_filename=fname, folder="uxprint/temp_line")
+                    if pdf_url:
+                        local_temp_cleanup_list.append(file_path)
+                    else:
+                        pdf_url = f"{host_base}/uploads/{fname}"
+                    message_objects.append(TextSendMessage(text=f"📎 原始 PDF 檔案下載網址: {pdf_url}"))
+                elif ext in ALLOWED_IMAGE_EXTS:
+                    image_count += 1
+                    img_url = cloudinary_service.upload_image(file_path, folder="uxprint/temp_line")
+                    if img_url:
+                        local_temp_cleanup_list.append(file_path)
+                    else:
+                        img_url = f"{host_base}/uploads/{fname}"
+                    message_objects.append(ImageSendMessage(original_content_url=img_url, preview_image_url=img_url))
+                else:
+                    file_url = cloudinary_service.upload_file(file_path, raw_filename=fname, folder="uxprint/temp_line")
+                    if file_url:
+                        local_temp_cleanup_list.append(file_path)
+                    else:
+                        file_url = f"{host_base}/uploads/{fname}"
+                    message_objects.append(TextSendMessage(text=f"📎 檔案下載網址: {file_url}"))
+
+            if not message_objects:
+                print("Broadcast job: no messages to send")
+                return
+
+            success_count = 0
+            for gid in group_ids:
+                if line_service.push_messages_chunked(gid, message_objects):
+                    success_count += 1
+            print(f"Broadcast job done: {success_count}/{len(group_ids)} groups, "
+                  f"{image_count} images, {pdf_count} pdfs")
+        finally:
+            # 清理本機已成功上傳 Cloudinary 的暫存圖檔與 PDF 衍生圖，釋放伺服器空間
+            for temp_f in set(local_temp_cleanup_list):
                 try:
-                    converted_imgs = convert_pdf_to_images(file_path, output_folder=UPLOAD_FOLDER)
-                    for img_fname in converted_imgs:
-                        img_path = os.path.join(UPLOAD_FOLDER, img_fname)
-                        img_url = cloudinary_service.upload_image(img_path) or f"{host_base}/uploads/{img_fname}"
-                        message_objects.append(ImageSendMessage(original_content_url=img_url, preview_image_url=img_url))
-                        image_count += 1
-                except Exception as pdf_err:
-                    print(f"Error converting PDF to images: {pdf_err}")
-                pdf_url = cloudinary_service.upload_file(file_path, raw_filename=fname) or f"{host_base}/uploads/{fname}"
-                message_objects.append(TextSendMessage(text=f"📎 原始 PDF 檔案下載網址: {pdf_url}"))
-            elif ext in ALLOWED_IMAGE_EXTS:
-                image_count += 1
-                img_url = cloudinary_service.upload_image(file_path) or f"{host_base}/uploads/{fname}"
-                message_objects.append(ImageSendMessage(original_content_url=img_url, preview_image_url=img_url))
-            else:
-                file_url = cloudinary_service.upload_file(file_path, raw_filename=fname) or f"{host_base}/uploads/{fname}"
-                message_objects.append(TextSendMessage(text=f"📎 檔案下載網址: {file_url}"))
-
-        if not message_objects:
-            print("Broadcast job: no messages to send")
-            return
-
-        success_count = 0
-        for gid in group_ids:
-            if line_service.push_messages_chunked(gid, message_objects):
-                success_count += 1
-        print(f"Broadcast job done: {success_count}/{len(group_ids)} groups, "
-              f"{image_count} images, {pdf_count} pdfs")
+                    if os.path.exists(temp_f):
+                        os.remove(temp_f)
+                except OSError as clean_err:
+                    print(f"Error removing temp broadcast file {temp_f}: {clean_err}")
 
     _run_in_background(_broadcast_job)
 

@@ -99,7 +99,7 @@ def api_admin_upload_image():
     file.save(file_path)
 
     # 優先上傳至 Cloudinary（持久保存，重新部署不會消失）
-    cloud_url = cloudinary_service.upload_image(file_path)
+    cloud_url = cloudinary_service.upload_image(file_path, folder="uxprint/products")
     if cloud_url:
         try:
             os.remove(file_path)
@@ -238,3 +238,20 @@ def api_admin_inventory_detail(log_id):
         if deleted:
             return jsonify({"status": "success", "message": "進貨紀錄已成功刪除！"})
         return jsonify({"status": "error", "message": "刪除失敗"}), 500
+
+@admin_bp.route('/api/admin/maintenance/cleanup-temp', methods=['POST'])
+@admin_or_coach_required
+def api_admin_cleanup_temp_files():
+    """管理員維護端點：安全清理 Cloudinary 與本地 LINE 廣播暫存檔案"""
+    data = request.get_json() or {}
+    days = int(data.get('days', 14))
+    folder = data.get('folder', 'uxprint/temp_line')
+
+    try:
+        result = cloudinary_service.cleanup_temp_files(days=days, folder=folder)
+        return jsonify(result)
+    except ValueError as val_err:
+        return jsonify({"status": "error", "message": str(val_err)}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"清理作業失敗: {e}"}), 500
+
