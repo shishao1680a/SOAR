@@ -2331,7 +2331,7 @@
         <div class="shipment-mat-suggest hidden absolute left-0 right-0 top-full mt-0.5 max-h-44 overflow-y-auto bg-surface-container-high border border-outline-variant rounded-lg shadow-2xl z-30 text-xs"></div>
       </td>
       <td class="p-1.5 text-center">
-        <input type="number" step="1" min="0" class="shipment-mat-qty w-full bg-surface-container border border-outline-variant text-cyan-300 font-bold p-1 text-center rounded outline-none text-xs" value="150" placeholder="消耗容量" oninput="recalcShipmentMaterialRow(0, '${rowId}')" />
+        <input type="number" step="any" min="0" class="shipment-mat-qty w-full bg-surface-container border border-outline-variant text-cyan-300 font-bold p-1 text-center rounded outline-none text-xs" value="150" placeholder="消耗容量" oninput="recalcShipmentMaterialRow(${idx}, '${rowId}')" />
       </td>
       <td class="p-1.5 text-right">
         <input type="number" step="0.0001" readonly class="shipment-mat-unit-cost w-full bg-surface-container border border-outline-variant text-cyan-200 font-bold p-1 text-right rounded outline-none text-xs" value="0.0000" title="加權平均單位成本（自動帶入）" />
@@ -2371,7 +2371,7 @@
     const unitCost = materialUnitCosts[name] || 0;
     tr.querySelector('.shipment-mat-unit-cost').value = unitCost.toFixed(4);
     const cost = amount * unitCost;
-    tr.querySelector('.shipment-mat-cost').value = roundInt(cost);
+    tr.querySelector('.shipment-mat-cost').value = round2(cost).toFixed(2);
     const img = tr.querySelector('.shipment-mat-img');
     const imageUrl = materialImages[name] || '';
     if (img) {
@@ -2464,7 +2464,9 @@
         suggest.classList.add('hidden');
         suggest.innerHTML = '';
       }
-      recalcShipmentMaterialRow(0, rowId);
+      const idxMatch = rowId.match(/^sm-(\d+)-/);
+      const idx = idxMatch ? parseInt(idxMatch[1], 10) : 0;
+      recalcShipmentMaterialRow(idx, rowId);
     }
   }
 
@@ -2618,7 +2620,15 @@
           const nameInput = tr.querySelector('.shipment-mat-name');
           if (nameInput && nameInput.value.trim() === materialName) {
             const qtyInput = tr.querySelector('.shipment-mat-qty');
-            if (qtyInput) { qtyInput.value = usage; found = true; }
+            if (qtyInput) {
+              qtyInput.value = usage;
+              found = true;
+              if (isTest) {
+                recalcPrintTestMaterialRow(tr.id);
+              } else {
+                recalcShipmentMaterialRow(idx, tr.id);
+              }
+            }
           }
         });
       }
@@ -2710,7 +2720,7 @@
         <div class="shipment-mat-suggest hidden absolute left-0 right-0 top-full mt-0.5 max-h-44 overflow-y-auto bg-surface-container-high border border-outline-variant rounded-lg shadow-2xl z-30 text-xs"></div>
       </td>
       <td class="p-1.5 text-center">
-        <input type="number" step="1" min="0" class="shipment-mat-qty w-full bg-surface-container border border-outline-variant text-cyan-300 font-bold p-1 text-center rounded outline-none text-xs" value="0" placeholder="消耗容量" oninput="recalcPrintTestMaterialRow('${rowId}')" />
+        <input type="number" step="any" min="0" class="shipment-mat-qty w-full bg-surface-container border border-outline-variant text-cyan-300 font-bold p-1 text-center rounded outline-none text-xs" value="0" placeholder="消耗容量" oninput="recalcPrintTestMaterialRow('${rowId}')" />
       </td>
       <td class="p-1.5 text-right">
         <input type="number" step="0.0001" readonly class="shipment-mat-unit-cost w-full bg-surface-container border border-outline-variant text-cyan-200 font-bold p-1 text-right rounded outline-none text-xs" value="0.0000" />
@@ -2755,7 +2765,8 @@
     }
     const unitCost = materialUnitCosts[name] || 0;
     tr.querySelector('.shipment-mat-unit-cost').value = unitCost.toFixed(4);
-    tr.querySelector('.shipment-mat-cost').value = roundInt(amount * unitCost);
+    const cost = amount * unitCost;
+    tr.querySelector('.shipment-mat-cost').value = round2(cost).toFixed(2);
     const img = tr.querySelector('.shipment-mat-img');
     const imageUrl = materialImages[name] || '';
     if (img) {
@@ -2778,10 +2789,12 @@
         materialTotal += parseFloat(inp.value || 0);
       });
     }
+    materialTotal = round2(materialTotal);
+    const roundedMat = materialTotal > 0 ? Math.max(1, roundInt(materialTotal)) : 0;
     const otherCost = parseFloat(document.getElementById('print-test-other-cost').value || 0);
     const shippingCost = parseFloat(document.getElementById('print-test-shipping-cost').value || 0);
-    const total = materialTotal + otherCost + shippingCost;
-    document.getElementById('print-test-material-total').textContent = '$' + roundInt(materialTotal);
+    const total = roundedMat + otherCost + shippingCost;
+    document.getElementById('print-test-material-total').textContent = '$' + roundedMat;
     document.getElementById('print-test-total').textContent = '$' + roundInt(total);
   }
 
@@ -2859,15 +2872,17 @@
           materialCost += parseFloat(inp.value || 0);
         });
       }
+      materialCost = round2(materialCost);
+      const roundedMaterialCost = materialCost > 0 ? Math.max(1, roundInt(materialCost)) : 0;
       const otherCost = parseFloat(document.getElementById('shipment-other-cost-' + idx).value || 0);
       const shippingCost = parseFloat(document.getElementById('shipment-shipping-cost-' + idx).value || 0);
-      const netProfit = p.salesAmount - materialCost - otherCost - shippingCost;
+      const netProfit = p.salesAmount - roundedMaterialCost - otherCost - shippingCost;
 
       const rawDesigner = netProfit * (p.designerRatio / 100);
       const rawPackager = netProfit * (p.packagerRatio / 100);
       const rawPlatform = netProfit * (p.platformRatio / 100);
 
-      p.materialCost = roundInt(materialCost);
+      p.materialCost = roundedMaterialCost;
       p.otherCost = roundInt(otherCost);
       p.shippingCost = roundInt(shippingCost);
       p.netProfit = roundInt(netProfit);
