@@ -56,11 +56,38 @@ class MaterialRecognizeService:
 
         contents = [prompt] + processed_images
 
-        # 優先呼叫反應快速且支援 Vision 的 Flash 模型
-        candidates = [
-            'gemini-2.0-flash',
+        # 動態探測目前 API Key 真正授權的可用模型名單
+        avail_models = []
+        try:
+            for m in genai.list_models():
+                methods = getattr(m, 'supported_generation_methods', []) or []
+                if 'generateContent' in methods:
+                    name = m.name.replace('models/', '')
+                    avail_models.append(name)
+            print(f"Gemini available models for current key: {avail_models}")
+        except Exception as list_err:
+            print(f"genai.list_models query failed: {list_err}")
+
+        # 依速度與多模態能力排序：優先 flash，次之 pro，最後其他
+        flash_models = [m for m in avail_models if 'flash' in m.lower()]
+        pro_models = [m for m in avail_models if 'pro' in m.lower() and m not in flash_models]
+        other_models = [m for m in avail_models if m not in flash_models and m not in pro_models]
+        sorted_avail = flash_models + pro_models + other_models
+
+        # 備援候選名單（涵蓋各種常見別名與版本後綴）
+        fallback_candidates = [
+            'gemini-1.5-flash-latest',
             'gemini-1.5-flash',
+            'gemini-1.5-flash-001',
+            'gemini-1.5-flash-002',
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-exp',
+            'gemini-1.5-pro-latest',
+            'gemini-1.5-pro',
+            'gemini-pro',
         ]
+
+        candidates = sorted_avail or fallback_candidates
 
         response = None
         last_err = None
@@ -78,6 +105,8 @@ class MaterialRecognizeService:
                 print(f"Gemini candidate {cand} failed: {e}")
 
         if not response or not response.text:
+            if not avail_models and last_err and "404" in str(last_err):
+                return None, f"Gemini 辨識失敗：{last_err}。請檢查此 GEMINI_API_KEY 是否已在 Google AI Studio / Cloud Console 啟用 Generative Language API 權限。"
             return None, f"Gemini 辨識失敗：{last_err or '無回應'}"
 
         raw = response.text.strip()
