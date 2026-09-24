@@ -322,7 +322,7 @@
         <tr class="hover:bg-surface-container/50">
           <td class="p-3">
             <div class="flex items-center gap-1">
-              <img src="${p.image_url}" class="w-10 h-10 object-cover border border-outline-variant rounded" />
+              <img src="${p.image_url || '/static/images/placeholder.svg'}" onerror="this.onerror=null; this.src='/static/images/placeholder.svg'; this.title='圖片已失效(請點編輯重新上傳)';" class="w-10 h-10 object-cover border border-outline-variant rounded" />
               ${multiImgs.length > 1 ? `<span class="text-[10px] bg-secondary-container text-white px-1 font-bold rounded">+${multiImgs.length - 1}圖</span>` : ''}
             </div>
           </td>
@@ -434,7 +434,7 @@
     container.innerHTML = currentProductItems.map((item, index) => `
       <div class="flex items-center justify-between p-3 bg-surface-container border border-outline-variant rounded-lg hover:border-line-green/60 transition-all gap-2">
         <div class="flex items-center gap-3 overflow-hidden">
-          <img src="${item.image_url || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=150&q=80'}" class="w-10 h-10 object-cover rounded border border-outline-variant shrink-0" />
+          <img src="${item.image_url || '/static/images/placeholder.svg'}" onerror="this.onerror=null; this.src='/static/images/placeholder.svg';" class="w-10 h-10 object-cover rounded border border-outline-variant shrink-0" />
           <div class="truncate">
             <div class="font-bold text-white text-xs truncate flex items-center gap-1">
               <span class="text-line-green font-mono text-[11px]">#${index + 1}</span> ${item.name || '未命名項目'}
@@ -607,7 +607,11 @@
           preview.classList.remove('hidden');
         }
         if (afterSet) afterSet();
-        alert(`${label || '圖片'}上傳成功！`);
+        if (json.is_cloud === false) {
+          alert(`⚠️ 注意：${label || '圖片'}已暫存於本機伺服器（Cloudinary 尚未連通）。\n在 Railway 重新部署或重啟後該圖片會遺失，建議儘速在環境變數中設定 Cloudinary！`);
+        } else {
+          alert(`${label || '圖片'}上傳成功（已持久儲存於 Cloudinary）！`);
+        }
       } else {
         alert(json.message || '圖片上傳失敗');
       }
@@ -2545,14 +2549,59 @@
     }
   }
 
+  function compressImageForAI(file, maxDim = 1200, quality = 0.85) {
+    return new Promise((resolve) => {
+      if (!file || !file.type || file.type.indexOf('image/') !== 0) return resolve(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width;
+          let h = img.height;
+          if (w <= maxDim && h <= maxDim) return resolve(file);
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob((blob) => {
+            if (!blob) return resolve(file);
+            const compFile = new File([blob], (file.name || 'image.jpg').replace(/\.[^.]+$/, '.jpg'), {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            resolve(compFile);
+          }, 'image/jpeg', quality);
+        };
+        img.onerror = () => resolve(file);
+        img.src = e.target.result;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function runMaterialRecognize() {
     if (materialRecognizeImages.length === 0) return alert('請先加入至少一張圖片');
     const btn = document.getElementById('mrec-run-btn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="animate-spin material-symbols-outlined text-sm">sync</span> 辨識中，請稍候...';
-    const formData = new FormData();
-    materialRecognizeImages.forEach(f => formData.append('files', f));
+    btn.innerHTML = '<span class="animate-spin material-symbols-outlined text-sm">sync</span> 圖片壓縮與辨識中...';
+    
     try {
+      const formData = new FormData();
+      for (let i = 0; i < materialRecognizeImages.length; i++) {
+        const f = materialRecognizeImages[i];
+        const compressed = await compressImageForAI(f);
+        formData.append('files', compressed);
+      }
+
       const res = await fetch('/api/admin/material-recognize', { method: 'POST', body: formData });
       if (res.status === 401) {
         alert('登入已逾時，請重新登入！');
@@ -2564,9 +2613,7 @@
       try {
         json = JSON.parse(text);
       } catch (parseErr) {
-        alert(`辨識伺服器回應異常 (HTTP ${res.status})，請確認網路連線或重新登入後再試！`);
-        btn.disabled = false;
-        btn.innerHTML = '<span class="material-symbols-outlined text-sm">auto_awesome</span> 開始辨識';
+        alert(`辨識伺服器回應異常 (HTTP ${res.status})。\n可能原因：圖片處理逾時或伺服器忙碌，請縮小圖片或稍後再試！\n（若持續發生，請確認 Railway 之 GEMINI_API_KEY 環境變數是否正確設定）`);
         return;
       }
       if (json.status === 'success') {
@@ -2575,9 +2622,12 @@
       } else {
         alert(json.message || '辨識失敗');
       }
-    } catch(e) { alert('辨識連線失敗：' + (e.message || e)); }
-    btn.disabled = false;
-    btn.innerHTML = '<span class="material-symbols-outlined text-sm">auto_awesome</span> 開始辨識';
+    } catch(e) {
+      alert('辨識連線失敗：' + (e.message || e));
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined text-sm">auto_awesome</span> 開始辨識';
+    }
   }
 
   function renderMaterialRecognizeResult() {

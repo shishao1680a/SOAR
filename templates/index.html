@@ -713,10 +713,17 @@
         return;
       }
 
+  const DEFAULT_PLACEHOLDER_IMG = '/static/images/placeholder.svg';
+  function handleImageFallback(img, fallbackSrc = DEFAULT_PLACEHOLDER_IMG) {
+    if (!img) return;
+    img.onerror = () => { img.onerror = null; };
+    img.src = fallbackSrc;
+  }
+
       grid.innerHTML = filtered.map(p => `
         <div class="bg-surface-container-low border border-outline-variant group hover:glow-primary transition-all duration-300 flex flex-col">
           <div class="aspect-square bg-surface-dim relative overflow-hidden ${p.is_uv || p.isUv ? 'uv-trigger' : ''}">
-            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${p.image_url || p.image}" alt="${p.name}"/>
+            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${p.image_url || p.image || DEFAULT_PLACEHOLDER_IMG}" alt="${p.name}" onerror="handleImageFallback(this)"/>
             
             ${p.is_uv || p.isUv ? `
               <div class="absolute inset-0 bg-secondary-container/30 opacity-0 uv-overlay transition-opacity duration-300 pointer-events-none flex items-center justify-center">
@@ -840,14 +847,14 @@
       let activeItem = itemsList.length > 0 ? itemsList[0] : null;
       currentSelectedVariantMap[p.id] = activeItem;
 
-      const displayImg = activeItem && activeItem.image_url ? activeItem.image_url : (p.image_url || p.image);
+      const displayImg = (activeItem && activeItem.image_url) || p.image_url || p.image || DEFAULT_PLACEHOLDER_IMG;
       const displayPrice = activeItem && activeItem.price !== undefined ? activeItem.price : p.price;
 
       content.innerHTML = `
         <div class="flex flex-col md:flex-row gap-6">
           <!-- Left: Main Image -->
           <div class="w-full md:w-1/2 aspect-square bg-surface-container overflow-hidden relative rounded-lg border border-outline-variant">
-            <img id="modal-prod-img" class="w-full h-full object-contain transition-all duration-300" src="${displayImg}" alt="${p.name}"/>
+            <img id="modal-prod-img" class="w-full h-full object-contain transition-all duration-300" src="${displayImg}" alt="${p.name}" onerror="handleImageFallback(this)"/>
             <div class="absolute top-2 left-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs px-2 py-1 font-bold">
               ${p.badge}
             </div>
@@ -877,7 +884,7 @@
                       const itemStk = parseInt(v.stock_qty !== undefined ? v.stock_qty : (p.stock_qty || 0));
                       return `
                         <button type="button" onclick="selectProductVariant('${p.id}', ${idx})" id="v-btn-${p.id}-${idx}" class="variant-opt-btn flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${idx === 0 ? 'border-primary-fixed bg-primary-fixed/20 text-primary-fixed shadow-md ring-1 ring-primary-fixed' : 'border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400'}">
-                          ${v.image_url ? `<img src="${v.image_url}" class="w-6 h-6 object-cover rounded border border-white/20" />` : ''}
+                          ${v.image_url ? `<img src="${v.image_url}" onerror="this.classList.add('hidden')" class="w-6 h-6 object-cover rounded border border-white/20" />` : ''}
                           <span>${v.name || '項目 #' + (idx+1)}</span>
                           <span class="text-[10px] font-mono opacity-90">($${parseFloat(v.price !== undefined ? v.price : p.price).toFixed(2)})</span>
                           <span class="text-[10px] font-bold ${itemStk > 0 ? 'text-line-green' : 'text-error'}">(剩餘數量: ${itemStk} 件)</span>
@@ -967,7 +974,10 @@
 
       renderProductColors(prodId, v);
 
-      if (imgEl && v.image_url) imgEl.src = v.image_url;
+      if (imgEl) {
+        imgEl.onerror = () => handleImageFallback(imgEl);
+        imgEl.src = v.image_url || p.image_url || p.image || DEFAULT_PLACEHOLDER_IMG;
+      }
       // Update button & action area state based on item stock
       const actionArea = document.getElementById(`modal-action-area-${p.id}`);
       if (actionArea) {
@@ -1023,7 +1033,7 @@
         <div class="flex flex-wrap gap-2">
           ${colors.map((c, i) => `
             <button type="button" onclick="selectProductColor('${prodId}', ${i})" id="color-btn-${prodId}-${i}" class="color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400">
-              ${c.image_url ? `<img src="${c.image_url}" class="w-5 h-5 object-cover rounded-full border border-white/20" />` : ''}
+              ${c.image_url ? `<img src="${c.image_url}" onerror="this.classList.add('hidden')" class="w-5 h-5 object-cover rounded-full border border-white/20" />` : ''}
               <span>${c.name || '次選項'}</span>
               <span class="text-[10px] font-mono ${parseInt(c.stock_qty !== undefined ? c.stock_qty : 0) > 0 ? 'text-line-green' : 'text-error'}">(${parseInt(c.stock_qty !== undefined ? c.stock_qty : 0)} 件)</span>
             </button>`).join('')}
@@ -1037,7 +1047,10 @@
       const color = v.colors[idx] || null;
       currentSelectedColorMap[prodId] = color;
       const imgEl = document.getElementById("modal-prod-img");
-      if (imgEl && color && color.image_url) imgEl.src = color.image_url;
+      if (imgEl && color) {
+        imgEl.onerror = () => handleImageFallback(imgEl);
+        imgEl.src = color.image_url || (v && v.image_url) || p.image_url || p.image || DEFAULT_PLACEHOLDER_IMG;
+      }
       const stockEl = document.getElementById("modal-prod-stock");
       if (stockEl && color) {
         const stk = parseInt(color.stock_qty !== undefined ? color.stock_qty : (v.stock_qty !== undefined ? v.stock_qty : 0));
@@ -1140,7 +1153,7 @@
 
       container.innerHTML = cart.map(item => `
         <div class="bg-surface-container-high p-3 border border-outline-variant flex gap-3 items-center">
-          <img src="${item.image_url || item.image}" class="w-14 h-14 object-cover border border-outline-variant" />
+          <img src="${item.image_url || item.image || DEFAULT_PLACEHOLDER_IMG}" onerror="handleImageFallback(this)" class="w-14 h-14 object-cover border border-outline-variant" />
           <div class="flex-grow">
             <h4 class="font-label-caps text-xs font-bold text-white line-clamp-1">${item.name}${item.color_name ? ' (' + item.color_name + ')' : ''}</h4>
             <span class="font-label-caps text-[10px] text-primary-fixed font-bold">$${parseFloat(item.price).toFixed(2)}</span>

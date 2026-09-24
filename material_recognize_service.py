@@ -56,19 +56,19 @@ class MaterialRecognizeService:
 
         contents = [prompt] + processed_images
 
-        # 優先呼叫穩定且快速的模型
+        # 優先呼叫反應快速且支援 Vision 的 Flash 模型
         candidates = [
             'gemini-2.0-flash',
             'gemini-1.5-flash',
-            'gemini-1.5-pro',
-            'gemini-2.5-flash',
         ]
 
         response = None
         last_err = None
+        gen_config = genai.types.GenerationConfig(temperature=0.1) if hasattr(genai, 'types') and hasattr(genai.types, 'GenerationConfig') else {"temperature": 0.1}
+
         for cand in candidates:
             try:
-                model = genai.GenerativeModel(cand)
+                model = genai.GenerativeModel(cand, generation_config=gen_config)
                 response = model.generate_content(contents)
                 if response and response.text:
                     print(f"Gemini material recognize SUCCESS with model: {cand}")

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14181c"/>
+      <stop offset="100%" stop-color="#1c2228"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c3f400"/>
+      <stop offset="100%" stop-color="#06c755"/>
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect x="20" y="20" width="360" height="360" fill="none" stroke="#2e3842" stroke-width="2" stroke-dasharray="6,6" rx="16"/>
+  <g transform="translate(140, 120)">
+    <!-- 3D Box / Photo icon -->
+    <path d="M60 10 L110 38 L60 66 L10 38 Z" fill="none" stroke="url(#accent)" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M10 38 L10 88 L60 116 L60 66 Z" fill="none" stroke="url(#accent)" stroke-width="3" stroke-linejoin="round" opacity="0.8"/>
+    <path d="M110 38 L110 88 L60 116 L60 66 Z" fill="none" stroke="url(#accent)" stroke-width="3" stroke-linejoin="round" opacity="0.6"/>
+    <!-- Small star / spark -->
+    <circle cx="95" cy="20" r="3" fill="#c3f400"/>
+  </g>
+  <text x="200" y="270" text-anchor="middle" font-family="'JetBrains Mono', 'Noto Sans TC', monospace" font-size="14" font-weight="700" fill="#9ca3af" letter-spacing="2">暫無圖片 / NO IMAGE</text>
+  <text x="200" y="295" text-anchor="middle" font-family="'JetBrains Mono', 'Noto Sans TC', monospace" font-size="11" fill="#4b5563" letter-spacing="1">SOAR // 展夢飛翔</text>
+</svg>

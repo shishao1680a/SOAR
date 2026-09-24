@@ -105,7 +105,7 @@ def api_admin_upload_image():
             os.remove(file_path)
         except OSError:
             pass
-        return jsonify({"status": "success", "url": cloud_url, "filename": unique_name})
+        return jsonify({"status": "success", "url": cloud_url, "filename": unique_name, "is_cloud": True})
 
     # Cloudinary 未設定或上傳失敗：沿用本機檔案（備援）
     host_base = request.host_url.rstrip('/')
@@ -113,7 +113,7 @@ def api_admin_upload_image():
         host_base = 'https://' + host_base[7:]
 
     public_url = f"{host_base}/uploads/{unique_name}"
-    return jsonify({"status": "success", "url": public_url, "filename": unique_name})
+    return jsonify({"status": "success", "url": public_url, "filename": unique_name, "is_cloud": False})
 
 @admin_bp.route('/api/admin/products', methods=['POST'])
 @admin_or_coach_required
