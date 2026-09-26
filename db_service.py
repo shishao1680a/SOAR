@@ -36,6 +36,12 @@ class DBService:
             raise RuntimeError("DATABASE_URL 未設定，無法初始化資料庫連線！")
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
+        # SQLAlchemy 2.1 起，`postgresql://` 的預設驅動改成 psycopg（第三代），
+        # 但本專案 requirements 只安裝 psycopg2-binary（第二代），
+        # 不指定驅動會導致啟動時 ModuleNotFoundError: No module named 'psycopg'。
+        # 這裡明確指定 psycopg2，避免未來套件升級又把服務打掛。
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
         self.db_url = url
         self.engine = create_engine(
