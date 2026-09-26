@@ -2,6 +2,30 @@
 <script>
   const dataLoaded = { users: false, products: false, materials: false, lineGroups: false, bulletins: false, orders: false, bonuses: false };
 
+  // 安全：任何來自資料庫或使用者輸入的值，在寫入 HTML 之前一律先轉義，避免儲存型 XSS。
+  // （2026-09-26 Codex Security 掃描 finding：cross-site-scripting.stored-order-name-to-admin）
+  function esc(value) {
+    return String(value === null || value === undefined ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  // 用在行內事件屬性裡的「字串參數」，例如 onclick="f('${jsq(id)}')"。
+  // 這種位置要先做 JS 字串跳脫（\\ 與 '）再做 HTML 屬性跳脫，否則單引號會被瀏覽器還原而跳脫 JS 字串。
+  function jsq(value) {
+    return String(value === null || value === undefined ? "" : value)
+      .replace(/\\/g, "\\\\")
+      .replace(/'/g, "\\'")
+      .replace(/[\r\n]/g, " ")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     // 儀表板不需預載資料；進入各分頁時才 lazy load，減少進入後台的請求數
   });
@@ -125,21 +149,21 @@
       return `
         <tr class="hover:bg-surface-container/50">
           <td class="p-3 flex items-center gap-2">
-            <img src="${u.avatar_url}" class="w-7 h-7 rounded-full border border-primary-fixed" />
-            <span class="font-bold text-white">${u.name}</span>
+            <img src="${esc(u.avatar_url)}" class="w-7 h-7 rounded-full border border-primary-fixed" />
+            <span class="font-bold text-white">${esc(u.name)}</span>
           </td>
-          <td class="p-3 text-primary-fixed font-bold">${u.username || '-'}</td>
-          <td class="p-3 text-line-green">${u.line_id || '-'}</td>
+          <td class="p-3 text-primary-fixed font-bold">${esc(u.username || '-')}</td>
+          <td class="p-3 text-line-green">${esc(u.line_id || '-')}</td>
           <td class="p-3">
-            <span class="px-2 py-0.5 ${r.style} rounded font-bold">
-              ${r.label}
+            <span class="px-2 py-0.5 ${esc(r.style)} rounded font-bold">
+              ${esc(r.label)}
             </span>
           </td>
-          <td class="p-3">${u.phone || '-'}</td>
-          <td class="p-3 text-on-surface-variant text-[11px]">${u.register_date || '-'}</td>
+          <td class="p-3">${esc(u.phone || '-')}</td>
+          <td class="p-3 text-on-surface-variant text-[11px]">${esc(u.register_date || '-')}</td>
           <td class="p-3 text-right">
-            <button onclick="editUser('${u.id}')" class="text-primary-fixed hover:underline mr-2">編輯</button>
-            <button onclick="deleteUser('${u.id}')" class="text-error hover:underline">刪除</button>
+            <button onclick="editUser('${jsq(u.id)}')" class="text-primary-fixed hover:underline mr-2">編輯</button>
+            <button onclick="deleteUser('${jsq(u.id)}')" class="text-error hover:underline">刪除</button>
           </td>
         </tr>
       `;
@@ -198,7 +222,8 @@
   async function loadProducts() {
     try {
       await loadProductOptions();
-      const res = await fetch('/api/products');
+      // 後台需要成本與分潤比例，走後台專用端點（公開的 /api/products 已過濾掉這些欄位）
+      const res = await fetch('/api/admin/products');
       const json = await res.json();
       if (json.status === 'success') {
         productsList = json.data;
@@ -238,8 +263,8 @@
           if (!allMats.some(x => x.code === m.code)) allMats.push(m);
         });
 
-        catSelect.innerHTML = allCats.map(c => `<option value="${c.code}">${c.name}</option>`).join('');
-        matSelect.innerHTML = allMats.map(m => `<option value="${m.code}">${m.name}</option>`).join('');
+        catSelect.innerHTML = allCats.map(c => `<option value="${esc(c.code)}">${esc(c.name)}</option>`).join('');
+        matSelect.innerHTML = allMats.map(m => `<option value="${esc(m.code)}">${esc(m.name)}</option>`).join('');
       }
     } catch(e){}
   }
@@ -293,8 +318,8 @@
       const itemsNameHtml = hasItems
         ? itemsArr.map(item => `
             <div class="flex items-center gap-1.5 bg-surface-container-high/90 px-2.5 py-1 rounded border border-outline-variant/60 whitespace-nowrap mb-1">
-              ${item.image_url ? `<img src="${item.image_url}" class="w-4 h-4 object-cover rounded border border-outline-variant shrink-0" />` : '<span class="material-symbols-outlined text-[12px] text-line-green shrink-0">tune</span>'}
-              <span class="font-bold text-white text-[11px]">${item.name}</span>
+              ${item.image_url ? `<img src="${esc(item.image_url)}" class="w-4 h-4 object-cover rounded border border-outline-variant shrink-0" />` : '<span class="material-symbols-outlined text-[12px] text-line-green shrink-0">tune</span>'}
+              <span class="font-bold text-white text-[11px]">${esc(item.name)}</span>
             </div>
           `).join('')
         : `<span class="text-gray-400 italic text-[11px]">- (無項目)</span>`;
@@ -302,10 +327,10 @@
       const itemsPriceHtml = hasItems
         ? itemsArr.map(item => `
             <div class="py-1 text-primary-fixed font-bold font-mono text-[11px] mb-1">
-              $${parseFloat(item.price !== undefined ? item.price : p.price).toFixed(2)}
+              $${esc(parseFloat(item.price !== undefined ? item.price : p.price).toFixed(2))}
             </div>
           `).join('')
-        : `<span class="text-primary-fixed font-bold font-mono">$${parseFloat(p.price).toFixed(2)}</span>`;
+        : `<span class="text-primary-fixed font-bold font-mono">$${esc(parseFloat(p.price).toFixed(2))}</span>`;
 
       const itemsStockHtml = hasItems
         ? itemsArr.map(item => {
@@ -316,21 +341,21 @@
               </div>
             `;
           }).join('')
-        : `<span class="font-bold ${parseInt(p.stock_qty || 0) < 10 ? 'text-error' : 'text-line-green'}">${parseInt(p.stock_qty || 0)} 件</span>`;
+        : `<span class="font-bold ${parseInt(p.stock_qty || 0) < 10 ? 'text-error' : 'text-line-green'}">${esc(parseInt(p.stock_qty || 0))} 件</span>`;
 
       return `
         <tr class="hover:bg-surface-container/50">
           <td class="p-3">
             <div class="flex items-center gap-1">
-              <img src="${p.image_url || '/static/images/placeholder.svg'}" onerror="this.onerror=null; this.src='/static/images/placeholder.svg'; this.title='圖片已失效(請點編輯重新上傳)';" class="w-10 h-10 object-cover border border-outline-variant rounded" />
+              <img src="${esc(p.image_url || '/static/images/placeholder.svg')}" onerror="this.onerror=null; this.src='/static/images/placeholder.svg'; this.title='圖片已失效(請點編輯重新上傳)';" class="w-10 h-10 object-cover border border-outline-variant rounded" />
               ${multiImgs.length > 1 ? `<span class="text-[10px] bg-secondary-container text-white px-1 font-bold rounded">+${multiImgs.length - 1}圖</span>` : ''}
             </div>
           </td>
           <td class="p-3 font-bold text-white whitespace-nowrap">
-            ${p.name}
+            ${esc(p.name)}
             ${hasItems ? `<span class="block text-[10px] text-gray-400 font-normal">(${itemsArr.length} 個項目)</span>` : ''}
           </td>
-          <td class="p-3"><span class="text-primary-fixed">${p.category}</span> / ${p.material}</td>
+          <td class="p-3"><span class="text-primary-fixed">${esc(p.category)}</span> / ${esc(p.material)}</td>
           <td class="p-3">
             <div class="max-w-[200px] space-y-1">
               ${itemsNameHtml}
@@ -339,8 +364,8 @@
           <td class="p-3">${itemsPriceHtml}</td>
           <td class="p-3">${itemsStockHtml}</td>
           <td class="p-3 text-right whitespace-nowrap">
-            <button onclick="editProduct('${p.id}')" class="text-primary-fixed hover:underline mr-2 font-bold">編輯</button>
-            <button onclick="deleteProduct('${p.id}')" class="text-error hover:underline font-bold">下架</button>
+            <button onclick="editProduct('${jsq(p.id)}')" class="text-primary-fixed hover:underline mr-2 font-bold">編輯</button>
+            <button onclick="deleteProduct('${jsq(p.id)}')" class="text-error hover:underline font-bold">下架</button>
           </td>
         </tr>
       `;
@@ -370,12 +395,12 @@
     }
     container.innerHTML = currentItemColors.map((c, idx) => `
       <div class="flex items-center gap-2 p-2 bg-surface-container-low border border-outline-variant rounded">
-        <input type="text" class="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded outline-none text-xs" placeholder="次選項名稱（例如 黑色）" value="${(c.name || '').replace(/"/g, '&quot;')}" oninput="updateItemColorName(${idx}, this.value)" />
-        <input type="text" id="item-color-image-${idx}" class="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded outline-none text-xs" placeholder="次選項圖片網址" value="${(c.image_url || '').replace(/"/g, '&quot;')}" oninput="updateItemColorImage(${idx}, this.value)" />
+        <input type="text" class="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded outline-none text-xs" placeholder="次選項名稱（例如 黑色）" value="${esc((c.name || '').replace(/"/g, '&quot;'))}" oninput="updateItemColorName(${idx}, this.value)" />
+        <input type="text" id="item-color-image-${idx}" class="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded outline-none text-xs" placeholder="次選項圖片網址" value="${esc((c.image_url || '').replace(/"/g, '&quot;'))}" oninput="updateItemColorImage(${idx}, this.value)" />
         <label class="bg-line-green/20 hover:bg-line-green text-line-green hover:text-white px-2 py-1.5 text-xs font-bold rounded cursor-pointer border border-line-green/40 whitespace-nowrap">
           上傳<input type="file" accept="image/*" class="hidden" onchange="uploadItemColorImage(this, ${idx})" />
         </label>
-        <img id="item-color-preview-${idx}" src="${(c.image_url || '').replace(/"/g, '&quot;')}" class="w-8 h-8 object-cover rounded border border-outline-variant ${c.image_url ? '' : 'hidden'}" alt="顏色圖片" />
+        <img id="item-color-preview-${idx}" src="${esc((c.image_url || '').replace(/"/g, '&quot;'))}" class="w-8 h-8 object-cover rounded border border-outline-variant ${esc(c.image_url ? '' : 'hidden')}" alt="顏色圖片" />
         <button type="button" onclick="removeItemColor(${idx})" class="text-error hover:underline font-bold text-xs">✕</button>
       </div>
     `).join('');
@@ -434,13 +459,13 @@
     container.innerHTML = currentProductItems.map((item, index) => `
       <div class="flex items-center justify-between p-3 bg-surface-container border border-outline-variant rounded-lg hover:border-line-green/60 transition-all gap-2">
         <div class="flex items-center gap-3 overflow-hidden">
-          <img src="${item.image_url || '/static/images/placeholder.svg'}" onerror="this.onerror=null; this.src='/static/images/placeholder.svg';" class="w-10 h-10 object-cover rounded border border-outline-variant shrink-0" />
+          <img src="${esc(item.image_url || '/static/images/placeholder.svg')}" onerror="this.onerror=null; this.src='/static/images/placeholder.svg';" class="w-10 h-10 object-cover rounded border border-outline-variant shrink-0" />
           <div class="truncate">
             <div class="font-bold text-white text-xs truncate flex items-center gap-1">
-              <span class="text-line-green font-mono text-[11px]">#${index + 1}</span> ${item.name || '未命名項目'}
+              <span class="text-line-green font-mono text-[11px]">#${index + 1}</span> ${esc(item.name || '未命名項目')}
             </div>
             <div class="text-[11px] text-gray-300 font-mono mt-0.5">
-              售價: <span class="text-primary-fixed font-bold">$${parseFloat(item.price !== undefined ? item.price : 0).toFixed(2)}</span>
+              售價: <span class="text-primary-fixed font-bold">$${esc(parseFloat(item.price !== undefined ? item.price : 0).toFixed(2))}</span>
             </div>
           </div>
         </div>
@@ -784,12 +809,12 @@
     if (!tbody) return;
     tbody.innerHTML = inventoryLogsList.map(l => `
       <tr class="hover:bg-surface-container/50">
-        <td class="p-3 text-on-surface-variant">${l.purchase_date}</td>
-        <td class="p-3 font-bold text-white">${l.product_name}</td>
-        <td class="p-3 text-line-green font-bold">${l.item_name || '-'}</td>
-        <td class="p-3 text-cyan-300 font-bold">${l.sub_option || '-'}</td>
+        <td class="p-3 text-on-surface-variant">${esc(l.purchase_date)}</td>
+        <td class="p-3 font-bold text-white">${esc(l.product_name)}</td>
+        <td class="p-3 text-line-green font-bold">${esc(l.item_name || '-')}</td>
+        <td class="p-3 text-cyan-300 font-bold">${esc(l.sub_option || '-')}</td>
         <td class="p-3 text-line-green font-bold">+${l.purchase_qty} 件</td>
-        <td class="p-3 text-primary-fixed font-bold">${l.operator_name || '管理員'}</td>
+        <td class="p-3 text-primary-fixed font-bold">${esc(l.operator_name || '管理員')}</td>
         <td class="p-3 text-right whitespace-nowrap">
           <button onclick="editInventoryLog(${l.id})" class="text-primary-fixed hover:underline mr-2 font-bold">修改</button>
           <button onclick="deleteInventoryLog(${l.id})" class="text-error hover:underline font-bold">刪除</button>
@@ -831,7 +856,7 @@
         materialNameList = json.data;
         const datalist = document.getElementById('mat-name-list');
         if (datalist) {
-          datalist.innerHTML = json.data.map(name => `<option value="${name}"></option>`).join('');
+          datalist.innerHTML = json.data.map(name => `<option value="${esc(name)}"></option>`).join('');
         }
       }
 
@@ -840,7 +865,7 @@
       if (supJson.status === 'success' && Array.isArray(supJson.data)) {
         const supDatalist = document.getElementById('mat-supplier-list');
         if (supDatalist) {
-          supDatalist.innerHTML = supJson.data.map(sup => `<option value="${sup}"></option>`).join('');
+          supDatalist.innerHTML = supJson.data.map(sup => `<option value="${esc(sup)}"></option>`).join('');
         }
       }
       materialMetaLoaded.names = true;
@@ -860,16 +885,16 @@
     }
     tbody.innerHTML = materialPurchasesList.map(m => `
       <tr class="hover:bg-surface-container/50">
-        <td class="p-3 text-on-surface-variant">${m.purchase_date || '-'}</td>
-        <td class="p-3 font-bold text-white">${m.material_name}</td>
-        <td class="p-3 text-cyan-300 font-bold">${m.total_capacity || '-'}</td>
-        <td class="p-3">${m.measure_type === 'quantity' ? '數量' : '容量'}</td>
-        <td class="p-3 text-amber-400 font-bold">$${parseFloat(m.purchase_cost || 0).toFixed(2)}</td>
-        <td class="p-3 text-primary-fixed font-bold">${m.operator_name || '管理員'}</td>
-        <td class="p-3">${m.supplier || '-'} / ${m.remark || '-'}</td>
+        <td class="p-3 text-on-surface-variant">${esc(m.purchase_date || '-')}</td>
+        <td class="p-3 font-bold text-white">${esc(m.material_name)}</td>
+        <td class="p-3 text-cyan-300 font-bold">${esc(m.total_capacity || '-')}</td>
+        <td class="p-3">${esc(m.measure_type === 'quantity' ? '數量' : '容量')}</td>
+        <td class="p-3 text-amber-400 font-bold">$${esc(parseFloat(m.purchase_cost || 0).toFixed(2))}</td>
+        <td class="p-3 text-primary-fixed font-bold">${esc(m.operator_name || '管理員')}</td>
+        <td class="p-3">${esc(m.supplier || '-')} / ${esc(m.remark || '-')}</td>
         <td class="p-3 text-right whitespace-nowrap">
-          <button onclick="editMaterialLog(${m.id})" class="text-primary-fixed hover:underline mr-2 font-bold">修改</button>
-          <button onclick="deleteMaterialLog(${m.id})" class="text-error hover:underline font-bold">刪除</button>
+          <button onclick="editMaterialLog(${esc(m.id)})" class="text-primary-fixed hover:underline mr-2 font-bold">修改</button>
+          <button onclick="deleteMaterialLog(${esc(m.id)})" class="text-error hover:underline font-bold">刪除</button>
         </td>
       </tr>
     `).join('');
@@ -1042,12 +1067,12 @@
       const safeName = encodeURIComponent(m.material_name);
       return `
         <tr class="hover:bg-surface-container/50">
-          <td class="p-3 font-bold text-white">${m.material_name}</td>
+          <td class="p-3 font-bold text-white">${esc(m.material_name)}</td>
           <td class="p-3 text-cyan-300">${type}</td>
-          <td class="p-3 text-right text-cyan-300 font-bold">${m.purchased_period}</td>
-          <td class="p-3 text-right text-amber-400 font-bold">${m.consumed_period}</td>
-          <td class="p-3 text-right text-cyan-300 font-bold">$${parseFloat(m.purchase_cost_period || 0).toFixed(2)}</td>
-          <td class="p-3 text-right text-amber-400 font-bold">$${parseFloat(m.consumed_cost_period || 0).toFixed(2)}</td>
+          <td class="p-3 text-right text-cyan-300 font-bold">${esc(m.purchased_period)}</td>
+          <td class="p-3 text-right text-amber-400 font-bold">${esc(m.consumed_period)}</td>
+          <td class="p-3 text-right text-cyan-300 font-bold">$${esc(parseFloat(m.purchase_cost_period || 0).toFixed(2))}</td>
+          <td class="p-3 text-right text-amber-400 font-bold">$${esc(parseFloat(m.consumed_cost_period || 0).toFixed(2))}</td>
           <td class="p-3 text-right ${remaining < 0 ? 'text-error font-black' : 'text-line-green font-black'}">${remaining}</td>
           <td class="p-3 text-right">
             <button onclick="openMaterialManagementDetail(decodeURIComponent('${safeName}'))" class="text-primary-fixed hover:underline font-bold">查看明細</button>
@@ -1087,10 +1112,10 @@
           <th class="p-2">日期</th><th class="p-2">進貨量</th><th class="p-2">成本 ($)</th><th class="p-2">進貨人員</th>
         </tr></thead><tbody>` + d.purchases.map(p => `
           <tr class="border-b border-outline-variant/30">
-            <td class="p-2">${p.purchase_date || '-'}</td>
-            <td class="p-2 text-cyan-300 font-bold">${p.total_capacity || '-'} ${typeLabel}</td>
-            <td class="p-2 text-amber-400 font-bold">$${parseFloat(p.purchase_cost || 0).toFixed(2)}</td>
-            <td class="p-2">${p.operator_name || '管理員'}</td>
+            <td class="p-2">${esc(p.purchase_date || '-')}</td>
+            <td class="p-2 text-cyan-300 font-bold">${esc(p.total_capacity || '-')} ${typeLabel}</td>
+            <td class="p-2 text-amber-400 font-bold">$${esc(parseFloat(p.purchase_cost || 0).toFixed(2))}</td>
+            <td class="p-2">${esc(p.operator_name || '管理員')}</td>
           </tr>`).join('') + `</tbody></table>`;
     }
 
@@ -1110,11 +1135,11 @@
         </tr></thead><tbody>` + orderCons.map(c => {
           const amount = parseFloat(c.capacity_used || 0) + parseFloat(c.qty_used || 0);
           return `<tr class="border-b border-outline-variant/30">
-            <td class="p-2">${c.settled_at || '-'}</td>
-            <td class="p-2 font-mono text-cyan-300">${c.order_id}</td>
-            <td class="p-2">${c.item_name || '-'}</td>
+            <td class="p-2">${esc(c.settled_at || '-')}</td>
+            <td class="p-2 font-mono text-cyan-300">${esc(c.order_id)}</td>
+            <td class="p-2">${esc(c.item_name || '-')}</td>
             <td class="p-2 text-amber-400 font-bold">${amount} ${typeLabel}</td>
-            <td class="p-2 text-amber-400 font-bold">$${parseFloat(c.cost || 0).toFixed(2)}</td>
+            <td class="p-2 text-amber-400 font-bold">$${esc(parseFloat(c.cost || 0).toFixed(2))}</td>
           </tr>`;
         }).join('') + `</tbody></table>`;
     }
@@ -1125,14 +1150,14 @@
           <th class="p-2">日期</th><th class="p-2">消耗量</th><th class="p-2">成本 ($)</th><th class="p-2">備註</th><th class="p-2">記錄人</th><th class="p-2"></th>
         </tr></thead><tbody>` + manualCons.map(c => `
           <tr class="border-b border-outline-variant/30">
-            <td class="p-2">${c.consumed_at || '-'}</td>
-            <td class="p-2 text-amber-400 font-bold">${c.amount} ${typeLabel}</td>
-            <td class="p-2 text-amber-400 font-bold">$${parseFloat(c.cost || 0).toFixed(2)}</td>
-            <td class="p-2">${c.remark || '-'}</td>
-            <td class="p-2">${c.operator_name || '管理員'}</td>
+            <td class="p-2">${esc(c.consumed_at || '-')}</td>
+            <td class="p-2 text-amber-400 font-bold">${esc(c.amount)} ${typeLabel}</td>
+            <td class="p-2 text-amber-400 font-bold">$${esc(parseFloat(c.cost || 0).toFixed(2))}</td>
+            <td class="p-2">${esc(c.remark || '-')}</td>
+            <td class="p-2">${esc(c.operator_name || '管理員')}</td>
             <td class="p-2 text-right whitespace-nowrap">
-              <button onclick="editConsumptionLog(${c.id})" class="text-primary-fixed hover:underline font-bold mr-2">修改</button>
-              <button onclick="deleteConsumptionLog(${c.id})" class="text-error hover:underline font-bold">刪除</button>
+              <button onclick="editConsumptionLog(${esc(c.id)})" class="text-primary-fixed hover:underline font-bold mr-2">修改</button>
+              <button onclick="deleteConsumptionLog(${esc(c.id)})" class="text-error hover:underline font-bold">刪除</button>
             </td>
           </tr>`).join('') + `</tbody></table>`;
     }
@@ -1190,16 +1215,16 @@
       const safeItem = encodeURIComponent(r.item_name || '');
       return `
         <tr class="hover:bg-surface-container/50">
-          <td class="p-3 font-bold text-white">${r.product_name}</td>
-          <td class="p-3 text-cyan-300">${r.item_name}</td>
-          <td class="p-3 text-right text-primary-fixed font-bold">$${parseFloat(r.sales_amount || 0).toFixed(2)}</td>
-          <td class="p-3 text-right text-amber-400 font-bold">$${parseFloat(r.material_cost || 0).toFixed(2)}</td>
-          <td class="p-3 text-right">$${parseFloat(r.other_cost || 0).toFixed(2)}</td>
-          <td class="p-3 text-right">$${parseFloat(r.shipping_cost || 0).toFixed(2)}</td>
-          <td class="p-3 text-right text-line-green font-black">$${parseFloat(r.net_profit || 0).toFixed(2)}</td>
-          <td class="p-3 text-right text-primary-fixed font-bold">$${parseFloat(r.designer_amount || 0).toFixed(2)}</td>
-          <td class="p-3 text-right text-secondary-container font-bold">$${parseFloat(r.packager_amount || 0).toFixed(2)}</td>
-          <td class="p-3 text-right text-line-green font-black">$${parseFloat(r.platform_amount || 0).toFixed(2)}</td>
+          <td class="p-3 font-bold text-white">${esc(r.product_name)}</td>
+          <td class="p-3 text-cyan-300">${esc(r.item_name)}</td>
+          <td class="p-3 text-right text-primary-fixed font-bold">$${esc(parseFloat(r.sales_amount || 0).toFixed(2))}</td>
+          <td class="p-3 text-right text-amber-400 font-bold">$${esc(parseFloat(r.material_cost || 0).toFixed(2))}</td>
+          <td class="p-3 text-right">$${esc(parseFloat(r.other_cost || 0).toFixed(2))}</td>
+          <td class="p-3 text-right">$${esc(parseFloat(r.shipping_cost || 0).toFixed(2))}</td>
+          <td class="p-3 text-right text-line-green font-black">$${esc(parseFloat(r.net_profit || 0).toFixed(2))}</td>
+          <td class="p-3 text-right text-primary-fixed font-bold">$${esc(parseFloat(r.designer_amount || 0).toFixed(2))}</td>
+          <td class="p-3 text-right text-secondary-container font-bold">$${esc(parseFloat(r.packager_amount || 0).toFixed(2))}</td>
+          <td class="p-3 text-right text-line-green font-black">$${esc(parseFloat(r.platform_amount || 0).toFixed(2))}</td>
           <td class="p-3 text-right">
             <button onclick="openPlatformRevenueDetail(decodeURIComponent('${safePid}'), decodeURIComponent('${safeItem}'))" class="text-primary-fixed hover:underline font-bold">查看明細</button>
           </td>
@@ -1227,7 +1252,7 @@
 
   function renderPlatformRevenueDetail(d) {
     const el = document.getElementById('platform-detail-records');
-    document.getElementById('platform-detail-title').textContent = `${d.product_name || ''} - ${d.item_name || ''}`;
+    document.getElementById('platform-detail-title').textContent = `${esc(d.product_name || '')} - ${esc(d.item_name || '')}`;
     const records = d.records || [];
     if (records.length === 0) {
       el.innerHTML = `<div class="text-xs text-gray-400 italic">此期間沒有明細</div>`;
@@ -1241,18 +1266,18 @@
         <th class="p-2">包裝人員</th><th class="p-2 text-right">包裝金額</th><th class="p-2 text-right">平台抽取金</th>
       </tr></thead><tbody>` + records.map(r => `
         <tr class="border-b border-outline-variant/30">
-          <td class="p-2">${r.settled_at || '-'}</td>
-          <td class="p-2 font-mono text-cyan-300">${r.order_id}</td>
-          <td class="p-2 text-right text-primary-fixed font-bold">$${parseFloat(r.sales_amount || 0).toFixed(2)}</td>
-          <td class="p-2 text-right text-amber-400 font-bold">$${parseFloat(r.material_cost || 0).toFixed(2)}</td>
-          <td class="p-2 text-right">$${parseFloat(r.other_cost || 0).toFixed(2)}</td>
-          <td class="p-2 text-right">$${parseFloat(r.shipping_cost || 0).toFixed(2)}</td>
-          <td class="p-2 text-right text-line-green font-black">$${parseFloat(r.net_profit || 0).toFixed(2)}</td>
-          <td class="p-2">${r.designer_name || '-'}</td>
-          <td class="p-2 text-right text-primary-fixed font-bold">$${parseFloat(r.designer_amount || 0).toFixed(2)}</td>
-          <td class="p-2">${r.packager_name || '-'}</td>
-          <td class="p-2 text-right text-secondary-container font-bold">$${parseFloat(r.packager_amount || 0).toFixed(2)}</td>
-          <td class="p-2 text-right text-line-green font-black">$${parseFloat(r.platform_amount || 0).toFixed(2)}</td>
+          <td class="p-2">${esc(r.settled_at || '-')}</td>
+          <td class="p-2 font-mono text-cyan-300">${esc(r.order_id)}</td>
+          <td class="p-2 text-right text-primary-fixed font-bold">$${esc(parseFloat(r.sales_amount || 0).toFixed(2))}</td>
+          <td class="p-2 text-right text-amber-400 font-bold">$${esc(parseFloat(r.material_cost || 0).toFixed(2))}</td>
+          <td class="p-2 text-right">$${esc(parseFloat(r.other_cost || 0).toFixed(2))}</td>
+          <td class="p-2 text-right">$${esc(parseFloat(r.shipping_cost || 0).toFixed(2))}</td>
+          <td class="p-2 text-right text-line-green font-black">$${esc(parseFloat(r.net_profit || 0).toFixed(2))}</td>
+          <td class="p-2">${esc(r.designer_name || '-')}</td>
+          <td class="p-2 text-right text-primary-fixed font-bold">$${esc(parseFloat(r.designer_amount || 0).toFixed(2))}</td>
+          <td class="p-2">${esc(r.packager_name || '-')}</td>
+          <td class="p-2 text-right text-secondary-container font-bold">$${esc(parseFloat(r.packager_amount || 0).toFixed(2))}</td>
+          <td class="p-2 text-right text-line-green font-black">$${esc(parseFloat(r.platform_amount || 0).toFixed(2))}</td>
         </tr>`).join('') + `</tbody></table>`;
   }
 
@@ -1408,7 +1433,7 @@
     const select = document.getElementById('inv-product-select');
     select.innerHTML = productsList.map(p => {
       const calculatedStock = parseInt(p.stock_qty || 0);
-      return `<option value="${p.id}">${p.name} (庫存: ${calculatedStock})</option>`;
+      return `<option value="${esc(p.id)}">${esc(p.name)} (庫存: ${calculatedStock})</option>`;
     }).join('');
     onInventoryProductChange();
   }
@@ -1433,7 +1458,7 @@
         itemsArr.map((item) => {
           const itemStock = parseInt(item.stock_qty !== undefined ? item.stock_qty : 0) || 0;
           const itemPrice = parseFloat(item.price !== undefined ? item.price : (prod.price || 0)).toFixed(2);
-          return `<option value="${item.name}">${item.name} ($${itemPrice}) (庫存: ${itemStock})</option>`;
+          return `<option value="${esc(item.name)}">${esc(item.name)} ($${itemPrice}) (庫存: ${itemStock})</option>`;
         }).join('');
     } else {
       wrapper.classList.add('hidden');
@@ -1492,7 +1517,7 @@
       qtyWrapper.classList.add('hidden');
       subContainer.innerHTML = subs.map(s => `
         <div class="flex items-center gap-2">
-          <span class="w-36 truncate font-bold text-white text-xs">${s.name}</span>
+          <span class="w-36 truncate font-bold text-white text-xs">${esc(s.name)}</span>
           <input type="number" min="0" value="0" class="inv-sub-qty flex-1 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded text-xs" data-sub="${(s.name || '').replace(/"/g, '&quot;')}" />
         </div>
       `).join('');
@@ -1583,11 +1608,11 @@
         return `
           <tr class="hover:bg-surface-container/60 transition-colors">
             <td class="p-3 font-mono text-gray-400">${createdDate}</td>
-            <td class="p-3 font-bold text-line-green">${g.name}</td>
-            <td class="p-3 font-mono text-gray-300">${g.id}</td>
+            <td class="p-3 font-bold text-line-green">${esc(g.name)}</td>
+            <td class="p-3 font-mono text-gray-300">${esc(g.id)}</td>
             <td class="p-3 text-right">
-              <button onclick="editLineGroup('${g.id}')" class="text-primary-fixed hover:underline mr-3 font-bold">修改</button>
-              <button onclick="deleteLineGroup('${g.id}')" class="text-error hover:underline font-bold">刪除</button>
+              <button onclick="editLineGroup('${jsq(g.id)}')" class="text-primary-fixed hover:underline mr-3 font-bold">修改</button>
+              <button onclick="deleteLineGroup('${jsq(g.id)}')" class="text-error hover:underline font-bold">刪除</button>
             </td>
           </tr>
         `;
@@ -1615,11 +1640,11 @@
 
     container.innerHTML = groupsList.map((g) => `
       <label class="relative cursor-pointer select-none">
-        <input type="checkbox" name="send_group_ids" value="${g.id}" class="sr-only send-group-checkbox" onchange="updateGroupCardStyle(this)" />
+        <input type="checkbox" name="send_group_ids" value="${esc(g.id)}" class="sr-only send-group-checkbox" onchange="updateGroupCardStyle(this)" />
         <div class="send-group-card border border-outline-variant hover:border-line-green rounded-xl p-3.5 flex items-center justify-between transition-all bg-surface-container">
           <div class="truncate">
-            <span class="text-xs font-bold text-white block truncate">${g.name}</span>
-            <span class="text-[10px] text-gray-400 font-mono block truncate">${g.id}</span>
+            <span class="text-xs font-bold text-white block truncate">${esc(g.name)}</span>
+            <span class="text-[10px] text-gray-400 font-mono block truncate">${esc(g.id)}</span>
           </div>
           <span class="material-symbols-outlined text-lg text-line-green hidden check-icon">check_circle</span>
         </div>
@@ -1663,7 +1688,7 @@
         tag.className = 'bg-surface-container border border-line-green/40 px-3 py-1.5 rounded-lg text-xs text-white flex items-center gap-2 font-mono';
         tag.innerHTML = `
           <span class="material-symbols-outlined text-line-green text-sm">attach_file</span>
-          <span class="truncate max-w-[200px]">${file.name} (${(file.size/1024).toFixed(1)} KB)</span>
+          <span class="truncate max-w-[200px]">${esc(file.name)} (${(file.size/1024).toFixed(1)} KB)</span>
           <button type="button" onclick="removeSelectedFile(${index})" class="text-gray-400 hover:text-error text-xs font-bold ml-1">✕</button>
         `;
         container.appendChild(tag);
@@ -1686,7 +1711,7 @@
         tag.className = 'bg-surface-container border border-line-green/40 px-3 py-1.5 rounded-lg text-xs text-white flex items-center gap-2 font-mono';
         tag.innerHTML = `
           <span class="material-symbols-outlined text-line-green text-sm">attach_file</span>
-          <span class="truncate max-w-[200px]">${file.name} (${(file.size/1024).toFixed(1)} KB)</span>
+          <span class="truncate max-w-[200px]">${esc(file.name)} (${(file.size/1024).toFixed(1)} KB)</span>
           <button type="button" onclick="removeSelectedFile(${idx})" class="text-gray-400 hover:text-error text-xs font-bold ml-1">✕</button>
         `;
         container.appendChild(tag);
@@ -1829,18 +1854,18 @@
   function renderAdminBulletins() {
     const container = document.getElementById('admin-bulletin-list');
     container.innerHTML = bulletinsList.map(b => `
-      <div class="bg-surface-container-low border ${b.is_pinned ? 'border-secondary-container' : 'border-outline-variant'} p-4 flex justify-between items-start">
+      <div class="bg-surface-container-low border ${esc(b.is_pinned ? 'border-secondary-container' : 'border-outline-variant')} p-4 flex justify-between items-start">
         <div class="space-y-1">
           <div class="flex items-center gap-2">
-            <span class="text-[10px] bg-primary-fixed/20 text-primary-fixed border border-primary-fixed px-1.5 font-bold">[${b.tag}]</span>
+            <span class="text-[10px] bg-primary-fixed/20 text-primary-fixed border border-primary-fixed px-1.5 font-bold">[${esc(b.tag)}]</span>
             ${b.is_pinned ? '<span class="text-[10px] bg-secondary-container text-white px-1.5 font-bold">置頂</span>' : ''}
-            <span class="text-xs font-bold text-white">${b.title}</span>
+            <span class="text-xs font-bold text-white">${esc(b.title)}</span>
           </div>
-          <p class="text-xs text-on-surface-variant">${b.summary}</p>
+          <p class="text-xs text-on-surface-variant">${esc(b.summary)}</p>
         </div>
         <div class="flex gap-2">
-          <button onclick="editBulletin('${b.id}')" class="text-xs text-primary-fixed hover:underline">編輯</button>
-          <button onclick="deleteBulletin('${b.id}')" class="text-xs text-error hover:underline">刪除</button>
+          <button onclick="editBulletin('${jsq(b.id)}')" class="text-xs text-primary-fixed hover:underline">編輯</button>
+          <button onclick="deleteBulletin('${jsq(b.id)}')" class="text-xs text-error hover:underline">刪除</button>
         </div>
       </div>
     `).join('');
@@ -1962,7 +1987,7 @@
     }
 
     if (filtered.length === 0) {
-      container.innerHTML = `<div class="p-8 text-center text-gray-400 italic border border-outline-variant rounded-xl bg-surface-container-low">${adminOrdersList.length === 0 ? '尚無訂單資料。當使用者在前端購物車結帳時，訂單將自動即時顯示於此。' : '沒有符合條件的訂單。'}</div>`;
+      container.innerHTML = `<div class="p-8 text-center text-gray-400 italic border border-outline-variant rounded-xl bg-surface-container-low">${esc(adminOrdersList.length === 0 ? '尚無訂單資料。當使用者在前端購物車結帳時，訂單將自動即時顯示於此。' : '沒有符合條件的訂單。')}</div>`;
       return;
     }
 
@@ -1983,22 +2008,22 @@
         return `
           <div class="flex items-center justify-between py-1.5 border-b border-outline-variant/30 last:border-0">
             <div>
-              <span class="font-bold text-white text-xs">${i.name || i.product_name || '-'}</span>
-              ${variantText ? `<span class="text-[10px] text-cyan-300">（${variantText}）</span>` : ''}
+              <span class="font-bold text-white text-xs">${esc(i.name || i.product_name || '-')}</span>
+              ${variantText ? `<span class="text-[10px] text-cyan-300">（${esc(variantText)}）</span>` : ''}
             </div>
             <div class="text-[11px] text-gray-400">${qty} × $${price.toFixed(2)} = <span class="text-primary-fixed font-bold">$${(qty * price).toFixed(2)}</span></div>
           </div>`;
       }).join('');
 
       const actions = isTest ? `
-        <button onclick="viewOrderDetail('${o.id}')" class="px-2.5 py-1 bg-primary-fixed/20 hover:bg-primary-fixed text-primary-fixed hover:text-black font-bold rounded text-xs">查詢</button>
-        <button onclick="editAdminOrder('${o.id}')" class="px-2.5 py-1 bg-surface-container border border-outline-variant text-gray-200 hover:text-white font-bold rounded text-xs">修改</button>
-        <button onclick="deleteTestOrder('${o.id}')" class="px-2.5 py-1 bg-error/20 hover:bg-error text-error hover:text-white font-bold rounded text-xs">刪除</button>
+        <button onclick="viewOrderDetail('${jsq(o.id)}')" class="px-2.5 py-1 bg-primary-fixed/20 hover:bg-primary-fixed text-primary-fixed hover:text-black font-bold rounded text-xs">查詢</button>
+        <button onclick="editAdminOrder('${jsq(o.id)}')" class="px-2.5 py-1 bg-surface-container border border-outline-variant text-gray-200 hover:text-white font-bold rounded text-xs">修改</button>
+        <button onclick="deleteTestOrder('${jsq(o.id)}')" class="px-2.5 py-1 bg-error/20 hover:bg-error text-error hover:text-white font-bold rounded text-xs">刪除</button>
       ` : `
-        <button onclick="viewOrderDetail('${o.id}')" class="px-2.5 py-1 bg-primary-fixed/20 hover:bg-primary-fixed text-primary-fixed hover:text-black font-bold rounded text-xs">查詢</button>
-        ${isCancelled || isShipped ? '' : `<button onclick="openOrderShipmentModal('${o.id}')" class="px-2.5 py-1 bg-line-green hover:bg-line-green/80 text-white font-bold rounded text-xs">寄送</button>`}
-        <button onclick="editAdminOrder('${o.id}')" class="px-2.5 py-1 bg-surface-container border border-outline-variant text-gray-200 hover:text-white font-bold rounded text-xs">修改</button>
-        ${isShipped || isCancelled ? '' : `<button onclick="cancelAdminOrder('${o.id}')" class="px-2.5 py-1 bg-error/20 hover:bg-error text-error hover:text-white font-bold rounded text-xs">取消</button>`}
+        <button onclick="viewOrderDetail('${jsq(o.id)}')" class="px-2.5 py-1 bg-primary-fixed/20 hover:bg-primary-fixed text-primary-fixed hover:text-black font-bold rounded text-xs">查詢</button>
+        ${isCancelled || isShipped ? '' : `<button onclick="openOrderShipmentModal('${jsq(o.id)}')" class="px-2.5 py-1 bg-line-green hover:bg-line-green/80 text-white font-bold rounded text-xs">寄送</button>`}
+        <button onclick="editAdminOrder('${jsq(o.id)}')" class="px-2.5 py-1 bg-surface-container border border-outline-variant text-gray-200 hover:text-white font-bold rounded text-xs">修改</button>
+        ${isShipped || isCancelled ? '' : `<button onclick="cancelAdminOrder('${jsq(o.id)}')" class="px-2.5 py-1 bg-error/20 hover:bg-error text-error hover:text-white font-bold rounded text-xs">取消</button>`}
       `;
 
       return `
@@ -2006,18 +2031,18 @@
           <div class="flex justify-between items-start flex-wrap gap-2">
             <div>
               <div class="text-[10px] text-gray-400">訂單編號</div>
-              <div class="font-mono text-cyan-300 font-bold text-sm">${o.id}</div>
+              <div class="font-mono text-cyan-300 font-bold text-sm">${esc(o.id)}</div>
               <div class="text-[10px] text-gray-400 mt-1">時間</div>
-              <div class="text-[11px] text-on-surface-variant">${o.created_at || '-'}</div>
+              <div class="text-[11px] text-on-surface-variant">${esc(o.created_at || '-')}</div>
             </div>
             <span class="px-2 py-0.5 text-[11px] rounded font-bold ${statusCls}">${statusText}</span>
           </div>
-          <div class="text-xs text-gray-200">訂購人：<span class="font-bold text-white">${o.user_name || '線上會員'}</span> <span class="text-on-surface-variant">（${o.user_line_id || '-'}）</span></div>
+          <div class="text-xs text-gray-200">訂購人：<span class="font-bold text-white">${esc(o.user_name || '線上會員')}</span> <span class="text-on-surface-variant">（${esc(o.user_line_id || '-')}）</span></div>
           <div class="bg-surface-container rounded-lg p-2">${itemsHtml}</div>
           <div class="grid grid-cols-3 gap-2 text-xs">
-            <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">總金額</div><div class="text-primary-fixed font-black">$${parseFloat(o.total_amount || 0).toFixed(2)}</div></div>
-            <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">總成本</div><div class="text-amber-400 font-bold">$${parseFloat(o.total_cost || 0).toFixed(2)}</div></div>
-            <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">淨利潤</div><div class="text-line-green font-bold">$${parseFloat(o.net_profit || 0).toFixed(2)}</div></div>
+            <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">總金額</div><div class="text-primary-fixed font-black">$${esc(parseFloat(o.total_amount || 0).toFixed(2))}</div></div>
+            <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">總成本</div><div class="text-amber-400 font-bold">$${esc(parseFloat(o.total_cost || 0).toFixed(2))}</div></div>
+            <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">淨利潤</div><div class="text-line-green font-bold">$${esc(parseFloat(o.net_profit || 0).toFixed(2))}</div></div>
           </div>
           <div class="flex flex-wrap gap-2 pt-1">${actions}</div>
         </div>
@@ -2125,7 +2150,7 @@
       items = typeof order.items_json === 'string' ? JSON.parse(order.items_json || '[]') : (order.items_json || []);
     } catch(e) { items = []; }
     if (!Array.isArray(items) || items.length === 0) {
-      items = [{ id: null, name: `訂單作品 #${order.id}`, qty: 1, price: parseFloat(order.total_amount || 0) }];
+      items = [{ id: null, name: `訂單作品 #${esc(order.id)}`, qty: 1, price: parseFloat(order.total_amount || 0) }];
     }
 
     const baseOther = parseFloat(order.other_cost || 0);
@@ -2230,7 +2255,7 @@
       <div class="border border-outline-variant rounded-lg bg-surface-container-low p-3 space-y-3">
         <div class="flex justify-between items-center border-b border-outline-variant/60 pb-2">
           <div class="font-bold text-white text-sm">
-            <span class="text-primary-fixed font-mono">#${idx + 1}</span> ${p.itemName}
+            <span class="text-primary-fixed font-mono">#${idx + 1}</span> ${esc(p.itemName)}
             ${shipmentEditMode
               ? `<span class="inline-flex items-center gap-1 text-[10px] text-gray-400 font-normal">x
                   <input type="number" min="1" max="999" value="${p.qty}" onchange="updateShipmentProductQty(${idx}, this.value)" class="w-14 bg-surface-container border border-outline-variant text-white text-center rounded outline-none p-0.5" />
@@ -2238,7 +2263,7 @@
                 </span>`
               : `<span class="text-[10px] text-gray-400 font-normal">x ${p.qty} 件 · 單價 $${p.unitPrice}</span>`}
           </div>
-          <div class="text-primary-fixed font-black text-sm">銷售 $${p.salesAmount}</div>
+          <div class="text-primary-fixed font-black text-sm">銷售 $${esc(p.salesAmount)}</div>
         </div>
 
         <div class="space-y-1.5">
@@ -2263,11 +2288,11 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
           <div>
             <label class="block text-[10px] font-bold text-gray-300 mb-1">其它成本 ($)</label>
-            <input type="number" step="0.01" id="shipment-other-cost-${idx}" value="${p.otherCost}" oninput="calculateShipmentNetProfit()" onchange="roundShipmentInput(this)" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
+            <input type="number" step="0.01" id="shipment-other-cost-${idx}" value="${esc(p.otherCost)}" oninput="calculateShipmentNetProfit()" onchange="roundShipmentInput(this)" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
           </div>
           <div>
             <label class="block text-[10px] font-bold text-gray-300 mb-1">郵寄成本 ($)</label>
-            <input type="number" step="0.01" id="shipment-shipping-cost-${idx}" value="${p.shippingCost}" oninput="calculateShipmentNetProfit()" onchange="roundShipmentInput(this)" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
+            <input type="number" step="0.01" id="shipment-shipping-cost-${idx}" value="${esc(p.shippingCost)}" oninput="calculateShipmentNetProfit()" onchange="roundShipmentInput(this)" class="w-full bg-surface-container border border-outline-variant text-white p-1 rounded text-xs outline-none" />
           </div>
           <div class="p-1.5 bg-line-green/10 rounded border border-line-green/40">
             <div class="text-[10px] font-bold text-line-green mb-1">淨利潤 ($)</div>
@@ -2281,10 +2306,10 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
           <div>
-            <label class="block text-[10px] font-bold text-primary-fixed mb-1">設計者（${p.designerRatio}%）</label>
+            <label class="block text-[10px] font-bold text-primary-fixed mb-1">設計者（${esc(p.designerRatio)}%）</label>
             <select id="shipment-designer-${idx}" onchange="shipmentProducts[${idx}].designerId = this.value; calculateShipmentNetProfit()" class="w-full bg-surface-container border border-outline-variant text-white p-1.5 rounded text-xs outline-none">
               <option value="">請選擇設計者</option>
-              ${users.map(u => `<option value="${u.id}" ${String(p.designerId) === String(u.id) ? 'selected' : ''}>${u.name} (${u.role === 'admin' ? '最高管理員' : '助理教練'})</option>`).join('')}
+              ${users.map(u => `<option value="${esc(u.id)}" ${String(p.designerId) === String(u.id) ? 'selected' : ''}>${esc(u.name)} (${esc(u.role === 'admin' ? '最高管理員' : '助理教練')})</option>`).join('')}
             </select>
             <div class="mt-1 p-1.5 bg-surface-container rounded border border-outline-variant text-center">
               <div class="text-[10px] font-bold text-primary-fixed mb-0.5">設計者金額</div>
@@ -2292,10 +2317,10 @@
             </div>
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-secondary-container mb-1">包裝人員（${p.packagerRatio}%）</label>
+            <label class="block text-[10px] font-bold text-secondary-container mb-1">包裝人員（${esc(p.packagerRatio)}%）</label>
             <select id="shipment-packager-${idx}" onchange="shipmentProducts[${idx}].packagerId = this.value; calculateShipmentNetProfit()" class="w-full bg-surface-container border border-outline-variant text-white p-1.5 rounded text-xs outline-none">
               <option value="">請選擇包裝人員</option>
-              ${users.map(u => `<option value="${u.id}" ${String(p.packagerId) === String(u.id) ? 'selected' : ''}>${u.name} (${u.role === 'admin' ? '最高管理員' : '助理教練'})</option>`).join('')}
+              ${users.map(u => `<option value="${esc(u.id)}" ${String(p.packagerId) === String(u.id) ? 'selected' : ''}>${esc(u.name)} (${esc(u.role === 'admin' ? '最高管理員' : '助理教練')})</option>`).join('')}
             </select>
             <div class="mt-1 p-1.5 bg-surface-container rounded border border-outline-variant text-center">
               <div class="text-[10px] font-bold text-secondary-container mb-0.5">包裝人員金額</div>
@@ -2448,7 +2473,7 @@
       const img = materialImages[n];
       const safeName = n.replace(/\\/g, '\\\\').replace(/"/g, '&quot;');
       return `<div class="px-3 py-2 hover:bg-surface-container cursor-pointer flex items-center gap-2 border-b border-outline-variant/40" data-name="${safeName}" onmousedown="selectMaterialSuggestion(this, '${rowId}')">
-        ${img ? `<img src="${img}" class="w-7 h-7 object-cover rounded border border-outline-variant" />` : ''}
+        ${img ? `<img src="${esc(img)}" class="w-7 h-7 object-cover rounded border border-outline-variant" />` : ''}
         <span class="font-bold text-white">${n}</span>
         ${cost !== undefined ? `<span class="ml-auto text-cyan-300 text-[10px]">單價 $${Number(cost).toFixed(4)}</span>` : ''}
       </div>`;
@@ -2641,9 +2666,9 @@
     }
     container.innerHTML = materialRecognizeResult.map((it, i) => `
       <div class="flex items-center gap-2">
-        <span class="w-16 font-bold text-white text-xs">${it.letter}</span>
-        <input type="number" step="0.001" min="0" value="${it.usage}" oninput="updateMaterialRecognizeUsage(${i}, this.value)" class="flex-1 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded text-xs" />
-        <span class="text-gray-400 text-[11px] w-8">${it.unit || 'ml'}</span>
+        <span class="w-16 font-bold text-white text-xs">${esc(it.letter)}</span>
+        <input type="number" step="0.001" min="0" value="${esc(it.usage)}" oninput="updateMaterialRecognizeUsage(${i}, this.value)" class="flex-1 bg-surface-container-high border border-outline-variant text-white p-1.5 rounded text-xs" />
+        <span class="text-gray-400 text-[11px] w-8">${esc(it.unit || 'ml')}</span>
       </div>
     `).join('');
   }
@@ -2662,7 +2687,7 @@
     materialRecognizeResult.forEach(it => {
       const usage = parseFloat(it.usage || 0);
       if (!it.letter || usage <= 0) return;
-      const materialName = `${base} - ${it.letter}`;
+      const materialName = `${base} - ${esc(it.letter)}`;
       let found = false;
       const tbody = document.getElementById(tbodyId);
       if (tbody) {
@@ -2715,7 +2740,7 @@
     const tbody = document.getElementById('print-test-materials-tbody');
     if (tbody) tbody.innerHTML = '';
     const titleEl = document.getElementById('print-test-title');
-    if (titleEl) titleEl.textContent = order ? `修改打印測試：${order.id}` : '打印測試（耗材與成本試算）';
+    if (titleEl) titleEl.textContent = order ? `修改打印測試：${esc(order.id)}` : '打印測試（耗材與成本試算）';
 
     if (order) {
       let workName = '';
@@ -2737,7 +2762,7 @@
 
     if (order) {
       try {
-        const res = await fetch(`/api/admin/orders/${order.id}/settlement`);
+        const res = await fetch(`/api/admin/orders/${esc(order.id)}/settlement`);
         const json = await res.json();
         const mats = (json.status === 'success' && json.data && json.data.materials) || [];
         if (mats.length > 0) {
@@ -3092,12 +3117,12 @@
     const netProfit = parseFloat(order.net_profit || 0);
 
     document.getElementById('order-detail-basic').innerHTML = `
-      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">訂單編號</div><div class="font-mono text-cyan-300 font-bold">${order.id}</div></div>
-      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">訂單時間</div><div>${order.created_at || '-'}</div></div>
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">訂單編號</div><div class="font-mono text-cyan-300 font-bold">${esc(order.id)}</div></div>
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">訂單時間</div><div>${esc(order.created_at || '-')}</div></div>
       <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">狀態</div><div class="font-bold">${statusText}</div></div>
-      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">訂購人</div><div>${order.user_name || '線上會員'}</div></div>
-      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">LINE</div><div>${order.user_line_id || '-'}</div></div>
-      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">總金額</div><div class="text-primary-fixed font-black">$${parseFloat(order.total_amount || 0).toFixed(2)}</div></div>
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">訂購人</div><div>${esc(order.user_name || '線上會員')}</div></div>
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">LINE</div><div>${esc(order.user_line_id || '-')}</div></div>
+      <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">總金額</div><div class="text-primary-fixed font-black">$${esc(parseFloat(order.total_amount || 0).toFixed(2))}</div></div>
     `;
 
     let items = [];
@@ -3109,8 +3134,8 @@
         const qty = parseInt(i.qty || 1, 10) || 1;
         const price = parseFloat(i.price !== undefined ? i.price : ((order.total_amount || 0) / qty));
         return `<tr class="border-b border-outline-variant/30">
-          <td class="p-2">${i.name || i.product_name || '-'}</td>
-          <td class="p-2 text-cyan-300">${i.variant_name || i.item_name || '-'}${i.variant_color ? '（' + i.variant_color + '）' : ''}</td>
+          <td class="p-2">${esc(i.name || i.product_name || '-')}</td>
+          <td class="p-2 text-cyan-300">${esc(i.variant_name || i.item_name || '-')}${esc(i.variant_color ? '（' + i.variant_color + '）' : '')}</td>
           <td class="p-2 text-center">${qty}</td>
           <td class="p-2 text-right">$${price.toFixed(2)}</td>
           <td class="p-2 text-right text-primary-fixed font-bold">$${(qty * price).toFixed(2)}</td>
@@ -3135,10 +3160,10 @@
         materials.map(m => {
           const amount = parseFloat(m.capacity_used || 0) + parseFloat(m.qty_used || 0);
           return `<tr class="border-b border-outline-variant/30">
-            <td class="p-2">${m.material_name || '-'}</td>
+            <td class="p-2">${esc(m.material_name || '-')}</td>
             <td class="p-2 text-right text-cyan-300 font-bold">${amount}</td>
-            <td class="p-2 text-right">$${parseFloat(m.unit_cost || 0).toFixed(4)}</td>
-            <td class="p-2 text-right text-amber-400 font-bold">$${parseFloat(m.cost || 0).toFixed(2)}</td>
+            <td class="p-2 text-right">$${esc(parseFloat(m.unit_cost || 0).toFixed(4))}</td>
+            <td class="p-2 text-right text-amber-400 font-bold">$${esc(parseFloat(m.cost || 0).toFixed(2))}</td>
           </tr>`;
         }).join('') + `</tbody></table>`;
     }
@@ -3167,7 +3192,7 @@
       <div class="border border-outline-variant rounded-lg bg-surface-container-low p-3 grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
         <div class="md:col-span-2">
           <label class="block text-[10px] font-bold text-gray-300 mb-1">商品名稱 / 款式</label>
-          <div class="text-white text-xs font-bold p-2 bg-surface-container rounded border border-outline-variant">${itm.name}${itm.variantName ? ' (' + itm.variantName + ')' : ''}</div>
+          <div class="text-white text-xs font-bold p-2 bg-surface-container rounded border border-outline-variant">${esc(itm.name)}${esc(itm.variantName ? ' (' + itm.variantName + ')' : '')}</div>
         </div>
         <div>
           <label class="block text-[10px] font-bold text-primary-fixed mb-1">單價金額 ($)</label>
@@ -3248,7 +3273,7 @@
     const users = (usersList || []).filter(u => u.role === 'admin' || u.role === 'assistant_coach');
     const current = sel.value;
     sel.innerHTML = '<option value="">全部同仁</option>' + users.map(u =>
-      `<option value="${u.id}">${u.name} (${u.role === 'admin' ? '最高管理員' : '助理教練'})</option>`
+      `<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.role === 'admin' ? '最高管理員' : '助理教練')})</option>`
     ).join('');
     sel.value = current;
   }
@@ -3293,12 +3318,12 @@
     }
     tbody.innerHTML = members.map(m => `
       <tr class="hover:bg-surface-container/50">
-        <td class="p-3 font-bold text-white">${m.name}</td>
-        <td class="p-3 text-right text-primary-fixed font-bold">$${parseFloat(m.designer_amount || 0).toFixed(2)}</td>
-        <td class="p-3 text-right text-secondary-container font-bold">$${parseFloat(m.packager_amount || 0).toFixed(2)}</td>
-        <td class="p-3 text-right text-line-green font-black">$${parseFloat(m.total || 0).toFixed(2)}</td>
+        <td class="p-3 font-bold text-white">${esc(m.name)}</td>
+        <td class="p-3 text-right text-primary-fixed font-bold">$${esc(parseFloat(m.designer_amount || 0).toFixed(2))}</td>
+        <td class="p-3 text-right text-secondary-container font-bold">$${esc(parseFloat(m.packager_amount || 0).toFixed(2))}</td>
+        <td class="p-3 text-right text-line-green font-black">$${esc(parseFloat(m.total || 0).toFixed(2))}</td>
         <td class="p-3 text-right">
-          <button onclick="openBonusDetail('${m.user_id}')" class="text-primary-fixed hover:underline font-bold">查看明細</button>
+          <button onclick="openBonusDetail('${jsq(m.user_id)}')" class="text-primary-fixed hover:underline font-bold">查看明細</button>
         </td>
       </tr>
     `).join('');
@@ -3316,8 +3341,8 @@
       list.innerHTML = entries.map(e => `
         <div class="flex justify-between items-center p-3 bg-surface-container rounded border border-outline-variant">
           <div>
-            <div class="font-bold text-white text-xs">${e.order_id} · ${e.item_name || '-'}</div>
-            <div class="text-[10px] text-gray-400 mt-0.5">${e.settled_at || ''} · 角色: ${e.role === 'designer' ? '設計者' : '包裝人員'} · 比率 ${parseFloat(e.ratio || 0)}%</div>
+            <div class="font-bold text-white text-xs">${esc(e.order_id)} · ${esc(e.item_name || '-')}</div>
+            <div class="text-[10px] text-gray-400 mt-0.5">${esc(e.settled_at || '')} · 角色: ${e.role === 'designer' ? '設計者' : '包裝人員'} · 比率 ${parseFloat(e.ratio || 0)}%</div>
           </div>
           <div class="text-line-green font-black text-sm">$${parseFloat(e.amount || 0).toFixed(2)}</div>
         </div>

@@ -9,6 +9,21 @@ from extensions import (
 
 admin_bp = Blueprint('admin', __name__)
 
+# 只有管理員能碰的成員管理動作（避免助理教練改寫管理員密碼或自我提權）。
+# （2026-09-26 Codex Security 掃描 finding：broken-access-control.coach-can-overwrite-admin-credentials）
+def _check_member_write_allowed(caller, target_user_id=None, requested_role=None):
+    """回傳 (是否允許, 錯誤訊息)。管理員一律允許；助教不得碰管理員帳號、也不得指派管理員角色。"""
+    if (caller or {}).get('role') == 'admin':
+        return True, ''
+    if requested_role == 'admin':
+        return False, '只有管理員可以指派管理員權限'
+    if target_user_id:
+        existing = db_service._fetch_one("SELECT role FROM users WHERE id = :id", {"id": target_user_id})
+        if existing and existing.get('role') == 'admin':
+            return False, '只有管理員可以修改或刪除管理員帳號'
+    return True, ''
+
+
 @admin_bp.route('/admin', endpoint='admin_page')
 @admin_or_coach_required
 def admin_page():
@@ -41,6 +56,10 @@ def api_admin_save_user():
     phone = data.get('phone', '')
     role = data.get('role', 'user')
 
+    allowed, reason = _check_member_write_allowed(session.get('user'), user_id, role)
+    if not allowed:
+        return jsonify({"status": "error", "message": reason}), 403
+
     saved = db_service.save_or_update_user(user_id, username, password, name, line_id, avatar_url, phone, role)
     if saved:
         return jsonify({"status": "success", "message": "成員資料更新成功"})
@@ -50,12 +69,27 @@ def api_admin_save_user():
 @admin_or_coach_required
 def api_admin_delete_user(user_id):
     """刪除成員"""
+    allowed, reason = _check_member_write_allowed(session.get('user'), user_id)
+    if not allowed:
+        return jsonify({"status": "error", "message": reason}), 403
+
     deleted = db_service.delete_user(user_id)
     if deleted:
         return jsonify({"status": "success", "message": "成員已刪除"})
     return jsonify({"status": "error", "message": "刪除失敗"}), 500
 
 # --- Product & Inventory Management APIs ---
+
+@admin_bp.route('/api/admin/products', methods=['GET'])
+@admin_or_coach_required
+def api_admin_get_products():
+    """後台商品列表（含成本與分潤比例，僅限後台）。
+
+    公開的 /api/products 只回前台可見欄位，所以後台需要這支專用端點。
+    """
+    products = db_service.get_products()
+    return jsonify({"status": "success", "data": products})
+
 
 @admin_bp.route('/api/admin/product-options/category', methods=['POST'])
 @admin_or_coach_required
@@ -254,4 +288,3 @@ def api_admin_cleanup_temp_files():
         return jsonify({"status": "error", "message": str(val_err)}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": f"清理作業失敗: {e}"}), 500
-

@@ -432,6 +432,30 @@
     let activeMaterial = "ALL";
     let currentUser = null;
 
+    // 安全：任何來自資料庫或使用者輸入的值，在寫入 HTML 之前一律先轉義，避免儲存型 XSS。
+    // （2026-09-26 Codex Security 掃描 finding：cross-site-scripting.stored-order-name-to-admin）
+    function esc(value) {
+      return String(value === null || value === undefined ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    // 用在行內事件屬性裡的「字串參數」，例如 onclick="f('${jsq(id)}')"。
+    // 這種位置要先做 JS 字串跳脫（\\ 與 '）再做 HTML 屬性跳脫，否則單引號會被瀏覽器還原而跳脫 JS 字串。
+    function jsq(value) {
+      return String(value === null || value === undefined ? "" : value)
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'")
+        .replace(/[\r\n]/g, " ")
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
       checkUserLoginState();
       loadProductsFromAPI();
@@ -452,8 +476,8 @@
             <div class="flex items-center gap-3 font-label-caps text-xs">
               <span class="text-on-surface font-bold flex items-center gap-1.5 bg-surface-container px-3 py-1.5 rounded border border-outline-variant">
                 <span class="material-symbols-outlined text-primary-fixed text-sm">account_circle</span>
-                ${currentUser.name}
-                <span class="text-primary-fixed text-[10px] font-normal">(${roleMap[currentUser.role] || currentUser.role})</span>
+                ${esc(currentUser.name)}
+                <span class="text-primary-fixed text-[10px] font-normal">(${esc(roleMap[currentUser.role] || currentUser.role)})</span>
               </span>
               ${(currentUser.role === 'admin' || currentUser.role === 'assistant_coach') ? `
                 <a href="/admin" class="text-primary-fixed hover:underline flex items-center gap-0.5 font-bold">
@@ -594,8 +618,8 @@
 
       grid.innerHTML = filtered.map(p => `
         <div class="bg-surface-container-low border border-outline-variant group hover:glow-primary transition-all duration-300 flex flex-col">
-          <div class="aspect-square bg-surface-dim relative overflow-hidden ${p.is_uv || p.isUv ? 'uv-trigger' : ''}">
-            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${p.image_url || p.image || DEFAULT_PLACEHOLDER_IMG}" alt="${p.name}" onerror="handleImageFallback(this)"/>
+          <div class="aspect-square bg-surface-dim relative overflow-hidden ${esc(p.is_uv || p.isUv ? 'uv-trigger' : '')}">
+            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${esc(p.image_url || p.image || DEFAULT_PLACEHOLDER_IMG)}" alt="${esc(p.name)}" onerror="handleImageFallback(this)"/>
             
             ${p.is_uv || p.isUv ? `
               <div class="absolute inset-0 bg-secondary-container/30 opacity-0 uv-overlay transition-opacity duration-300 pointer-events-none flex items-center justify-center">
@@ -603,25 +627,25 @@
               </div>
             ` : ''}
 
-            <span class="absolute top-unit-2 left-unit-2 ${p.is_uv || p.isUv ? 'bg-secondary-container text-on-secondary-container' : 'bg-primary-fixed text-on-primary-fixed'} font-label-caps px-unit-2 py-0.5 text-[10px] font-bold">
-              ${p.badge}
+            <span class="absolute top-unit-2 left-unit-2 ${esc(p.is_uv || p.isUv ? 'bg-secondary-container text-on-secondary-container' : 'bg-primary-fixed text-on-primary-fixed')} font-label-caps px-unit-2 py-0.5 text-[10px] font-bold">
+              ${esc(p.badge)}
             </span>
           </div>
 
           <div class="p-unit-4 flex flex-col gap-unit-2 flex-grow justify-between">
             <div>
               <div class="flex justify-between items-start mb-1">
-                <h3 class="font-headline-md italic uppercase text-on-surface text-base leading-tight">${p.name}</h3>
-                <span class="font-label-caps text-primary-fixed font-bold text-sm">$${parseFloat(p.price).toFixed(2)}</span>
+                <h3 class="font-headline-md italic uppercase text-on-surface text-base leading-tight">${esc(p.name)}</h3>
+                <span class="font-label-caps text-primary-fixed font-bold text-sm">$${esc(parseFloat(p.price).toFixed(2))}</span>
               </div>
-              <p class="text-on-surface-variant text-xs line-clamp-2 leading-relaxed mb-3">${p.description}</p>
+              <p class="text-on-surface-variant text-xs line-clamp-2 leading-relaxed mb-3">${esc(p.description)}</p>
             </div>
 
             <div class="flex gap-2">
-              <button onclick="openProductModal('${p.id}')" class="flex-1 border border-outline-variant text-on-surface-variant font-label-caps italic py-1.5 text-xs hover:border-primary-fixed hover:text-on-surface transition-colors">
+              <button onclick="openProductModal('${jsq(p.id)}')" class="flex-1 border border-outline-variant text-on-surface-variant font-label-caps italic py-1.5 text-xs hover:border-primary-fixed hover:text-on-surface transition-colors">
                 詳情
               </button>
-              <button onclick="addToCart('${p.id}')" class="flex-1 border border-primary-fixed text-primary-fixed font-label-caps italic py-1.5 text-xs hover:bg-primary-fixed hover:text-on-primary-fixed transition-colors font-bold uppercase flex items-center justify-center gap-1">
+              <button onclick="addToCart('${jsq(p.id)}')" class="flex-1 border border-primary-fixed text-primary-fixed font-label-caps italic py-1.5 text-xs hover:bg-primary-fixed hover:text-on-primary-fixed transition-colors font-bold uppercase flex items-center justify-center gap-1">
                 <span class="material-symbols-outlined text-sm">add_shopping_cart</span> 加入購物車
               </button>
             </div>
@@ -661,7 +685,7 @@
     function renderBulletins() {
       const list = document.getElementById("bulletin-list");
       list.innerHTML = announcementsData.map(b => `
-        <div class="bg-surface-container-low border ${b.is_pinned || b.isPinned ? 'border-secondary-container' : 'border-outline-variant'} p-5 relative scanline hover:border-primary-fixed transition-all">
+        <div class="bg-surface-container-low border ${esc(b.is_pinned || b.isPinned ? 'border-secondary-container' : 'border-outline-variant')} p-5 relative scanline hover:border-primary-fixed transition-all">
           ${b.is_pinned || b.isPinned ? `
             <div class="absolute -top-3 right-4 bg-secondary-container text-on-surface font-label-caps text-[10px] font-bold px-2 py-0.5 italic flex items-center gap-1">
               <span class="material-symbols-outlined text-xs">push_pin</span> 置頂強檔公告
@@ -669,26 +693,26 @@
           ` : ''}
           
           <div class="flex items-center gap-3 mb-2 flex-wrap">
-            <span class="font-label-caps text-xs px-2 py-0.5 ${b.is_pinned || b.isPinned ? 'bg-secondary-container/20 text-secondary-container border border-secondary-container' : 'bg-surface-container text-primary-fixed border border-outline-variant'} font-bold">
-              [${b.tag}]
+            <span class="font-label-caps text-xs px-2 py-0.5 ${esc(b.is_pinned || b.isPinned ? 'bg-secondary-container/20 text-secondary-container border border-secondary-container' : 'bg-surface-container text-primary-fixed border border-outline-variant')} font-bold">
+              [${esc(b.tag)}]
             </span>
             <span class="font-label-caps text-xs text-on-surface-variant flex items-center gap-1">
-              <span class="material-symbols-outlined text-xs">schedule</span> ${b.date_str || b.date}
+              <span class="material-symbols-outlined text-xs">schedule</span> ${esc(b.date_str || b.date)}
             </span>
           </div>
 
-          <h3 class="font-headline-md text-lg italic font-bold text-on-surface mb-2 tracking-tight">${b.title}</h3>
-          <p class="text-on-surface-variant text-xs leading-relaxed mb-4">${b.summary}</p>
+          <h3 class="font-headline-md text-lg italic font-bold text-on-surface mb-2 tracking-tight">${esc(b.title)}</h3>
+          <p class="text-on-surface-variant text-xs leading-relaxed mb-4">${esc(b.summary)}</p>
           
           <div class="p-3 bg-surface-container text-xs text-on-surface/90 font-body-md whitespace-pre-line border-l-2 border-primary-fixed mb-4 leading-relaxed">
-            ${b.content}
+            ${esc(b.content)}
           </div>
 
           <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-outline-variant/40">
             <span class="font-label-caps text-[11px] text-line-green flex items-center gap-1">
               <span class="w-2 h-2 rounded-full bg-line-green inline-block"></span> 已透過 LINE 廣播發送給社團成員
             </span>
-            <button onclick="shareBulletinToLine('${b.id}')" class="px-3 py-1 bg-line-green/20 text-line-green border border-line-green font-label-caps text-xs font-bold italic hover:bg-line-green hover:text-on-surface transition-all flex items-center gap-1">
+            <button onclick="shareBulletinToLine('${jsq(b.id)}')" class="px-3 py-1 bg-line-green/20 text-line-green border border-line-green font-label-caps text-xs font-bold italic hover:bg-line-green hover:text-on-surface transition-all flex items-center gap-1">
               <span class="material-symbols-outlined text-sm">send</span> 轉發至 LINE 群組
             </button>
           </div>
@@ -698,7 +722,7 @@
 
     function shareBulletinToLine(id) {
       const b = announcementsData.find(item => item.id === id);
-      alert(`已將公告「${b.title}」推送至社團 LINE 官方群組！`);
+      alert(`已將公告「${esc(b.title)}」推送至社團 LINE 官方群組！`);
     }
 
     let currentSelectedVariantMap = {};
@@ -726,17 +750,17 @@
         <div class="flex flex-col md:flex-row gap-6">
           <!-- Left: Main Image -->
           <div class="w-full md:w-1/2 aspect-square bg-surface-container overflow-hidden relative rounded-lg border border-outline-variant">
-            <img id="modal-prod-img" class="w-full h-full object-contain transition-all duration-300" src="${displayImg}" alt="${p.name}" onerror="handleImageFallback(this)"/>
+            <img id="modal-prod-img" class="w-full h-full object-contain transition-all duration-300" src="${esc(displayImg)}" alt="${esc(p.name)}" onerror="handleImageFallback(this)"/>
             <div class="absolute top-2 left-2 bg-primary-fixed text-on-primary-fixed font-label-caps text-xs px-2 py-1 font-bold">
-              ${p.badge}
+              ${esc(p.badge)}
             </div>
           </div>
 
           <!-- Right: Details & Variant Selection (Shopee Style: Image 3 & Image 4) -->
           <div class="w-full md:w-1/2 flex flex-col justify-between space-y-4">
             <div>
-              <span class="font-label-caps text-xs text-primary-fixed font-bold">${p.material}</span>
-              <h2 id="modal-prod-name" class="font-headline-md text-xl italic font-bold text-on-surface mt-1 mb-2">${p.name}</h2>
+              <span class="font-label-caps text-xs text-primary-fixed font-bold">${esc(p.material)}</span>
+              <h2 id="modal-prod-name" class="font-headline-md text-xl italic font-bold text-on-surface mt-1 mb-2">${esc(p.name)}</h2>
               
               <div class="flex items-baseline gap-2 mb-3">
                 <span id="modal-prod-price" class="text-3xl font-label-caps text-primary-fixed font-black">$${parseFloat(displayPrice).toFixed(2)}</span>
@@ -755,10 +779,10 @@
                     ${itemsList.map((v, idx) => {
                       const itemStk = parseInt(v.stock_qty !== undefined ? v.stock_qty : (p.stock_qty || 0));
                       return `
-                        <button type="button" onclick="selectProductVariant('${p.id}', ${idx})" id="v-btn-${p.id}-${idx}" class="variant-opt-btn flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${idx === 0 ? 'border-primary-fixed bg-primary-fixed/20 text-primary-fixed shadow-md ring-1 ring-primary-fixed' : 'border-outline-variant bg-surface-container-high text-on-surface hover:border-gray-400'}">
-                          ${v.image_url ? `<img src="${v.image_url}" onerror="this.classList.add('hidden')" class="w-6 h-6 object-cover rounded border border-outline-variant" />` : ''}
-                          <span>${v.name || '款式 ' + (idx+1)}</span>
-                          <span class="text-[10px] font-mono opacity-90">($${parseFloat(v.price !== undefined ? v.price : p.price).toFixed(2)})</span>
+                        <button type="button" onclick="selectProductVariant('${jsq(p.id)}', ${idx})" id="v-btn-${esc(p.id)}-${idx}" class="variant-opt-btn flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${idx === 0 ? 'border-primary-fixed bg-primary-fixed/20 text-primary-fixed shadow-md ring-1 ring-primary-fixed' : 'border-outline-variant bg-surface-container-high text-on-surface hover:border-gray-400'}">
+                          ${v.image_url ? `<img src="${esc(v.image_url)}" onerror="this.classList.add('hidden')" class="w-6 h-6 object-cover rounded border border-outline-variant" />` : ''}
+                          <span>${esc(v.name || '款式 ' + (idx+1))}</span>
+                          <span class="text-[10px] font-mono opacity-90">($${esc(parseFloat(v.price !== undefined ? v.price : p.price).toFixed(2))})</span>
                           <span class="text-[10px] font-bold ${itemStk > 0 ? 'text-line-green' : 'text-error'}">(剩 ${itemStk} 件)</span>
                         </button>
                       `;
@@ -769,11 +793,11 @@
 
               <div id="modal-prod-colors" class="hidden mb-3"></div>
 
-              <p class="text-xs text-on-surface-variant leading-relaxed border-t border-outline-variant pt-3">${p.description || ''}</p>
+              <p class="text-xs text-on-surface-variant leading-relaxed border-t border-outline-variant pt-3">${esc(p.description || '')}</p>
             </div>
 
             <!-- 數量與購物車按鈕區 -->
-            <div class="space-y-3 pt-3 border-t border-outline-variant" id="modal-action-area-${p.id}">
+            <div class="space-y-3 pt-3 border-t border-outline-variant" id="modal-action-area-${esc(p.id)}">
               ${(function(){
                 const firstVar = itemsList[0];
                 const activeStk = firstVar ? parseInt(firstVar.stock_qty !== undefined ? firstVar.stock_qty : (p.stock_qty || 0)) : parseInt(p.stock_qty || 0);
@@ -783,7 +807,7 @@
                       <label class="font-label-caps text-xs font-bold text-on-surface">訂購數量</label>
                       <input type="number" id="modal-prod-qty" min="1" max="999" value="1" class="w-20 bg-surface-container-high border border-outline-variant text-on-surface text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed p-2" />
                     </div>
-                    <button onclick="addSelectedVariantToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
+                    <button onclick="addSelectedVariantToCart('${jsq(p.id)}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
                       <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車
                     </button>
                   `;
@@ -851,7 +875,7 @@
         imgEl.src = v.image_url || p.image_url || p.image || DEFAULT_PLACEHOLDER_IMG;
       }
       // Update button & action area state based on item stock
-      const actionArea = document.getElementById(`modal-action-area-${p.id}`);
+      const actionArea = document.getElementById(`modal-action-area-${esc(p.id)}`);
       if (actionArea) {
         if (itemStk > 0) {
           actionArea.innerHTML = `
@@ -859,7 +883,7 @@
               <label class="font-label-caps text-xs font-bold text-on-surface">訂購數量</label>
               <input type="number" id="modal-prod-qty" min="1" max="999" value="1" class="w-20 bg-surface-container-high border border-outline-variant text-on-surface text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed p-2" />
             </div>
-            <button onclick="addSelectedVariantToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
+            <button onclick="addSelectedVariantToCart('${jsq(p.id)}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
               <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車
             </button>
           `;
@@ -904,10 +928,10 @@
         </label>
         <div class="flex flex-wrap gap-2">
           ${colors.map((c, i) => `
-            <button type="button" onclick="selectProductColor('${prodId}', ${i})" id="color-btn-${prodId}-${i}" class="color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-on-surface hover:border-gray-400">
-              ${c.image_url ? `<img src="${c.image_url}" onerror="this.classList.add('hidden')" class="w-5 h-5 object-cover rounded-full border border-outline-variant" />` : ''}
-              <span>${c.name || '次選項'}</span>
-              <span class="text-[10px] font-mono ${parseInt(c.stock_qty !== undefined ? c.stock_qty : 0) > 0 ? 'text-line-green' : 'text-error'}">(${parseInt(c.stock_qty !== undefined ? c.stock_qty : 0)} 件)</span>
+          <button type="button" onclick="selectProductColor('${jsq(prodId)}', ${i})" id="color-btn-${esc(prodId)}-${i}" class="color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-on-surface hover:border-gray-400">
+              ${c.image_url ? `<img src="${esc(c.image_url)}" onerror="this.classList.add('hidden')" class="w-5 h-5 object-cover rounded-full border border-outline-variant" />` : ''}
+              <span>${esc(c.name || '次選項')}</span>
+              <span class="text-[10px] font-mono ${esc(parseInt(c.stock_qty !== undefined ? c.stock_qty : 0) > 0 ? 'text-line-green' : 'text-error')}">(${esc(parseInt(c.stock_qty !== undefined ? c.stock_qty : 0))} 件)</span>
             </button>`).join('')}
         </div>`;
     }
@@ -956,8 +980,8 @@
       if (qty > 999) qty = 999;
 
       const colorSuffix = selectedColor && selectedColor.name ? '_' + selectedColor.name : '';
-      const cartItemId = selectedVariant ? `${p.id}_${selectedVariant.id || selectedVariant.name}${colorSuffix}` : p.id;
-      const itemName = selectedVariant ? `${p.name} - ${selectedVariant.name}` : p.name;
+      const cartItemId = selectedVariant ? `${esc(p.id)}_${selectedVariant.id || selectedVariant.name}${colorSuffix}` : p.id;
+      const itemName = selectedVariant ? `${esc(p.name)} - ${selectedVariant.name}` : p.name;
       const itemPrice = selectedVariant && selectedVariant.price !== undefined ? selectedVariant.price : p.price;
       const itemImg = (selectedColor && selectedColor.image_url)
         ? selectedColor.image_url
@@ -1025,15 +1049,15 @@
 
       container.innerHTML = cart.map(item => `
         <div class="bg-surface-container-high p-3 border border-outline-variant flex gap-3 items-center">
-          <img src="${item.image_url || item.image || DEFAULT_PLACEHOLDER_IMG}" onerror="handleImageFallback(this)" class="w-14 h-14 object-cover border border-outline-variant" />
+          <img src="${esc(item.image_url || item.image || DEFAULT_PLACEHOLDER_IMG)}" onerror="handleImageFallback(this)" class="w-14 h-14 object-cover border border-outline-variant" />
           <div class="flex-grow">
-            <h4 class="font-label-caps text-xs font-bold text-on-surface line-clamp-1">${item.name}${item.color_name ? ' (' + item.color_name + ')' : ''}</h4>
-            <span class="font-label-caps text-[10px] text-primary-fixed font-bold">$${parseFloat(item.price).toFixed(2)}</span>
+            <h4 class="font-label-caps text-xs font-bold text-on-surface line-clamp-1">${esc(item.name)}${esc(item.color_name ? ' (' + item.color_name + ')' : '')}</h4>
+            <span class="font-label-caps text-[10px] text-primary-fixed font-bold">$${esc(parseFloat(item.price).toFixed(2))}</span>
             <div class="flex items-center gap-2 mt-1">
-              <input type="number" min="1" max="999" value="${item.qty}" onchange="setCartQty('${item.cart_key || item.id}', this.value)" class="w-14 bg-surface-container border border-outline-variant text-on-surface text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed" />
+              <input type="number" min="1" max="999" value="${esc(item.qty)}" onchange="setCartQty('${jsq(item.cart_key || item.id)}', this.value)" class="w-14 bg-surface-container border border-outline-variant text-on-surface text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed" />
             </div>
           </div>
-          <button onclick="removeItem('${item.cart_key || item.id}')" class="text-on-surface-variant hover:text-error">
+          <button onclick="removeItem('${jsq(item.cart_key || item.id)}')" class="text-on-surface-variant hover:text-error">
             <span class="material-symbols-outlined text-sm">delete</span>
           </button>
         </div>
@@ -1129,10 +1153,10 @@
         content.innerHTML = `
           <div class="space-y-4">
             <div class="flex items-center gap-3 border-b border-outline-variant pb-3">
-              <img src="${currentUser.avatar_url || currentUser.avatar || ''}" class="w-12 h-12 rounded-full border-2 border-line-green" />
+              <img src="${esc(currentUser.avatar_url || currentUser.avatar || '')}" class="w-12 h-12 rounded-full border-2 border-line-green" />
               <div>
-                <h4 class="font-headline-md text-base font-bold text-on-surface italic">${currentUser.name}</h4>
-                <p class="font-label-caps text-xs text-line-green">LINE ID: ${currentUser.line_id || currentUser.lineId || '-'}</p>
+                <h4 class="font-headline-md text-base font-bold text-on-surface italic">${esc(currentUser.name)}</h4>
+                <p class="font-label-caps text-xs text-line-green">LINE ID: ${esc(currentUser.line_id || currentUser.lineId || '-')}</p>
               </div>
             </div>
             
@@ -1200,12 +1224,12 @@
       const container = document.getElementById("line-auth-container");
       container.innerHTML = `
         <button onclick="openLineModal('profile')" class="bg-surface-container-high border border-line-green text-on-surface px-2.5 py-1 font-label-caps text-xs flex items-center gap-2 hover:border-primary-fixed transition-all">
-          <img src="${currentUser.avatar_url || currentUser.avatar || ''}" class="w-5 h-5 rounded-full" />
-          <span class="font-bold text-line-green line-clamp-1">${currentUser.name}</span>
+          <img src="${esc(currentUser.avatar_url || currentUser.avatar || '')}" class="w-5 h-5 rounded-full" />
+          <span class="font-bold text-line-green line-clamp-1">${esc(currentUser.name)}</span>
         </button>
       `;
 
-      alert(`[LINE OAuth 登入成功]\n歡迎回來，${currentUser.name}！已成功與社團 LINE Bot 完成身份同步。`);
+      alert(`[LINE OAuth 登入成功]\n歡迎回來，${esc(currentUser.name)}！已成功與社團 LINE Bot 完成身份同步。`);
       closeLineModal();
     }
 
