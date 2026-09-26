@@ -12,110 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,400;0,700;0,800;0,900;1,400;1,700;1,800;1,900&family=Hanken+Grotesk:wght@400;700&family=JetBrains+Mono:wght@700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 
-  <style>
-    body {
-      background-color: #131313;
-      background-image: radial-gradient(#2a2a2a 1px, transparent 1px);
-      background-size: 32px 32px;
-      color: #e5e2e1;
-      overflow-x: hidden;
-    }
-    .skew-section {
-      clip-path: polygon(0 5%, 100% 0, 100% 95%, 0 100%);
-    }
-    .speed-line {
-      height: 2px;
-      background: linear-gradient(90deg, #c3f400 0%, transparent 100%);
-      position: relative;
-    }
-    .speed-line::after {
-      content: '';
-      position: absolute;
-      right: 0;
-      top: -4px;
-      border-left: 10px solid #c3f400;
-      border-top: 5px solid transparent;
-      border-bottom: 5px solid transparent;
-    }
-    .glow-primary {
-      box-shadow: 0px 0px 15px rgba(195, 244, 0, 0.3);
-    }
-    .uv-overlay {
-      mix-blend-mode: color-dodge;
-      opacity: 0;
-      transition: opacity 0.4s ease;
-    }
-    .uv-trigger:hover .uv-overlay, .uv-reveal:hover .uv-overlay {
-      opacity: 1;
-    }
-    .tech-border {
-      border-bottom: 2px solid #353534;
-      position: relative;
-      overflow: hidden;
-    }
-    .tech-border::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: -100%;
-      width: 100%;
-      height: 2px;
-      background: #c3f400;
-      transition: left 0.5s ease;
-    }
-    .tech-input:focus + .tech-border::after {
-      left: 0;
-    }
-    .diagonal-line {
-      height: 2px;
-      background: #c3f400;
-      width: 100%;
-      position: relative;
-    }
-    .diagonal-line::after {
-      content: "";
-      position: absolute;
-      right: 0;
-      top: -5px;
-      width: 12px;
-      height: 12px;
-      background: #c3f400;
-      clip-path: polygon(100% 0, 0 100%, 100% 100%);
-    }
-    .scanline {
-      position: relative;
-      overflow: hidden;
-    }
-    .scanline::after {
-      content: "";
-      position: absolute;
-      top: -100%;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(to bottom, transparent, rgba(195, 244, 0, 0.15), transparent);
-      animation: scan 3s linear infinite;
-      pointer-events: none;
-    }
-    @keyframes scan {
-      0% { top: -100%; }
-      100% { top: 100%; }
-    }
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #131313;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #444933;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #c3f400;
-    }
-  </style>
+  <!-- 原本寫死顏色的行內樣式區塊已搬到 static/css/index-input.css，統一由主題色票控制 -->
 </head>
 <body class="font-body-md selection:bg-primary-fixed selection:text-on-primary-fixed min-h-screen flex flex-col antialiased">
   
@@ -125,7 +22,7 @@
       <span class="inline-block w-2 h-2 rounded-full bg-primary-fixed animate-ping"></span>
       最新消息
     </div>
-    <marquee class="font-bold tracking-wide text-white/90">
+    <marquee class="font-bold tracking-wide text-on-surface/90">
       🔥 3D列印高強度 TPU 避震套件正式發售！ | 🎨 UV 浮雕炫彩貼紙支援社團客製圖騰標章 | 💬 LINE 登入獨享社團專屬折扣與訂單即時追蹤！
     </marquee>
   </div>
@@ -143,7 +40,7 @@
           </button>
           <button onclick="switchTab('bulletin')" id="nav-bulletin" class="text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors flex items-center gap-1">
             公佈欄
-            <span class="bg-secondary-container text-white text-[10px] px-1.5 rounded-full not-italic">NEW</span>
+            <span class="bg-secondary-container text-on-surface text-[10px] px-1.5 rounded-full not-italic">NEW</span>
           </button>
           <button onclick="scrollToLab()" class="text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors">
             客製列印
@@ -175,7 +72,7 @@
         <!-- Cart Button -->
         <button onclick="toggleCartDrawer()" class="relative text-on-surface-variant hover:text-primary-fixed transition-colors p-1">
           <span class="material-symbols-outlined text-2xl">shopping_cart</span>
-          <span id="cart-count-badge" class="absolute -top-1 -right-1 bg-secondary-container text-white font-label-caps text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">0</span>
+          <span id="cart-count-badge" class="absolute -top-1 -right-1 bg-secondary-container text-on-surface font-label-caps text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">0</span>
         </button>
       </div>
     </div>
@@ -212,11 +109,11 @@
           
           <!-- Sidebar Filter & Tech Specs -->
           <aside class="w-full md:w-64 flex-shrink-0">
-            <div class="sticky top-24 space-y-6">
+            <div class="sticky top-24 space-y-4 md:space-y-6">
               
               <div class="flex items-center gap-unit-2">
                 <span class="material-symbols-outlined text-primary-fixed" style="font-variation-settings: 'FILL' 1;">tune</span>
-                <h2 class="font-headline-md text-headline-md uppercase tracking-tighter text-white">找作品</h2>
+                <h2 class="font-headline-md text-headline-md uppercase tracking-tighter text-on-surface">找作品</h2>
               </div>
               <div class="diagonal-line"></div>
 
@@ -225,7 +122,7 @@
                 <h3 class="font-label-caps text-xs text-primary-fixed mb-3 tracking-widest flex items-center gap-1">
                   <span class="w-1.5 h-1.5 bg-primary-fixed"></span> 分類
                 </h3>
-                <ul class="space-y-2 font-label-caps text-xs">
+                <ul class="flex flex-wrap gap-x-3 gap-y-2 md:block md:space-y-2 font-label-caps text-xs">
                   <li>
                     <label class="flex items-center gap-2 cursor-pointer group p-1.5 rounded hover:bg-surface-container">
                       <input type="radio" name="category" value="all" checked onchange="filterProducts()" class="form-radio bg-surface-container border-outline-variant text-secondary-container focus:ring-primary-fixed"/>
@@ -268,7 +165,7 @@
               </div>
 
               <!-- LINE Fast Actions Widget -->
-              <div class="p-4 bg-surface-container-low border border-line-green/40 relative overflow-hidden">
+              <div class="hidden md:block p-4 bg-surface-container-low border border-line-green/40 relative overflow-hidden">
                 <div class="flex items-center gap-2 mb-2">
                   <span class="w-2.5 h-2.5 rounded-full bg-line-green animate-pulse"></span>
                   <h4 class="font-label-caps text-xs text-line-green font-bold uppercase tracking-wider">LINE 快速服務</h4>
@@ -277,7 +174,7 @@
                   連結社團 LINE 官方 Bot，享受快速客服諮詢、訂單即時狀態與公佈欄通知！
                 </p>
                 <div class="space-y-2">
-                  <button onclick="openLineModal('notify')" class="w-full py-1.5 px-2 bg-line-green/20 border border-line-green text-line-green font-label-caps text-[11px] font-bold italic hover:bg-line-green hover:text-white transition-all flex items-center justify-center gap-1">
+                  <button onclick="openLineModal('notify')" class="w-full py-1.5 px-2 bg-line-green/20 border border-line-green text-line-green font-label-caps text-[11px] font-bold italic hover:bg-line-green hover:text-on-surface transition-all flex items-center justify-center gap-1">
                     <span class="material-symbols-outlined text-sm">notifications_active</span> 訂閱公佈欄即時推播
                   </button>
                   <button onclick="openLineModal('group')" class="w-full py-1.5 px-2 bg-surface-container border border-outline-variant text-on-surface-variant font-label-caps text-[11px] hover:border-primary-fixed hover:text-primary-fixed transition-all flex items-center justify-center gap-1">
@@ -296,7 +193,7 @@
             <div class="flex flex-col mb-6">
               <div class="flex justify-between items-end flex-wrap gap-2">
                 <div>
-                  <h2 id="page-title" class="font-display-lg text-2xl md:text-headline-lg uppercase text-white flex items-center gap-2">
+                  <h2 id="page-title" class="font-display-lg text-2xl md:text-headline-lg uppercase text-on-surface flex items-center gap-2">
                     商品列表
                   </h2>
                   <p id="page-subtitle" class="font-label-caps text-xs text-on-surface-variant">/ 專為運動愛好者與極限玩家打造的專業列印作品</p>
@@ -305,7 +202,7 @@
                 <div class="flex items-center gap-2 font-label-caps text-xs">
                   <span class="text-on-surface-variant">切換：</span>
                   <button onclick="switchTab('catalog')" id="tab-btn-catalog" class="px-2 py-1 bg-primary-fixed text-on-primary-fixed font-bold italic uppercase">商品大廳</button>
-                  <button onclick="switchTab('bulletin')" id="tab-btn-bulletin" class="px-2 py-1 bg-surface-container text-on-surface-variant hover:text-white italic uppercase border border-outline-variant">公佈欄</button>
+                  <button onclick="switchTab('bulletin')" id="tab-btn-bulletin" class="px-2 py-1 bg-surface-container text-on-surface-variant hover:text-on-surface italic uppercase border border-outline-variant">公佈欄</button>
                 </div>
               </div>
               <div class="speed-line w-full mt-4"></div>
@@ -334,10 +231,10 @@
               <div class="bg-surface-container-low p-4 border border-outline-variant flex flex-col sm:flex-row justify-between items-center gap-3">
                 <div class="flex items-center gap-2 w-full sm:w-auto">
                   <span class="material-symbols-outlined text-secondary-container">campaign</span>
-                  <span class="font-headline-md italic font-bold text-lg text-white">社團最新公告與賽事動態</span>
+                  <span class="font-headline-md italic font-bold text-lg text-on-surface">社團最新公告與賽事動態</span>
                 </div>
                 <div class="flex items-center gap-2 w-full sm:w-auto">
-                  <button onclick="openLineModal('notify')" class="px-3 py-1.5 bg-line-green text-white font-label-caps text-xs font-bold italic flex items-center gap-1 hover:shadow-[0_0_10px_rgba(6,199,85,0.4)] transition-all">
+                  <button onclick="openLineModal('notify')" class="px-3 py-1.5 bg-line-green text-on-surface font-label-caps text-xs font-bold italic flex items-center gap-1 hover:shadow-[0_0_10px_rgba(6,199,85,0.4)] transition-all">
                     <span class="material-symbols-outlined text-sm">mark_chat_read</span> LINE 同步訂閱
                   </button>
                 </div>
@@ -387,7 +284,7 @@
 
           <div class="order-1 md:order-2 flex flex-col gap-unit-6">
             <span class="font-label-caps text-secondary-container font-bold tracking-widest text-xs">客製列印工坊</span>
-            <h2 class="font-display-lg text-3xl md:text-headline-lg uppercase text-white leading-tight font-black">
+            <h2 class="font-display-lg text-3xl md:text-headline-lg uppercase text-on-surface leading-tight font-black">
               上傳你的設計圖<br/> <span class="text-primary-fixed">我們幫你印出來</span>
             </h2>
             <p class="text-body-lg text-on-surface-variant leading-relaxed">
@@ -396,13 +293,13 @@
             </p>
 
             <ul class="flex flex-col gap-unit-2">
-              <li class="flex items-center gap-unit-2 text-label-caps text-white text-xs">
+              <li class="flex items-center gap-unit-2 text-label-caps text-on-surface text-xs">
                 <span class="material-symbols-outlined text-primary-fixed text-sm">check_circle</span> 急速接單與切片生產
               </li>
-              <li class="flex items-center gap-unit-2 text-label-caps text-white text-xs">
+              <li class="flex items-center gap-unit-2 text-label-caps text-on-surface text-xs">
                 <span class="material-symbols-outlined text-primary-fixed text-sm">check_circle</span> 多種材質可選（TPU／PA-CF／UV 樹脂）
               </li>
-              <li class="flex items-center gap-unit-2 text-label-caps text-white text-xs">
+              <li class="flex items-center gap-unit-2 text-label-caps text-on-surface text-xs">
                 <span class="material-symbols-outlined text-primary-fixed text-sm">check_circle</span> 強化結構與耐磨耗
               </li>
             </ul>
@@ -439,7 +336,7 @@
   <!-- LINE Service & Login Modal -->
   <div id="line-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
     <div class="bg-surface-container border-2 border-line-green max-w-md w-full p-6 relative scanline shadow-[0_0_30px_rgba(6,199,85,0.2)]">
-      <button onclick="closeLineModal()" class="absolute top-3 right-3 text-on-surface-variant hover:text-white">
+      <button onclick="closeLineModal()" class="absolute top-3 right-3 text-on-surface-variant hover:text-on-surface">
         <span class="material-symbols-outlined">close</span>
       </button>
       <div id="line-modal-content"></div>
@@ -461,9 +358,9 @@
     <div class="p-4 border-b border-outline-variant bg-surface-container-high flex justify-between items-center">
       <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed">shopping_bag</span>
-        <h3 class="font-headline-md font-bold text-lg uppercase text-white">購物車</h3>
+        <h3 class="font-headline-md font-bold text-lg uppercase text-on-surface">購物車</h3>
       </div>
-      <button onclick="toggleCartDrawer()" class="text-on-surface-variant hover:text-white">
+      <button onclick="toggleCartDrawer()" class="text-on-surface-variant hover:text-on-surface">
         <span class="material-symbols-outlined">close</span>
       </button>
     </div>
@@ -506,13 +403,13 @@
 
         <div class="grid grid-cols-2 gap-unit-12">
           <div class="flex flex-col gap-unit-4 text-xs font-label-caps">
-            <span class="text-white font-label-caps underline decoration-primary-fixed underline-offset-4 font-bold">網站導覽</span>
+            <span class="text-on-surface font-label-caps underline decoration-primary-fixed underline-offset-4 font-bold">網站導覽</span>
             <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#" onclick="switchTab('catalog')">商品大廳</a>
             <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#" onclick="switchTab('bulletin')">社團公佈欄</a>
             <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#" onclick="scrollToLab()">客製列印</a>
           </div>
           <div class="flex flex-col gap-unit-4 text-xs font-label-caps">
-            <span class="text-white font-label-caps underline decoration-primary-fixed underline-offset-4 font-bold">LINE 服務</span>
+            <span class="text-on-surface font-label-caps underline decoration-primary-fixed underline-offset-4 font-bold">LINE 服務</span>
             <a class="text-on-surface-variant hover:text-line-green transition-colors" href="#" onclick="openLineModal('login')">LINE 登入</a>
             <a class="text-on-surface-variant hover:text-line-green transition-colors" href="#" onclick="openLineModal('notify')">訂閱通知</a>
             <a class="text-on-surface-variant hover:text-line-green transition-colors" href="#" onclick="openLineModal('group')">加入交流群</a>
@@ -553,7 +450,7 @@
           
           container.innerHTML = `
             <div class="flex items-center gap-3 font-label-caps text-xs">
-              <span class="text-white font-bold flex items-center gap-1.5 bg-surface-container px-3 py-1.5 rounded border border-outline-variant">
+              <span class="text-on-surface font-bold flex items-center gap-1.5 bg-surface-container px-3 py-1.5 rounded border border-outline-variant">
                 <span class="material-symbols-outlined text-primary-fixed text-sm">account_circle</span>
                 ${currentUser.name}
                 <span class="text-primary-fixed text-[10px] font-normal">(${roleMap[currentUser.role] || currentUser.role})</span>
@@ -563,7 +460,7 @@
                   <span class="material-symbols-outlined text-sm">admin_panel_settings</span> 後台
                 </a>
               ` : ''}
-              <a href="/logout" class="bg-surface-container-high text-error border border-error/40 px-3 py-1.5 rounded hover:bg-error hover:text-white transition-all font-bold italic">
+              <a href="/logout" class="bg-surface-container-high text-error border border-error/40 px-3 py-1.5 rounded hover:bg-error hover:text-on-surface transition-all font-bold italic">
                 登出 (LOGOUT)
               </a>
             </div>
@@ -644,7 +541,7 @@
         navBulletin.className = "text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors flex items-center gap-1";
         
         btnCatalog.className = "px-2 py-1 bg-primary-fixed text-on-primary-fixed font-bold italic uppercase";
-        btnBulletin.className = "px-2 py-1 bg-surface-container text-on-surface-variant hover:text-white italic uppercase border border-outline-variant";
+        btnBulletin.className = "px-2 py-1 bg-surface-container text-on-surface-variant hover:text-on-surface italic uppercase border border-outline-variant";
       } else {
         viewCatalog.classList.add("hidden");
         viewBulletin.classList.remove("hidden");
@@ -655,7 +552,7 @@
         navCatalog.className = "text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors";
         
         btnBulletin.className = "px-2 py-1 bg-primary-fixed text-on-primary-fixed font-bold italic uppercase";
-        btnCatalog.className = "px-2 py-1 bg-surface-container text-on-surface-variant hover:text-white italic uppercase border border-outline-variant";
+        btnCatalog.className = "px-2 py-1 bg-surface-container text-on-surface-variant hover:text-on-surface italic uppercase border border-outline-variant";
       }
     }
 
@@ -702,7 +599,7 @@
             
             ${p.is_uv || p.isUv ? `
               <div class="absolute inset-0 bg-secondary-container/30 opacity-0 uv-overlay transition-opacity duration-300 pointer-events-none flex items-center justify-center">
-                <span class="font-label-caps text-xs text-white bg-black/80 px-2 py-1 border border-secondary-container">立體觸感</span>
+                <span class="font-label-caps text-xs text-on-surface bg-black/80 px-2 py-1 border border-secondary-container">立體觸感</span>
               </div>
             ` : ''}
 
@@ -714,14 +611,14 @@
           <div class="p-unit-4 flex flex-col gap-unit-2 flex-grow justify-between">
             <div>
               <div class="flex justify-between items-start mb-1">
-                <h3 class="font-headline-md italic uppercase text-white text-base leading-tight">${p.name}</h3>
+                <h3 class="font-headline-md italic uppercase text-on-surface text-base leading-tight">${p.name}</h3>
                 <span class="font-label-caps text-primary-fixed font-bold text-sm">$${parseFloat(p.price).toFixed(2)}</span>
               </div>
               <p class="text-on-surface-variant text-xs line-clamp-2 leading-relaxed mb-3">${p.description}</p>
             </div>
 
             <div class="flex gap-2">
-              <button onclick="openProductModal('${p.id}')" class="flex-1 border border-outline-variant text-on-surface-variant font-label-caps italic py-1.5 text-xs hover:border-primary-fixed hover:text-white transition-colors">
+              <button onclick="openProductModal('${p.id}')" class="flex-1 border border-outline-variant text-on-surface-variant font-label-caps italic py-1.5 text-xs hover:border-primary-fixed hover:text-on-surface transition-colors">
                 詳情
               </button>
               <button onclick="addToCart('${p.id}')" class="flex-1 border border-primary-fixed text-primary-fixed font-label-caps italic py-1.5 text-xs hover:bg-primary-fixed hover:text-on-primary-fixed transition-colors font-bold uppercase flex items-center justify-center gap-1">
@@ -766,7 +663,7 @@
       list.innerHTML = announcementsData.map(b => `
         <div class="bg-surface-container-low border ${b.is_pinned || b.isPinned ? 'border-secondary-container' : 'border-outline-variant'} p-5 relative scanline hover:border-primary-fixed transition-all">
           ${b.is_pinned || b.isPinned ? `
-            <div class="absolute -top-3 right-4 bg-secondary-container text-white font-label-caps text-[10px] font-bold px-2 py-0.5 italic flex items-center gap-1">
+            <div class="absolute -top-3 right-4 bg-secondary-container text-on-surface font-label-caps text-[10px] font-bold px-2 py-0.5 italic flex items-center gap-1">
               <span class="material-symbols-outlined text-xs">push_pin</span> 置頂強檔公告
             </div>
           ` : ''}
@@ -780,10 +677,10 @@
             </span>
           </div>
 
-          <h3 class="font-headline-md text-lg italic font-bold text-white mb-2 tracking-tight">${b.title}</h3>
+          <h3 class="font-headline-md text-lg italic font-bold text-on-surface mb-2 tracking-tight">${b.title}</h3>
           <p class="text-on-surface-variant text-xs leading-relaxed mb-4">${b.summary}</p>
           
-          <div class="p-3 bg-surface-container text-xs text-white/90 font-body-md whitespace-pre-line border-l-2 border-primary-fixed mb-4 leading-relaxed">
+          <div class="p-3 bg-surface-container text-xs text-on-surface/90 font-body-md whitespace-pre-line border-l-2 border-primary-fixed mb-4 leading-relaxed">
             ${b.content}
           </div>
 
@@ -791,7 +688,7 @@
             <span class="font-label-caps text-[11px] text-line-green flex items-center gap-1">
               <span class="w-2 h-2 rounded-full bg-line-green inline-block"></span> 已透過 LINE 廣播發送給社團成員
             </span>
-            <button onclick="shareBulletinToLine('${b.id}')" class="px-3 py-1 bg-line-green/20 text-line-green border border-line-green font-label-caps text-xs font-bold italic hover:bg-line-green hover:text-white transition-all flex items-center gap-1">
+            <button onclick="shareBulletinToLine('${b.id}')" class="px-3 py-1 bg-line-green/20 text-line-green border border-line-green font-label-caps text-xs font-bold italic hover:bg-line-green hover:text-on-surface transition-all flex items-center gap-1">
               <span class="material-symbols-outlined text-sm">send</span> 轉發至 LINE 群組
             </button>
           </div>
@@ -839,7 +736,7 @@
           <div class="w-full md:w-1/2 flex flex-col justify-between space-y-4">
             <div>
               <span class="font-label-caps text-xs text-primary-fixed font-bold">${p.material}</span>
-              <h2 id="modal-prod-name" class="font-headline-md text-xl italic font-bold text-white mt-1 mb-2">${p.name}</h2>
+              <h2 id="modal-prod-name" class="font-headline-md text-xl italic font-bold text-on-surface mt-1 mb-2">${p.name}</h2>
               
               <div class="flex items-baseline gap-2 mb-3">
                 <span id="modal-prod-price" class="text-3xl font-label-caps text-primary-fixed font-black">$${parseFloat(displayPrice).toFixed(2)}</span>
@@ -851,15 +748,15 @@
 
               ${itemsList.length > 0 ? `
                 <div class="bg-surface-container p-3 rounded-lg border border-outline-variant/80 mb-4 space-y-2">
-                  <label class="block text-xs font-bold text-gray-200 flex items-center gap-1">
+                  <label class="block text-xs font-bold text-on-surface flex items-center gap-1">
                     <span class="material-symbols-outlined text-primary-fixed text-sm">palette</span> 選擇款式：
                   </label>
                   <div class="flex flex-wrap gap-2" id="modal-variants-selector">
                     ${itemsList.map((v, idx) => {
                       const itemStk = parseInt(v.stock_qty !== undefined ? v.stock_qty : (p.stock_qty || 0));
                       return `
-                        <button type="button" onclick="selectProductVariant('${p.id}', ${idx})" id="v-btn-${p.id}-${idx}" class="variant-opt-btn flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${idx === 0 ? 'border-primary-fixed bg-primary-fixed/20 text-primary-fixed shadow-md ring-1 ring-primary-fixed' : 'border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400'}">
-                          ${v.image_url ? `<img src="${v.image_url}" onerror="this.classList.add('hidden')" class="w-6 h-6 object-cover rounded border border-white/20" />` : ''}
+                        <button type="button" onclick="selectProductVariant('${p.id}', ${idx})" id="v-btn-${p.id}-${idx}" class="variant-opt-btn flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${idx === 0 ? 'border-primary-fixed bg-primary-fixed/20 text-primary-fixed shadow-md ring-1 ring-primary-fixed' : 'border-outline-variant bg-surface-container-high text-on-surface hover:border-gray-400'}">
+                          ${v.image_url ? `<img src="${v.image_url}" onerror="this.classList.add('hidden')" class="w-6 h-6 object-cover rounded border border-outline-variant" />` : ''}
                           <span>${v.name || '款式 ' + (idx+1)}</span>
                           <span class="text-[10px] font-mono opacity-90">($${parseFloat(v.price !== undefined ? v.price : p.price).toFixed(2)})</span>
                           <span class="text-[10px] font-bold ${itemStk > 0 ? 'text-line-green' : 'text-error'}">(剩 ${itemStk} 件)</span>
@@ -883,8 +780,8 @@
                 if (activeStk > 0) {
                   return `
                     <div class="flex items-center gap-3">
-                      <label class="font-label-caps text-xs font-bold text-gray-300">訂購數量</label>
-                      <input type="number" id="modal-prod-qty" min="1" max="999" value="1" class="w-20 bg-surface-container-high border border-outline-variant text-white text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed p-2" />
+                      <label class="font-label-caps text-xs font-bold text-on-surface">訂購數量</label>
+                      <input type="number" id="modal-prod-qty" min="1" max="999" value="1" class="w-20 bg-surface-container-high border border-outline-variant text-on-surface text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed p-2" />
                     </div>
                     <button onclick="addSelectedVariantToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
                       <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車
@@ -892,7 +789,7 @@
                   `;
                 } else {
                   return `
-                    <button disabled class="w-full bg-surface-container-high text-gray-500 py-3 font-label-caps font-bold italic uppercase border border-outline-variant text-sm cursor-not-allowed flex items-center justify-center gap-2">
+                    <button disabled class="w-full bg-surface-container-high text-on-surface-variant py-3 font-label-caps font-bold italic uppercase border border-outline-variant text-sm cursor-not-allowed flex items-center justify-center gap-2">
                       <span class="material-symbols-outlined text-sm">block</span> 庫存不足 (暫無法訂購)
                     </button>
                   `;
@@ -959,8 +856,8 @@
         if (itemStk > 0) {
           actionArea.innerHTML = `
             <div class="flex items-center gap-3">
-              <label class="font-label-caps text-xs font-bold text-gray-300">訂購數量</label>
-              <input type="number" id="modal-prod-qty" min="1" max="999" value="1" class="w-20 bg-surface-container-high border border-outline-variant text-white text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed p-2" />
+              <label class="font-label-caps text-xs font-bold text-on-surface">訂購數量</label>
+              <input type="number" id="modal-prod-qty" min="1" max="999" value="1" class="w-20 bg-surface-container-high border border-outline-variant text-on-surface text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed p-2" />
             </div>
             <button onclick="addSelectedVariantToCart('${p.id}'); closeProductModal();" class="w-full bg-primary-fixed text-on-primary-fixed py-3 font-label-caps font-black italic uppercase hover:glow-primary transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary-fixed/20 active:scale-[0.99]">
               <span class="material-symbols-outlined">add_shopping_cart</span> 加入購物車
@@ -968,7 +865,7 @@
           `;
         } else {
           actionArea.innerHTML = `
-            <button disabled class="w-full bg-surface-container-high text-gray-500 py-3 font-label-caps font-bold italic uppercase border border-outline-variant text-sm cursor-not-allowed flex items-center justify-center gap-2">
+            <button disabled class="w-full bg-surface-container-high text-on-surface-variant py-3 font-label-caps font-bold italic uppercase border border-outline-variant text-sm cursor-not-allowed flex items-center justify-center gap-2">
               <span class="material-symbols-outlined text-sm">block</span> 庫存不足 (暫無法訂購)
             </button>
           `;
@@ -982,7 +879,7 @@
           if (i === index) {
             btn.className = "variant-opt-btn flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold transition-all border-primary-fixed bg-primary-fixed/20 text-primary-fixed shadow-md ring-1 ring-primary-fixed";
           } else {
-            btn.className = "variant-opt-btn flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400";
+            btn.className = "variant-opt-btn flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-on-surface hover:border-gray-400";
           }
         }
       });
@@ -1002,13 +899,13 @@
       }
       container.classList.remove('hidden');
       container.innerHTML = `
-        <label class="block text-xs font-bold text-gray-200 flex items-center gap-1 mb-1">
+        <label class="block text-xs font-bold text-on-surface flex items-center gap-1 mb-1">
           <span class="material-symbols-outlined text-primary-fixed text-sm">palette</span> 選擇顏色：
         </label>
         <div class="flex flex-wrap gap-2">
           ${colors.map((c, i) => `
-            <button type="button" onclick="selectProductColor('${prodId}', ${i})" id="color-btn-${prodId}-${i}" class="color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400">
-              ${c.image_url ? `<img src="${c.image_url}" onerror="this.classList.add('hidden')" class="w-5 h-5 object-cover rounded-full border border-white/20" />` : ''}
+            <button type="button" onclick="selectProductColor('${prodId}', ${i})" id="color-btn-${prodId}-${i}" class="color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-on-surface hover:border-gray-400">
+              ${c.image_url ? `<img src="${c.image_url}" onerror="this.classList.add('hidden')" class="w-5 h-5 object-cover rounded-full border border-outline-variant" />` : ''}
               <span>${c.name || '次選項'}</span>
               <span class="text-[10px] font-mono ${parseInt(c.stock_qty !== undefined ? c.stock_qty : 0) > 0 ? 'text-line-green' : 'text-error'}">(${parseInt(c.stock_qty !== undefined ? c.stock_qty : 0)} 件)</span>
             </button>`).join('')}
@@ -1038,7 +935,7 @@
           if (i === idx) {
             btn.className = "color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-primary-fixed bg-primary-fixed/20 text-primary-fixed shadow-md ring-1 ring-primary-fixed";
           } else {
-            btn.className = "color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-gray-300 hover:border-gray-400";
+            btn.className = "color-opt-btn flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-outline-variant bg-surface-container-high text-on-surface hover:border-gray-400";
           }
         }
       });
@@ -1130,10 +1027,10 @@
         <div class="bg-surface-container-high p-3 border border-outline-variant flex gap-3 items-center">
           <img src="${item.image_url || item.image || DEFAULT_PLACEHOLDER_IMG}" onerror="handleImageFallback(this)" class="w-14 h-14 object-cover border border-outline-variant" />
           <div class="flex-grow">
-            <h4 class="font-label-caps text-xs font-bold text-white line-clamp-1">${item.name}${item.color_name ? ' (' + item.color_name + ')' : ''}</h4>
+            <h4 class="font-label-caps text-xs font-bold text-on-surface line-clamp-1">${item.name}${item.color_name ? ' (' + item.color_name + ')' : ''}</h4>
             <span class="font-label-caps text-[10px] text-primary-fixed font-bold">$${parseFloat(item.price).toFixed(2)}</span>
             <div class="flex items-center gap-2 mt-1">
-              <input type="number" min="1" max="999" value="${item.qty}" onchange="setCartQty('${item.cart_key || item.id}', this.value)" class="w-14 bg-surface-container border border-outline-variant text-white text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed" />
+              <input type="number" min="1" max="999" value="${item.qty}" onchange="setCartQty('${item.cart_key || item.id}', this.value)" class="w-14 bg-surface-container border border-outline-variant text-on-surface text-center font-label-caps text-xs font-bold rounded outline-none focus:border-primary-fixed" />
             </div>
           </div>
           <button onclick="removeItem('${item.cart_key || item.id}')" class="text-on-surface-variant hover:text-error">
@@ -1213,12 +1110,12 @@
             <div class="w-12 h-12 bg-line-green/20 rounded-full flex items-center justify-center mx-auto text-line-green">
               <svg class="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
             </div>
-            <h3 class="font-headline-md text-xl font-bold text-white">LINE 快速登入</h3>
+            <h3 class="font-headline-md text-xl font-bold text-on-surface">LINE 快速登入</h3>
             <p class="text-xs text-on-surface-variant leading-relaxed">
               點擊下方按鈕以 LINE 帳號登入 展夢.飛翔 社團網站。<br/>
               將自動帶入您的 LINE 暱稱、大頭貼與專屬識別碼。
             </p>
-            <button onclick="simulateLineLogin()" class="w-full bg-line-green text-white py-3 font-label-caps font-bold italic uppercase flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(6,199,85,0.6)] transition-all">
+            <button onclick="simulateLineLogin()" class="w-full bg-line-green text-on-surface py-3 font-label-caps font-bold italic uppercase flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(6,199,85,0.6)] transition-all">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
               授權 LINE 帳號登入
             </button>
@@ -1234,7 +1131,7 @@
             <div class="flex items-center gap-3 border-b border-outline-variant pb-3">
               <img src="${currentUser.avatar_url || currentUser.avatar || ''}" class="w-12 h-12 rounded-full border-2 border-line-green" />
               <div>
-                <h4 class="font-headline-md text-base font-bold text-white italic">${currentUser.name}</h4>
+                <h4 class="font-headline-md text-base font-bold text-on-surface italic">${currentUser.name}</h4>
                 <p class="font-label-caps text-xs text-line-green">LINE ID: ${currentUser.line_id || currentUser.lineId || '-'}</p>
               </div>
             </div>
@@ -1250,7 +1147,7 @@
               </div>
             </div>
 
-            <button onclick="logoutLine()" class="w-full bg-surface-container-high border border-outline-variant text-on-surface-variant py-2 font-label-caps text-xs hover:text-white">
+            <button onclick="logoutLine()" class="w-full bg-surface-container-high border border-outline-variant text-on-surface-variant py-2 font-label-caps text-xs hover:text-on-surface">
               解除 LINE 綁定 (登出)
             </button>
           </div>
@@ -1259,11 +1156,11 @@
         content.innerHTML = `
           <div class="text-center space-y-4">
             <span class="material-symbols-outlined text-4xl text-line-green">notifications_active</span>
-            <h3 class="font-headline-md italic text-xl font-bold text-white">訂閱 LINE 公佈欄通知</h3>
+            <h3 class="font-headline-md italic text-xl font-bold text-on-surface">訂閱 LINE 公佈欄通知</h3>
             <p class="text-xs text-on-surface-variant leading-relaxed">
               開啟此功能後，當社團發布最新活動、比賽訊息或折扣公告時，將第一時間發送推播至您的 LINE。
             </p>
-            <button onclick="alert('已成功訂閱 LINE 社團即時通知！'); closeLineModal();" class="w-full bg-line-green text-white py-2.5 font-label-caps font-bold italic uppercase hover:shadow-[0_0_15px_rgba(6,199,85,0.5)] transition-all">
+            <button onclick="alert('已成功訂閱 LINE 社團即時通知！'); closeLineModal();" class="w-full bg-line-green text-on-surface py-2.5 font-label-caps font-bold italic uppercase hover:shadow-[0_0_15px_rgba(6,199,85,0.5)] transition-all">
               確認訂閱推播
             </button>
           </div>
@@ -1272,14 +1169,14 @@
         content.innerHTML = `
           <div class="text-center space-y-4">
             <span class="material-symbols-outlined text-4xl text-line-green">groups</span>
-            <h3 class="font-headline-md italic text-xl font-bold text-white">加入社團 LINE 討論群</h3>
+            <h3 class="font-headline-md italic text-xl font-bold text-on-surface">加入社團 LINE 討論群</h3>
             <p class="text-xs text-on-surface-variant leading-relaxed">
               掃描下方 QR Code 或點擊按鈕，加入 展夢.飛翔 官方 LINE 社群，與社團夥伴即時交流！
             </p>
-            <div class="w-32 h-32 bg-white p-2 mx-auto border-2 border-line-green">
+            <div class="w-32 h-32 bg-surface-container-lowest p-2 mx-auto border-2 border-line-green">
               <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://line.me/R/ti/p/@ux-print-club" class="w-full h-full" />
             </div>
-            <button onclick="alert('開啟 LINE App 加入社群...'); closeLineModal();" class="w-full bg-line-green text-white py-2.5 font-label-caps font-bold italic uppercase">
+            <button onclick="alert('開啟 LINE App 加入社群...'); closeLineModal();" class="w-full bg-line-green text-on-surface py-2.5 font-label-caps font-bold italic uppercase">
               開啟 LINE App 加入社群
             </button>
           </div>
@@ -1302,7 +1199,7 @@
 
       const container = document.getElementById("line-auth-container");
       container.innerHTML = `
-        <button onclick="openLineModal('profile')" class="bg-surface-container-high border border-line-green text-white px-2.5 py-1 font-label-caps text-xs flex items-center gap-2 hover:border-primary-fixed transition-all">
+        <button onclick="openLineModal('profile')" class="bg-surface-container-high border border-line-green text-on-surface px-2.5 py-1 font-label-caps text-xs flex items-center gap-2 hover:border-primary-fixed transition-all">
           <img src="${currentUser.avatar_url || currentUser.avatar || ''}" class="w-5 h-5 rounded-full" />
           <span class="font-bold text-line-green line-clamp-1">${currentUser.name}</span>
         </button>
@@ -1316,7 +1213,7 @@
       currentUser = null;
       const container = document.getElementById("line-auth-container");
       container.innerHTML = `
-        <button onclick="openLineModal('login')" class="bg-line-green text-white px-3 py-1.5 font-label-caps font-bold italic text-xs flex items-center gap-1.5 hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all rounded-sm">
+        <button onclick="openLineModal('login')" class="bg-line-green text-on-surface px-3 py-1.5 font-label-caps font-bold italic text-xs flex items-center gap-1.5 hover:shadow-[0_0_12px_rgba(6,199,85,0.5)] transition-all rounded-sm">
           <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
           LINE 登入
         </button>

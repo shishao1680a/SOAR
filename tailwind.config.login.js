@@ -5,14 +5,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'surface-dim': '#131313',
-        'background': '#0f1419',
+        'surface-dim': '#e9edf3',
+        'background': '#f5f7fa',
         'primary-green': '#0f5238',
         'primary-green-hover': '#0c412c',
         'line-green': '#06C755',
         'line-green-hover': '#05b34c',
         'text-main': '#181c20',
-        'primary-fixed': '#c3f400'
+        'primary-fixed': '#2f7d32'
       },
       fontFamily: {
         'body-md': ['Hanken Grotesk', 'Noto Sans TC', 'sans-serif'],

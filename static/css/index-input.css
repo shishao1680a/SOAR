@@ -1,3 +1,129 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* =============================================================
+   這個檔案裡「不寫死任何顏色」，一律用 theme('colors.xxx') 取用
+   tailwind.config.index.js 裡定義的色票。
+   因此要換整體風格（例如改成明亮白底），只要改那份設定再重新建置，
+   不需要動 HTML 或這裡。
+   ============================================================= */
+
+@layer base {
+  body {
+    @apply bg-background text-on-background;
+    background-image: radial-gradient(theme('colors.dot') 1px, transparent 1px);
+    background-size: 32px 32px;
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: theme('colors.surface-dim');
+  }
+  ::-webkit-scrollbar-thumb {
+    background: theme('colors.outline');
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: theme('colors.primary-fixed');
+  }
+}
+
+@layer components {
+  .skew-section {
+    clip-path: polygon(0 5%, 100% 0, 100% 95%, 0 100%);
+  }
+
+  .speed-line {
+    height: 2px;
+    background: linear-gradient(90deg, theme('colors.primary-fixed') 0%, transparent 100%);
+    position: relative;
+  }
+  .speed-line::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: -4px;
+    border-left: 10px solid theme('colors.primary-fixed');
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 15px theme('colors.glow');
+  }
+
+  .uv-overlay {
+    mix-blend-mode: color-dodge;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .uv-trigger:hover .uv-overlay,
+  .uv-reveal:hover .uv-overlay {
+    opacity: 1;
+  }
+
+  .tech-border {
+    border-bottom: 2px solid theme('colors.surface-variant');
+    position: relative;
+    overflow: hidden;
+  }
+  .tech-border::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: theme('colors.primary-fixed');
+    transition: left 0.5s ease;
+  }
+  .tech-input:focus + .tech-border::after {
+    left: 0;
+  }
+
+  .diagonal-line {
+    height: 2px;
+    background: theme('colors.primary-fixed');
+    width: 100%;
+    position: relative;
+  }
+  .diagonal-line::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: -5px;
+    width: 12px;
+    height: 12px;
+    background: theme('colors.primary-fixed');
+    clip-path: polygon(100% 0, 0 100%, 100% 100%);
+  }
+
+  .scanline {
+    position: relative;
+    overflow: hidden;
+  }
+  .scanline::after {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom, transparent, theme('colors.scan'), transparent);
+    animation: scan 3s linear infinite;
+    pointer-events: none;
+  }
+}
+
+@keyframes scan {
+  0% {
+    top: -100%;
+  }
+  100% {
+    top: 100%;
+  }
+}
