@@ -2,6 +2,7 @@ import os
 import json
 import re
 import uuid
+from contextlib import nullcontext
 from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import create_engine, text
@@ -131,6 +132,15 @@ class DBService:
                         packager_ratio NUMERIC(5, 2) DEFAULT 60,
                         platform_ratio NUMERIC(5, 2) DEFAULT 20,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+                conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS detail_blocks_json TEXT NOT NULL DEFAULT '[]'"))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS login_attempts (
+                        key VARCHAR(80) PRIMARY KEY,
+                        failures INTEGER NOT NULL DEFAULT 0,
+                        window_start DOUBLE PRECISION NOT NULL,
+                        blocked_until DOUBLE PRECISION NOT NULL DEFAULT 0
                     )
                 """))
                 conn.execute(text("""
@@ -428,14 +438,15 @@ class DBService:
             print(f"Error fetching user by LINE ID: {e}")
             return None
 
-    def bind_line_to_account(self, username, password, line_id, avatar_url=""):
+    def bind_line_to_account(self, username, password, line_id, avatar_url="", connection=None):
         """將 LINE ID 與已存在之會員帳號綁定"""
-        user = self.authenticate_user(username, password)
+        user = self.authenticate_user(username, password, connection=connection)
         if not user:
             return False, "查無此帳號或密碼錯誤，請確認輸入資料或前往【建立會員帳號】！", None
 
         try:
-            self._execute("""
+            execute = (lambda sql, params: connection.execute(text(sql), params)) if connection is not None else self._execute
+            execute("""
                 UPDATE users SET line_id = :line_id,
                     avatar_url = CASE WHEN :avatar_url <> '' THEN :avatar_url ELSE avatar_url END
                 WHERE id = :id
@@ -478,10 +489,10 @@ class DBService:
             print(f"Error registering user: {e}")
             return False, f"註冊失敗: {str(e)}"
 
-    def authenticate_user(self, username, password):
+    def authenticate_user(self, username, password, connection=None):
         """帳號/密碼登入驗證（支援舊明文密碼自動升級為雜湊）"""
         try:
-            with self.engine.begin() as conn:
+            with (nullcontext(connection) if connection is not None else self.engine.begin()) as conn:
                 row = conn.execute(
                     text("SELECT * FROM users WHERE username = :username"),
                     {"username": username},
@@ -509,7 +520,7 @@ class DBService:
 
     def get_all_users(self):
         try:
-            return self._fetch_dicts("SELECT * FROM users ORDER BY register_date DESC")
+            return self._fetch_dicts("SELECT id, username, name, line_id, avatar_url, phone, role, register_date FROM users ORDER BY register_date DESC")
         except Exception as e:
             print(f"Error fetching users: {e}")
             return []
@@ -673,15 +684,15 @@ class DBService:
 
     def save_product(self, prod_id, name, category, material, price, cost_price, uv_cost_price,
                      stock_qty, badge, image_url, images_json, description, is_uv, items_json='[]',
-                     designer_ratio=20, packager_ratio=60, platform_ratio=20):
+                     designer_ratio=20, packager_ratio=60, platform_ratio=20, detail_blocks_json=None):
         try:
             self._execute("""
                 INSERT INTO products (id, name, category, material, price, cost_price, uv_cost_price, stock_qty,
                                       badge, image_url, images_json, items_json, description, is_uv,
-                                      designer_ratio, packager_ratio, platform_ratio)
+                                      designer_ratio, packager_ratio, platform_ratio, detail_blocks_json)
                 VALUES (:id, :name, :category, :material, :price, :cost_price, :uv_cost_price, :stock_qty,
                         :badge, :image_url, :images_json, :items_json, :description, :is_uv,
-                        :designer_ratio, :packager_ratio, :platform_ratio)
+                        :designer_ratio, :packager_ratio, :platform_ratio, COALESCE(:detail_blocks_json, '[]'))
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name, category = EXCLUDED.category, material = EXCLUDED.material,
                     price = EXCLUDED.price, cost_price = EXCLUDED.cost_price,
@@ -691,7 +702,8 @@ class DBService:
                     description = EXCLUDED.description, is_uv = EXCLUDED.is_uv,
                     designer_ratio = EXCLUDED.designer_ratio,
                     packager_ratio = EXCLUDED.packager_ratio,
-                    platform_ratio = EXCLUDED.platform_ratio
+                    platform_ratio = EXCLUDED.platform_ratio,
+                    detail_blocks_json = COALESCE(:detail_blocks_json, products.detail_blocks_json)
             """, {
                 "id": prod_id, "name": name, "category": category, "material": material,
                 "price": price, "cost_price": cost_price, "uv_cost_price": uv_cost_price,
@@ -699,7 +711,7 @@ class DBService:
                 "images_json": images_json, "items_json": items_json,
                 "description": description, "is_uv": is_uv,
                 "designer_ratio": designer_ratio, "packager_ratio": packager_ratio,
-                "platform_ratio": platform_ratio,
+                "platform_ratio": platform_ratio, "detail_blocks_json": detail_blocks_json,
             })
             return True
         except Exception as e:
@@ -1273,6 +1285,19 @@ class DBService:
                         """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
                         available = min(available, int(purch_item) - int(sold_item))
 
+                    color = (it.get('variant_color') or '').strip()
+                    if color:
+                        color_purchased = conn.execute(text("""
+                            SELECT COALESCE(SUM(purchase_qty),0) FROM inventory_logs
+                            WHERE ((product_id IS NOT NULL AND product_id=:pid) OR (product_name IS NOT NULL AND product_name=:pname))
+                              AND item_name=:item AND sub_option=:color
+                        """), {"pid": pid, "pname": pname, "item": variant, "color": color}).scalar() or 0
+                        color_sold = conn.execute(text("""
+                            SELECT COALESCE(SUM(qty),0) FROM sales_logs
+                            WHERE ((product_id IS NOT NULL AND product_id=:pid) OR (product_name IS NOT NULL AND product_name=:pname))
+                              AND item_name=:item AND sub_option=:color
+                        """), {"pid": pid, "pname": pname, "item": variant, "color": color}).scalar() or 0
+                        available = min(available, int(color_purchased) - int(color_sold))
                     if qty > available:
                         raise StockError(
                             f"商品「{it.get('name') or pname}」庫存不足（剩餘 {max(available, 0)} 件）"

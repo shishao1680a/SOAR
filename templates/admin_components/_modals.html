@@ -150,10 +150,24 @@
       <div>
         <label class="block font-bold text-gray-200 mb-1">規格標籤 / 說明</label>
         <input type="text" id="prod-edit-badge" placeholder="例: TPU HIGH-IMPACT" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 mb-2 rounded outline-none" />
-        <textarea id="prod-edit-desc" rows="2" placeholder="詳細規格與商品描述..." class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none"></textarea>
+        <textarea id="prod-edit-desc" rows="2" placeholder="商品簡短介紹（顯示在首頁）..." class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none"></textarea>
       </div>
-    </div>
 
+    <section class="pb-5" aria-label="詳細圖文介紹">
+      <h3 class="font-bold text-white mb-2">商品詳細介紹（文字與圖片依序排列）</h3>
+      <p class="text-xs text-on-surface-variant mb-3">圖片必須成功上傳至雲端；移除段落不會刪除雲端圖。</p>
+      <div id="detail-block-editor"></div>
+      <div class="detail-editor-controls"><button type="button" onclick="addDetailBlock('text')">＋ 文字</button><button type="button" onclick="addDetailBlock('image')">＋ 圖片</button><button type="button" onclick="previewDetailBlocks()">切換預覽</button></div>
+      <div id="detail-preview" hidden></div>
+    </section>
+    <style>
+      .detail-editor-block{border:1px solid #66756b;border-radius:8px;padding:14px;margin:12px 0;color:#edf4ee;background:#1c2a22}
+      .detail-editor-block textarea,.detail-editor-block input{display:block;width:100%;margin:10px 0;padding:8px;background:#263c2e;color:white;border:1px solid #66756b;border-radius:6px}
+      .detail-editor-block img,#detail-preview img{max-width:100%;max-height:320px;object-fit:contain}
+      .detail-editor-controls{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.detail-editor-controls button{border:1px solid #7c9a85;border-radius:6px;padding:9px 13px;background:#263c2e;color:white}.detail-editor-controls button:disabled{opacity:.4}
+      #detail-preview{background:white;color:#24352c;padding:20px;border-radius:8px;overflow-wrap:anywhere}
+    </style>
+    </div>
     <!-- Sticky Footer -->
     <div class="px-6 py-4 bg-surface-container-high border-t border-outline-variant flex gap-3">
       <button type="button" onclick="closeModal('modal-product')" class="py-3 px-5 bg-surface-container border border-outline-variant text-on-surface-variant font-label-caps text-xs font-bold rounded-lg hover:bg-surface-container-lowest transition-all">

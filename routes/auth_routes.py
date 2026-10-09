@@ -3,8 +3,16 @@ import uuid
 from urllib.parse import quote
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from extensions import db_service, line_service
+from login_guard import password_attempt, LoginLimited
 
 auth_bp = Blueprint('auth', __name__)
+
+def _limited_response(exc):
+    minutes = (exc.seconds + 59) // 60
+    response = jsonify({"status": "error", "message": f"登入失敗次數過多，請約 {minutes} 分鐘後再試", "retry_after": exc.seconds})
+    response.status_code = 429
+    response.headers['Retry-After'] = str(exc.seconds)
+    return response
 
 @auth_bp.route('/login', endpoint='login_page')
 def login_page():
@@ -43,7 +51,16 @@ def api_login():
     username = data.get('username')
     password = data.get('password')
 
-    user = db_service.authenticate_user(username, password)
+    if not isinstance(username, str) or not username or not isinstance(password, str) or not password:
+        return jsonify({"status": "error", "message": "請輸入帳號與密碼"}), 400
+    try:
+        with password_attempt(db_service.engine, username, request.remote_addr or 'unknown') as attempt:
+            user = db_service.authenticate_user(username, password, connection=attempt['connection'])
+            attempt['success'] = bool(user)
+    except LoginLimited as exc:
+        return _limited_response(exc)
+    except Exception:
+        return jsonify({"status": "error", "message": "登入服務暫時無法使用，請稍後重試"}), 503
     if user:
         session['user'] = {
             "id": user['id'],
@@ -69,7 +86,14 @@ def api_line_bind_account():
     if not username or not password or not line_id:
         return jsonify({"status": "error", "message": "帳號、密碼與 LINE ID 不能為空"}), 400
 
-    success, msg, bound_user = db_service.bind_line_to_account(username, password, line_id, avatar_url)
+    try:
+        with password_attempt(db_service.engine, username, request.remote_addr or 'unknown') as attempt:
+            success, msg, bound_user = db_service.bind_line_to_account(username, password, line_id, avatar_url, connection=attempt['connection'])
+            attempt['success'] = bool(bound_user)
+    except LoginLimited as exc:
+        return _limited_response(exc)
+    except Exception:
+        return jsonify({"status": "error", "message": "登入服務暫時無法使用，請稍後重試"}), 503
     if success and bound_user:
         session['user'] = {
             "id": bound_user['id'],

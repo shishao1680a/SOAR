@@ -725,6 +725,7 @@
     } catch(e){}
     setVal('prod-edit-images-list', multiImgsText);
     setVal('prod-edit-desc', p ? p.description : '');
+    loadDetailBlocks(p);
 
     currentProductItems = [];
     if (p) {
@@ -752,6 +753,7 @@
   }
 
   async function saveProductSubmit() {
+    if (!readyDetailBlocks()) { alert('詳細介紹有圖片未完成上傳，請重試或移除該段落'); return; }
     const imagesRaw = document.getElementById('prod-edit-images-list').value.split('\n').map(s => s.trim()).filter(Boolean);
     const payload = {
       id: document.getElementById('prod-edit-id').value,
@@ -768,7 +770,8 @@
       image_url: document.getElementById('prod-edit-image').value.trim() || (imagesRaw[0] || ''),
       images: imagesRaw,
       description: document.getElementById('prod-edit-desc').value.trim(),
-      items: currentProductItems
+      items: currentProductItems,
+      detail_blocks: serializeDetailBlocks()
     };
 
     const res = await fetch('/api/admin/products', {

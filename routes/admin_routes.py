@@ -1,6 +1,7 @@
 import os
 import uuid
 import json
+from detail_content import validate_detail_blocks
 from flask import Blueprint, render_template, request, jsonify, make_response, session
 from extensions import (
     db_service, cloudinary_service, admin_or_coach_required,
@@ -40,7 +41,8 @@ def admin_page():
 def api_admin_get_users():
     """取得所有成員列表"""
     users = db_service.get_all_users()
-    return jsonify({"status": "success", "data": users})
+    fields = ("id", "username", "name", "line_id", "avatar_url", "phone", "role", "register_date")
+    return jsonify({"status": "success", "data": [{k: u.get(k) for k in fields} for u in users]})
 
 @admin_bp.route('/api/admin/users', methods=['POST'])
 @admin_or_coach_required
@@ -129,6 +131,11 @@ def api_admin_upload_image():
         return jsonify({"status": "error", "message": msg}), 400
 
     unique_name = f"item_{uuid.uuid4().hex[:12]}{ext}"
+    if request.form.get('require_cloud') == '1':
+        cloud_url = cloudinary_service.upload_image(file.stream, folder="uxprint/products")
+        if cloud_url:
+            return jsonify({"status": "success", "url": cloud_url, "filename": unique_name, "is_cloud": True})
+        return jsonify({"status": "error", "message": "雲端圖片上傳失敗，請重新選擇圖片重試"}), 503
     file_path = os.path.join(UPLOAD_FOLDER, unique_name)
     file.save(file_path)
 
@@ -172,6 +179,12 @@ def api_admin_save_product():
     packager_ratio = float(data.get('packager_ratio', 60) or 60)
     platform_ratio = float(data.get('platform_ratio', 20) or 20)
 
+    detail_json = None
+    if 'detail_blocks' in data:
+        try:
+            detail_json = json.dumps(validate_detail_blocks(data['detail_blocks']), ensure_ascii=False)
+        except ValueError as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 400
     items = data.get('items', [])
     items_json = json.dumps(items, ensure_ascii=False) if isinstance(items, list) else items
 
@@ -179,6 +192,7 @@ def api_admin_save_product():
         prod_id, name, category, material, price, cost_price, uv_cost_price, stock_qty,
         badge, image_url, images_json, description, is_uv, items_json=items_json,
         designer_ratio=designer_ratio, packager_ratio=packager_ratio, platform_ratio=platform_ratio,
+        detail_blocks_json=detail_json,
     )
     if saved:
         return jsonify({"status": "success", "message": "商品儲存成功"})

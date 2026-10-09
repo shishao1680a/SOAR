@@ -11,7 +11,7 @@ product_bp = Blueprint('product', __name__)
 # （2026-09-26 Codex Security 掃描 finding：sensitive-data-exposure.public-product-cost）
 PUBLIC_PRODUCT_FIELDS = (
     'id', 'name', 'category', 'material', 'price', 'stock_qty', 'badge',
-    'image_url', 'images_json', 'items_json', 'description', 'is_uv',
+    'image_url', 'images_json', 'items_json', 'description', 'is_uv', 'detail_blocks_json',
 )
 ITEM_SECRET_FIELDS = ('cost_price', 'uv_cost_price')
 
@@ -72,7 +72,10 @@ def api_create_order():
             return jsonify({"status": "error", "message": "購物車內容格式錯誤"}), 400
         pid = str(item.get('id') or '').strip()
         try:
-            qty = int(item.get('qty'))
+            raw_qty = item.get('qty')
+            if isinstance(raw_qty, bool) or not isinstance(raw_qty, (int, str)):
+                raise ValueError('quantity must be an integer')
+            qty = int(raw_qty)
         except (TypeError, ValueError):
             return jsonify({"status": "error", "message": "購買數量格式錯誤"}), 400
         if not pid or qty <= 0 or qty > 999:
@@ -99,6 +102,8 @@ def api_create_order():
                 if (v.get('name') or '').strip() == variant_name:
                     matched_variant = v
                     break
+        if isinstance(items_arr, list) and items_arr and not variant_name:
+            return jsonify({"status": "error", "message": "請先選擇商品款式"}), 400
         if variant_name and not matched_variant:
             return jsonify({
                 "status": "error",
@@ -108,6 +113,15 @@ def api_create_order():
             unit_price = float(matched_variant.get('price', prod.get('price') or 0))
             available = int(matched_variant.get('stock_qty', available) or 0)
 
+        color_name = (item.get('color_name') or '').strip()
+        colors = matched_variant.get('colors', []) if matched_variant else []
+        if colors:
+            chosen = next((c for c in colors if (c.get('name') or '').strip() == color_name), None)
+            if not chosen:
+                return jsonify({"status": "error", "message": "請選擇有效的商品顏色"}), 400
+            available = min(available, int(chosen.get('stock_qty') or 0))
+        elif color_name:
+            return jsonify({"status": "error", "message": "商品顏色不存在，請重新選擇"}), 400
         if qty > available:
             return jsonify({
                 "status": "error",
@@ -120,7 +134,7 @@ def api_create_order():
             "price": unit_price,
             "qty": qty,
             "variant_name": variant_name,
-            "variant_color": (item.get('color_name') or '').strip(),
+            "variant_color": color_name,
         })
         total_amount += unit_price * qty
 
