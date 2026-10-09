@@ -1,1 +1,58 @@
-:root{color-scheme:light;--green:#21694c;--ink:#24352c;--line:#dbe4dd}*{box-sizing:border-box}body{margin:0;font:16px/1.7 system-ui,'Microsoft JhengHei',sans-serif;color:var(--ink);background:#f7f9f5}button,input{font:inherit}button,a,input{touch-action:manipulation}button{border:1px solid var(--line);background:white;padding:10px 16px;border-radius:8px;color:var(--ink);cursor:pointer;min-height:44px}button:focus-visible,a:focus-visible{outline:3px solid #76ab80;outline-offset:3px}button:disabled{opacity:.5;cursor:not-allowed}.primary{background:var(--green);color:white;border-color:var(--green);font-weight:700}header{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);background:white;padding:16px max(18px,calc((100vw - 1120px)/2))}header a{color:var(--green);text-decoration:none;font-size:14px}.brand{font-weight:800;font-size:20px}main{max-width:1120px;margin:32px auto;padding:0 22px}.product-layout{display:grid;grid-template-columns:1fr 1fr;gap:36px;background:white;padding:26px;border:1px solid var(--line);border-radius:16px}.product-layout>section{min-width:0}.main-image{width:100%;aspect-ratio:1;object-fit:contain;background:#edf3ec;border-radius:12px}.thumbnails{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.thumbnails button{padding:3px}.thumbnails img{width:62px;height:62px;object-fit:contain}h1{font-size:28px;line-height:1.35;overflow-wrap:anywhere;margin:12px 0}h2{font-size:22px}.label{color:var(--green);font-size:13px}.price{font-weight:800;font-size:32px;color:var(--green);margin:16px 0}.intro,.small,figcaption{color:#65756a}.choices{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.choices .selected{border:2px solid var(--green);background:#edf5ee}.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:18px}.actions input{width:72px;min-height:44px;padding:8px;border:1px solid var(--line);border-radius:8px}.actions button{flex:1}.text-block{white-space:pre-wrap;overflow-wrap:anywhere}.description{margin:28px 0;background:white;border:1px solid var(--line);border-radius:16px;padding:26px}.description figure{margin:24px 0}.detail-image{max-width:100%;width:100%;height:auto}.broken-image{background:#edf3ec;padding:24px;color:#65756a}dialog{position:fixed;inset:0 0 0 auto;margin:0;width:min(100%,430px);height:100dvh;max-height:100dvh;border:0;border-left:1px solid var(--line);padding:20px;background:white;color:var(--ink)}dialog::backdrop{background:#0005}.drawer-header{display:flex;justify-content:space-between;align-items:center}.cart-row{display:grid;grid-template-columns:60px 1fr;gap:12px;padding:18px 0;border-bottom:1px solid var(--line)}.cart-row img{width:60px;height:60px;object-fit:contain}.cart-row p{margin:0;overflow-wrap:anywhere}.cart-row input{width:65px;padding:6px;margin:8px 6px 0 0}.drawer-footer{padding:18px 0}.drawer-footer>.primary{width:100%}#message,#cart-message{color:var(--green);overflow-wrap:anywhere}.small{font-size:13px}@media(max-width:700px){header{padding:12px;gap:8px}.brand{font-size:16px}main{margin:18px auto;padding:0 12px 130px}.product-layout{grid-template-columns:1fr;padding:16px;gap:20px}h1{font-size:24px}.actions{position:fixed;bottom:0;left:0;right:0;z-index:10;padding:12px 14px calc(12px + env(safe-area-inset-bottom));background:white;box-shadow:0 -4px 18px #0000000b;flex-wrap:nowrap}.actions label{font-size:13px}.actions button{white-space:normal}.description{padding:18px}.thumbnails img{width:50px;height:50px}#message{min-height:28px}}
+/* 2026-10-09 主人指定：全站統一成後台 ADMIN CENTER 的深色賽博風。 */
+:root{
+  color-scheme:dark;
+  --cyan:#00F0FF;
+  --green:#06C755;
+  --ink:#e6edf7;
+  --muted:#94a3b8;
+  --line:#2d3b54;
+  --bg:#0b0f17;
+  --panel:#131924;
+  --panel-low:#1a2232;
+}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.7 'Chakra Petch','Noto Sans TC',system-ui,'Microsoft JhengHei',sans-serif;color:var(--ink);background:var(--bg)}
+button,input{font:inherit}
+button,a,input{touch-action:manipulation}
+button{border:1px solid var(--line);background:var(--panel);padding:10px 16px;border-radius:8px;color:var(--ink);cursor:pointer;min-height:44px}
+button:hover{border-color:var(--cyan)}
+button:focus-visible,a:focus-visible{outline:3px solid var(--cyan);outline-offset:3px}
+button:disabled{opacity:.5;cursor:not-allowed}
+.primary{background:var(--cyan);color:#04252b;border-color:var(--cyan);font-weight:700}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);background:var(--bg);padding:16px max(18px,calc((100vw - 1120px)/2))}
+header a{color:var(--cyan);text-decoration:none;font-size:14px}
+.brand{font-weight:800;font-size:20px}
+main{max-width:1120px;margin:32px auto;padding:0 22px}
+.product-layout{display:grid;grid-template-columns:1fr 1fr;gap:36px;background:var(--panel);padding:26px;border:1px solid var(--line);border-radius:16px}
+.product-layout>section{min-width:0}
+.main-image{width:100%;aspect-ratio:1;object-fit:contain;background:var(--panel-low);border-radius:12px}
+.thumbnails{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.thumbnails button{padding:3px}
+.thumbnails img{width:62px;height:62px;object-fit:contain}
+h1{font-size:28px;line-height:1.35;overflow-wrap:anywhere;margin:12px 0}
+h2{font-size:22px}
+.label{color:var(--cyan);font-size:13px}
+.price{font-weight:800;font-size:32px;color:var(--cyan);margin:16px 0}
+.intro,.small,figcaption{color:var(--muted)}
+.choices{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.choices .selected{border:2px solid var(--cyan);background:rgba(0,240,255,.12)}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:18px}
+.actions input{width:72px;min-height:44px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel-low);color:var(--ink)}
+.actions button{flex:1}
+.text-block{white-space:pre-wrap;overflow-wrap:anywhere}
+.description{margin:28px 0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px}
+.description figure{margin:24px 0}
+.detail-image{max-width:100%;width:100%;height:auto}
+.broken-image{background:var(--panel-low);padding:24px;color:var(--muted)}
+dialog{position:fixed;inset:0 0 0 auto;margin:0;width:min(100%,430px);height:100dvh;max-height:100dvh;border:0;border-left:1px solid var(--line);padding:20px;background:var(--panel);color:var(--ink)}
+dialog::backdrop{background:#000a}
+.drawer-header{display:flex;justify-content:space-between;align-items:center}
+.cart-row{display:grid;grid-template-columns:60px 1fr;gap:12px;padding:18px 0;border-bottom:1px solid var(--line)}
+.cart-row img{width:60px;height:60px;object-fit:contain}
+.cart-row p{margin:0;overflow-wrap:anywhere}
+.cart-row input{width:65px;padding:6px;margin:8px 6px 0 0;background:var(--panel-low);color:var(--ink);border:1px solid var(--line);border-radius:6px}
+.drawer-footer{padding:18px 0}
+.drawer-footer>.primary{width:100%}
+#message,#cart-message{color:var(--green);overflow-wrap:anywhere}
+.small{font-size:13px}
+@media(max-width:700px){header{padding:12px;gap:8px}.brand{font-size:16px}main{margin:18px auto;padding:0 12px 130px}.product-layout{grid-template-columns:1fr;padding:16px;gap:20px}h1{font-size:24px}.actions{position:fixed;bottom:0;left:0;right:0;z-index:10;padding:12px 14px calc(12px + env(safe-area-inset-bottom));background:var(--bg);box-shadow:0 -4px 18px #0000004d;flex-wrap:nowrap}.actions label{font-size:13px}.actions button{white-space:normal}.description{padding:18px}.thumbnails img{width:50px;height:50px}#message{min-height:28px}}

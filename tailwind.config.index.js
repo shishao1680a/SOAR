@@ -89,87 +89,101 @@ module.exports = {
 };
 
 /* =============================================================
-   2026-09-26 主人指定：改成「明亮白底」風格（A 版）
+   2026-10-09 主人指定：全站統一成「後台 ADMIN CENTER」的深色賽博風。
    -------------------------------------------------------------
-   這裡用「附加覆蓋」而不是去改上面那 50 幾個色票，
-   所以要還原成原本的深色版，只要把下面這一整段刪掉即可。
+   原本 2026-09-26 的「明亮白底」覆蓋已移除；改成與
+   tailwind.config.admin.js 對齊的色票。
 
    ⚠️ 改完一定要重新建置樣式，否則畫面不會變：
       npm run build:css
    ============================================================= */
-const LIGHT_THEME_OVERRIDES = {
-  // ---- 底層表面：白底、淺灰分層 ----
-  background: '#f5f7fa',
-  surface: '#f5f7fa',
-  'surface-dim': '#e9edf3',
-  'surface-bright': '#ffffff',
-  'surface-container-lowest': '#ffffff',
-  'surface-container-low': '#eef2f8',
-  'surface-container': '#ffffff',
-  'surface-container-high': '#e8edf5',
-  'surface-container-highest': '#dee5ef',
-  'surface-variant': '#dee5ef',
+const THEME_OVERRIDES = {
+  // ---- 底層表面：深藍黑底、逐層提亮 ----
+  background: '#0b0f17',
+  surface: '#0b0f17',
+  'surface-dim': '#0b0f17',
+  'surface-bright': '#1a2232',
+  'surface-container-lowest': '#0b0f17',
+  'surface-container-low': '#101720',
+  'surface-container': '#131924',
+  'surface-container-high': '#222d42',
+  'surface-container-highest': '#2b3852',
+  'surface-variant': '#222d42',
 
   // ---- 文字 ----
-  'on-surface': '#1b2130',
-  'on-background': '#1b2130',
-  'on-surface-variant': '#586074',
+  'on-surface': '#e6edf7',
+  'on-background': '#e6edf7',
+  'on-surface-variant': '#94a3b8',
 
   // ---- 框線 ----
-  outline: '#b3bccb',
-  'outline-variant': '#dbe1ea',
+  outline: '#3a4a68',
+  'outline-variant': '#2d3b54',
 
-  // ---- 主色：品牌檸檬綠在白底上讀不到，改成深綠色（當底色時配白字）----
-  primary: '#1b2130',
-  'primary-fixed': '#2f7d32',
-  'primary-fixed-dim': '#256628',
-  'primary-container': '#2f7d32',
-  'on-primary': '#ffffff',
-  'on-primary-fixed': '#ffffff',
-  'on-primary-container': '#ffffff',
-  'on-primary-fixed-variant': '#c8e6c9',
-  'inverse-primary': '#9ad14e',
-  'surface-tint': '#2f7d32',
+  // ---- 主色：後台用的青藍 ----
+  primary: '#ffffff',
+  'primary-fixed': '#00F0FF',
+  'primary-fixed-dim': '#00c2cf',
+  'primary-container': '#00F0FF',
+  'on-primary': '#00363a',
+  'on-primary-fixed': '#00363a',
+  'on-primary-container': '#00363a',
+  'on-primary-fixed-variant': '#00565c',
+  'inverse-primary': '#00c2cf',
+  'surface-tint': '#00F0FF',
 
-  // ---- 次要色（橘）：加深以提高白底對比 ----
-  'secondary-container': '#c94f00',
-  'on-secondary-container': '#ffffff',
-  secondary: '#a84100',
-  'on-secondary': '#ffffff',
-  'secondary-fixed': '#ffdcc9',
+  // ---- 次要色（橘）----
+  'secondary-container': '#fe6b00',
+  'on-secondary-container': '#2a0f00',
+  secondary: '#ffb693',
+  'on-secondary': '#561f00',
+  'secondary-fixed': '#ffdbcc',
   'secondary-fixed-dim': '#ffb693',
-  'on-secondary-fixed': '#3a1500',
-  'on-secondary-fixed-variant': '#8a3300',
+  'on-secondary-fixed': '#351000',
+  'on-secondary-fixed-variant': '#7a3000',
 
-  // ---- 第三色（青）----
-  tertiary: '#0b6b7a',
-  'on-tertiary': '#ffffff',
-  'tertiary-container': '#cdeef4',
-  'on-tertiary-container': '#084f5b',
-  'tertiary-fixed': '#cdeef4',
+  // ---- 第三色（青綠）----
+  tertiary: '#00daf8',
+  'on-tertiary': '#00363f',
+  'tertiary-container': '#a5eeff',
+  'on-tertiary-container': '#006f7f',
+  'tertiary-fixed': '#a5eeff',
   'tertiary-fixed-dim': '#5fbccb',
-  'on-tertiary-fixed': '#00363f',
-  'on-tertiary-fixed-variant': '#00505c',
+  'on-tertiary-fixed': '#001f25',
+  'on-tertiary-fixed-variant': '#004e5a',
 
   // ---- 錯誤 ----
-  error: '#b3261e',
+  error: '#ff4655',
   'on-error': '#ffffff',
-  'error-container': '#ffdad6',
-  'on-error-container': '#7a1c12',
+  'error-container': '#93000a',
+  'on-error-container': '#ffdad6',
 
   // ---- 其他 ----
-  'inverse-surface': '#2b3240',
-  'inverse-on-surface': '#eef2f7',
+  'inverse-surface': '#e5e2e1',
+  'inverse-on-surface': '#131313',
   'line-green': '#06C755',
 
   // ---- 給 static/css/index-input.css 用的自訂項（背景點陣／光暈／掃描線）----
-  dot: '#e2e8f1',
-  glow: 'rgba(47, 125, 50, 0.20)',
-  scan: 'rgba(47, 125, 50, 0.10)'
+  dot: '#1b2436',
+  glow: 'rgba(0, 240, 255, 0.28)',
+  scan: 'rgba(0, 240, 255, 0.12)'
 };
 
 module.exports.theme.extend.colors = Object.assign(
   {},
   module.exports.theme.extend.colors,
-  LIGHT_THEME_OVERRIDES
+  THEME_OVERRIDES
+);
+
+// 2026-10-09：字體與後台一致（Chakra Petch 標題／標籤 + Noto Sans TC 內文）。
+module.exports.theme.extend.fontFamily = Object.assign(
+  {},
+  module.exports.theme.extend.fontFamily,
+  {
+    'display-lg': ['Chakra Petch', 'Noto Sans TC', 'sans-serif'],
+    'headline-md': ['Chakra Petch', 'Noto Sans TC', 'sans-serif'],
+    'headline-lg': ['Chakra Petch', 'Noto Sans TC', 'sans-serif'],
+    'label-caps': ['Chakra Petch', 'Noto Sans TC', 'sans-serif'],
+    'body-md': ['Noto Sans TC', 'sans-serif'],
+    'body-lg': ['Noto Sans TC', 'sans-serif']
+  }
 );

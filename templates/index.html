@@ -9,24 +9,14 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind-index.css') }}">
   
   <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,400;0,700;0,800;0,900;1,400;1,700;1,800;1,900&family=Hanken+Grotesk:wght@400;700&family=JetBrains+Mono:wght@700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <!-- 2026-10-09 主人指定：字體與後台一致（Chakra Petch + Noto Sans TC） -->
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,600;0,700;1,700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 
   <!-- 原本寫死顏色的行內樣式區塊已搬到 static/css/index-input.css，統一由主題色票控制 -->
 </head>
 <body class="font-body-md selection:bg-primary-fixed selection:text-on-primary-fixed min-h-screen flex flex-col antialiased">
   
-  <!-- Top Live Marquee Bar -->
-  <div class="bg-secondary-container text-on-secondary-container font-label-caps text-xs py-1.5 px-4 overflow-hidden relative z-50 flex items-center border-b border-secondary">
-    <div class="flex items-center gap-2 px-2 py-0.5 bg-black/40 text-primary-fixed font-bold tracking-widest shrink-0 uppercase text-[11px]">
-      <span class="inline-block w-2 h-2 rounded-full bg-primary-fixed animate-ping"></span>
-      最新消息
-    </div>
-    <marquee class="font-bold tracking-wide text-on-surface/90">
-      🔥 3D列印高強度 TPU 避震套件正式發售！ | 🎨 UV 浮雕炫彩貼紙支援社團客製圖騰標章 | 💬 LINE 登入獨享社團專屬折扣與訂單即時追蹤！
-    </marquee>
-  </div>
-
   <!-- Top Navigation Bar -->
   <nav class="w-full top-0 sticky border-b-2 border-outline-variant bg-background/90 backdrop-blur-md shadow-[0px_0px_15px_rgba(195,244,0,0.1)] z-50">
     <div class="flex justify-between items-center px-4 md:px-margin-desktop py-unit-4 max-w-full">
@@ -41,9 +31,6 @@
           <button onclick="switchTab('bulletin')" id="nav-bulletin" class="text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors flex items-center gap-1">
             公佈欄
             <span class="bg-secondary-container text-on-surface text-[10px] px-1.5 rounded-full not-italic">NEW</span>
-          </button>
-          <button onclick="scrollToLab()" class="text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors">
-            客製列印
           </button>
           <a href="/admin" class="text-primary-fixed font-label-caps uppercase hover:underline flex items-center gap-1">
             <span class="material-symbols-outlined text-sm">admin_panel_settings</span> 管理員後台
@@ -253,7 +240,8 @@
     </section>
 
     <!-- 3D Lab Teaser (Asymmetric Layout) -->
-    <section id="section-3d-lab" class="py-unit-16 relative bg-surface-container-low overflow-hidden my-12">
+    <!-- 2026-10-09 主人指定：暫時隱藏「客製列印工坊」。程式完整保留，日後把 hidden 拿掉即可恢復。 -->
+    <section id="section-3d-lab" class="hidden py-unit-16 relative bg-surface-container-low overflow-hidden my-12">
       <div class="skew-section bg-surface-container-high absolute inset-0 transform -skew-y-2 translate-y-12"></div>
       <div class="container mx-auto px-4 md:px-margin-desktop relative z-10">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-unit-16 items-center">
@@ -375,11 +363,6 @@
     </div>
   </div>
 
-  <!-- Floating Action Button (FAB) -->
-  <button onclick="scrollToLab()" class="fixed bottom-8 right-8 w-14 h-14 md:w-16 md:h-16 bg-secondary-container text-on-secondary-container rounded-full shadow-2xl flex items-center justify-center group z-40 hover:scale-110 active:scale-95 transition-transform" title="3D 客製列印工坊">
-    <span class="material-symbols-outlined text-3xl md:text-4xl group-hover:rotate-12 transition-transform">print</span>
-  </button>
-
   <!-- Footer -->
   <footer class="w-full py-unit-12 border-t-4 border-primary-fixed skew-y-1 bg-surface-container-lowest overflow-hidden">
     <div class="-skew-y-1 px-4 md:px-margin-desktop">
@@ -397,7 +380,8 @@
             <span class="text-on-surface font-label-caps underline decoration-primary-fixed underline-offset-4 font-bold">網站導覽</span>
             <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#" onclick="switchTab('catalog')">商品大廳</a>
             <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#" onclick="switchTab('bulletin')">社團公佈欄</a>
-            <a class="text-on-surface-variant hover:text-primary-fixed transition-colors" href="#" onclick="scrollToLab()">客製列印</a>
+            <!-- 2026-10-09 主人指定：暫時隱藏此連結（對應的工坊區塊已隱藏） -->
+            <a class="hidden text-on-surface-variant hover:text-primary-fixed transition-colors" href="#" onclick="scrollToLab()">客製列印</a>
           </div>
           <div class="flex flex-col gap-unit-4 text-xs font-label-caps">
             <span class="text-on-surface font-label-caps underline decoration-primary-fixed underline-offset-4 font-bold">LINE 服務</span>
@@ -419,6 +403,9 @@
   <script>
     let productsData = [];
     let announcementsData = [];
+    // 2026-10-09 主人指定：移除「資料庫空白就顯示寫死示範資料」機制後，改用這兩個旗標顯示對應的空狀態。
+    let productsLoadFailed = false;
+    let bulletinsLoadFailed = false;
     let cart = SoarCart.load();
     let activeCategory = "all";
     let activeMaterial = "ALL";
@@ -486,18 +473,24 @@
     }
 
     // API Integration to Flask Backend
+    // 2026-10-09 主人指定：一律以資料庫為準。
+    // 成功但沒有資料 → 顯示空狀態；連線失敗 → 顯示錯誤提示。
+    // 不再有「寫死示範商品／示範公告」這種會冒出假資料的退路。
     async function loadProductsFromAPI() {
       try {
         const res = await fetch('/api/products');
         const json = await res.json();
-        if (json.status === 'success' && json.data.length > 0) {
+        if (json.status === 'success' && Array.isArray(json.data)) {
           productsData = json.data;
+          productsLoadFailed = false;
         } else {
-          loadFallbackProducts();
+          productsData = [];
+          productsLoadFailed = true;
         }
       } catch (e) {
-        console.warn("API Fetch fallback:", e);
-        loadFallbackProducts();
+        console.warn("Products API error:", e);
+        productsData = [];
+        productsLoadFailed = true;
       }
       renderProducts();
     }
@@ -506,34 +499,19 @@
       try {
         const res = await fetch('/api/bulletins');
         const json = await res.json();
-        if (json.status === 'success' && json.data.length > 0) {
+        if (json.status === 'success' && Array.isArray(json.data)) {
           announcementsData = json.data;
+          bulletinsLoadFailed = false;
         } else {
-          loadFallbackBulletins();
+          announcementsData = [];
+          bulletinsLoadFailed = true;
         }
       } catch (e) {
-        console.warn("API Fetch fallback:", e);
-        loadFallbackBulletins();
+        console.warn("Bulletins API error:", e);
+        announcementsData = [];
+        bulletinsLoadFailed = true;
       }
       renderBulletins();
-    }
-
-    function loadFallbackProducts() {
-      productsData = [
-        { id: "p1", name: "VORTEX H-BLOCK 避震套件", category: "3d-print", material: "TPU_95A", price: 45.00, badge: "TPU HIGH-IMPACT", image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80", description: "Reinforced lattice structure for maximum sliding speed and impact absorption.", isUv: false },
-        { id: "p2", name: "GLITCH DECAL UV炫彩貼紙包", category: "uv-print", material: "UV_RESIN", price: 18.00, badge: "UV REACTIVE", image: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80", description: "Ultra-durable UV resin prints. Scuff-resistant and glow-active under city lights.", isUv: true },
-        { id: "p3", name: "PRO SPACER PA12 精密墊片", category: "3d-print", material: "NYLON_CF", price: 22.00, badge: "NYLON-PA12", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80", description: "Precision spacers engineered for zero-wiggle performance and heat dissipation.", isUv: false },
-        { id: "p4", name: "TITAN SOUL PLATE 魂板底座", category: "3d-print", material: "PLA_PRO", price: 65.00, badge: "PLA-PRO", image: "https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&w=600&q=80", description: "Custom-fit soul plates with reinforced mounting points and ultra-slick formula.", isUv: false },
-        { id: "p5", name: "NEON_HELMET UV戰術彩繪徽章", category: "uv-print", material: "UV_RESIN", price: 28.00, badge: "UV TACTICAL", image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80", description: "直噴 UV 立體多層印刷於安全帽與車身硬殼，立體紋理手感，耐刮擦且不退色。", isUv: true },
-        { id: "p6", name: "FLEX_STRAP R1 運動綁帶組", category: "custom", material: "TPU_95A", price: 15.00, badge: "CLUB EXCLUSIVE", image: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=600&q=80", description: "社團限定版柔性 3D 列印固定扣帶，可客製印製個人選手號碼與社團 Logo。", isUv: false }
-      ];
-    }
-
-    function loadFallbackBulletins() {
-      announcementsData = [
-        { id: "b1", title: "🔥 【社團賽事】2026 夏季極限 3D/UV 作品改裝大賽開始報名！", date_str: "2026-07-20", tag: "賽事公告", is_pinned: true, summary: "本屆改裝大賽包含 3D 列印機構件設計組與 UV 炫彩彩繪組！", content: "親愛的社友們：\n2026 夏季極限 3D/UV 作品改裝大賽即日起開放報名！" },
-        { id: "b2", title: "📦 新進資材通知：Nylon-CF 碳纖維尼龍與亮面 UV 樹脂已上架", date_str: "2026-07-15", tag: "資材更新", is_pinned: false, summary: "全新批次高剛性碳纖維線材與日本進口 UV 抗黃化樹脂已抵達社團工坊。", content: "工坊目前已完成 Bambu X1C 8台機器聯網，提供更快速的 3D 打樣服務。" }
-      ];
     }
 
     function switchTab(tab) {
@@ -599,10 +577,15 @@
       });
 
       if (filtered.length === 0) {
+        // 2026-10-09：資料庫完全沒有商品時，顯示「尚無商品」；有商品但被篩掉時，顯示「沒有符合的商品」。
+        const isEmptyCatalog = productsData.length === 0;
+        const emptyMsg = isEmptyCatalog
+          ? (productsLoadFailed ? '商品資料暫時無法載入，請稍後再試' : '目前尚無商品上架')
+          : '目前沒有符合的商品';
         grid.innerHTML = `
           <div class="col-span-full py-12 text-center border border-dashed border-outline-variant p-8">
-            <span class="material-symbols-outlined text-4xl text-on-surface-variant mb-2">search_off</span>
-            <p class="font-label-caps text-sm text-on-surface-variant">目前沒有符合的商品</p>
+            <span class="material-symbols-outlined text-4xl text-on-surface-variant mb-2">${isEmptyCatalog ? 'inventory_2' : 'search_off'}</span>
+            <p class="font-label-caps text-sm text-on-surface-variant">${emptyMsg}</p>
           </div>
         `;
         return;
@@ -669,6 +652,16 @@
 
     function renderBulletins() {
       const list = document.getElementById("bulletin-list");
+      // 2026-10-09：資料庫沒有公告時顯示空狀態，不再退回寫死的示範公告。
+      if (announcementsData.length === 0) {
+        list.innerHTML = `
+          <div class="py-12 text-center border border-dashed border-outline-variant p-8">
+            <span class="material-symbols-outlined text-4xl text-on-surface-variant mb-2">campaign</span>
+            <p class="font-label-caps text-sm text-on-surface-variant">${bulletinsLoadFailed ? '公告暫時無法載入，請稍後再試' : '目前尚無公告'}</p>
+          </div>
+        `;
+        return;
+      }
       list.innerHTML = announcementsData.map(b => `
         <div class="bg-surface-container-low border ${esc(b.is_pinned || b.isPinned ? 'border-secondary-container' : 'border-outline-variant')} p-5 relative scanline hover:border-primary-fixed transition-all">
           ${b.is_pinned || b.isPinned ? `

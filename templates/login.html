@@ -6,15 +6,16 @@
   <title>展夢.飛翔 // 會員登入與註冊</title>
   <!-- Tailwind CSS（本地建置，取代 CDN） -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind-login.css') }}">
-  <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,400;0,700;0,800;0,900;1,400;1,700;1,800;1,900&family=Hanken+Grotesk:wght@400;700&family=JetBrains+Mono:wght@700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <!-- 2026-10-09 主人指定：字體與後台一致（Chakra Petch + Noto Sans TC） -->
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,600;0,700;1,700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 
   <style>
     body {
-      background-color: #f5f7fa;
-      background-image: radial-gradient(#e2e8f1 1px, transparent 1px);
+      background-color: #0b0f17;
+      background-image: radial-gradient(#1b2436 1px, transparent 1px);
       background-size: 28px 28px;
-      color: #181c20;
+      color: #e6edf7;
     }
   </style>
 </head>
@@ -22,27 +23,27 @@
 <body class="min-h-screen flex flex-col justify-between font-body-md antialiased">
 
   <!-- Top Simple Nav Header -->
-  <header class="p-4 md:px-12 bg-white/80 backdrop-blur-md border-b border-black/5 flex justify-between items-center z-50">
-    <a href="/" class="font-display-lg text-xl md:text-2xl italic font-black text-primary-fixed border-b-4 border-emerald-500">
-        展夢.飛翔 <span class="text-xs text-primary-green not-italic font-label-caps bg-black/5 px-2 py-0.5 rounded">會員專區</span>
+  <header class="p-4 md:px-12 bg-background/80 backdrop-blur-md border-b border-outline-variant flex justify-between items-center z-50">
+    <a href="/" class="font-display-lg text-xl md:text-2xl italic font-black text-primary-fixed border-b-4 border-primary-fixed">
+        展夢.飛翔 <span class="text-xs text-on-primary-fixed not-italic font-label-caps bg-primary-fixed px-2 py-0.5 rounded">會員專區</span>
     </a>
-    <a href="/" class="text-xs font-label-caps text-gray-600 hover:text-primary-green flex items-center gap-1">
+    <a href="/" class="text-xs font-label-caps text-on-surface-variant hover:text-primary-green flex items-center gap-1">
       <span class="material-symbols-outlined text-sm">arrow_back</span> 返回首頁
     </a>
   </header>
 
   <!-- Login Card Container -->
   <main class="flex-grow flex items-center justify-center p-4 my-8">
-    <div class="w-full max-w-lg bg-white rounded-2xl p-8 md:p-10 shadow-2xl space-y-6 text-text-main border border-gray-100">
+    <div class="w-full max-w-lg bg-surface-container rounded-2xl p-8 md:p-10 shadow-2xl space-y-6 text-text-main border border-outline-variant">
       
       <!-- Card Title & Header -->
       <div class="text-center space-y-1">
         <h1 id="auth-card-title" class="text-3xl font-black text-primary-green tracking-tight font-body-md">會員登入</h1>
-        <p id="auth-card-subtitle" class="text-sm text-gray-500 font-medium">直接輸入帳號或電話號碼進行登入</p>
+        <p id="auth-card-subtitle" class="text-sm text-on-surface-variant font-medium">直接輸入帳號或電話號碼進行登入</p>
       </div>
 
       <!-- LINE Pre-fill Alert Banner -->
-      <div id="line-bind-banner" class="hidden p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-1">
+      <div id="line-bind-banner" class="hidden p-3 bg-line-green/10 border border-line-green/40 rounded-xl text-xs text-line-green space-y-1">
         <div class="font-bold flex items-center gap-1">
           <svg class="w-4 h-4 fill-line-green shrink-0" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 3.32 2.27 6.22 5.67 7.5-.23.83-.84 3.03-.96 3.48-.15.56.2.55.43.4.18-.12 2.87-1.95 4.04-2.75.92.17 1.86.27 2.82.27 5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
           已完成 LINE 登入授權！請綁定現有帳號或建立新會員。
@@ -50,14 +51,14 @@
       </div>
 
       <!-- Mode Switcher Tabs (帳密登入 / 帳號綁定 / 建立會員帳號) -->
-      <div class="flex bg-gray-100 p-1 rounded-xl text-sm font-bold">
-        <button id="btn-tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2 rounded-lg bg-white shadow text-primary-green transition-all">
+      <div class="flex bg-surface-container-high p-1 rounded-xl text-sm font-bold">
+        <button id="btn-tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2 rounded-lg bg-primary-fixed text-on-primary-fixed transition-all">
           帳密登入
         </button>
-        <button id="btn-tab-bind" onclick="switchAuthTab('bind')" class="hidden flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all">
+        <button id="btn-tab-bind" onclick="switchAuthTab('bind')" class="hidden flex-1 py-2 rounded-lg text-on-surface-variant hover:text-primary-green transition-all">
           帳號綁定
         </button>
-        <button id="btn-tab-register" onclick="switchAuthTab('register')" class="flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all">
+        <button id="btn-tab-register" onclick="switchAuthTab('register')" class="flex-1 py-2 rounded-lg text-on-surface-variant hover:text-primary-green transition-all">
           建立會員帳號
         </button>
       </div>
@@ -65,28 +66,28 @@
       <!-- FORM 1: LOGIN (帳密登入) -->
       <div id="form-login" class="space-y-4 pt-2">
         <div>
-          <label class="block text-xs font-bold text-gray-700 mb-1.5">手機電話 / 帳號</label>
-          <input type="text" id="login-username" placeholder="請輸入手機電話或帳號" class="w-full bg-blue-50/60 border border-blue-100 rounded-xl px-4 py-3 text-sm text-gray-900 focus:bg-white focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all font-medium"/>
+          <label class="block text-xs font-bold text-on-surface-variant mb-1.5">手機電話 / 帳號</label>
+          <input type="text" id="login-username" placeholder="請輸入手機電話或帳號" class="w-full bg-surface-container-high border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface focus:bg-surface-container-high focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all font-medium"/>
         </div>
 
         <div>
           <div class="flex justify-between items-center mb-1.5">
-            <label class="block text-xs font-bold text-gray-700">密碼</label>
-            <span class="text-[11px] text-gray-400">* 請輸入您的登入密碼</span>
+            <label class="block text-xs font-bold text-on-surface-variant">密碼</label>
+            <span class="text-[11px] text-on-surface-variant">* 請輸入您的登入密碼</span>
           </div>
-          <input type="password" id="login-password" placeholder="請輸入密碼" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
+          <input type="password" id="login-password" placeholder="請輸入密碼" class="w-full bg-surface-container-high border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
         </div>
 
         <!-- Main Login Button -->
-        <button onclick="handleLoginSubmit()" class="w-full bg-primary-green hover:bg-primary-green-hover text-white py-3.5 rounded-xl font-bold text-base shadow-lg shadow-primary-green/20 hover:shadow-primary-green/40 active:scale-[0.99] transition-all">
+        <button onclick="handleLoginSubmit()" class="w-full bg-primary-fixed hover:bg-primary-green-hover text-on-primary-fixed py-3.5 rounded-xl font-bold text-base shadow-lg shadow-primary-green/20 hover:shadow-primary-green/40 active:scale-[0.99] transition-all">
           登入
         </button>
 
         <!-- Divider Line -->
         <div class="relative flex py-2 items-center">
-          <div class="flex-grow border-t border-gray-200"></div>
-          <span class="flex-shrink mx-4 text-xs font-bold text-gray-400">或使用</span>
-          <div class="flex-grow border-t border-gray-200"></div>
+          <div class="flex-grow border-t border-outline-variant"></div>
+          <span class="flex-shrink mx-4 text-xs font-bold text-on-surface-variant">或使用</span>
+          <div class="flex-grow border-t border-outline-variant"></div>
         </div>
 
         <!-- LINE Login Button -->
@@ -96,7 +97,7 @@
         </button>
 
         <div class="text-center pt-2">
-          <button onclick="switchAuthTab('register')" class="text-xs text-gray-500 hover:text-primary-green font-bold hover:underline">
+          <button onclick="switchAuthTab('register')" class="text-xs text-on-surface-variant hover:text-primary-green font-bold hover:underline">
             還沒有帳號？點此前往【建立會員帳號】 ➔
           </button>
         </div>
@@ -107,18 +108,18 @@
         <input type="hidden" id="bind-line-id" />
         <input type="hidden" id="bind-avatar-url" />
 
-        <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800">
+        <div class="p-3 bg-surface-container-high border border-outline-variant rounded-xl text-xs text-on-surface-variant">
           請輸入您先前已註冊的手機電話/帳號與密碼，完成與 LINE 帳號的連結綁定。
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-700 mb-1.5">已註冊的手機電話 / 帳號 *</label>
-          <input type="text" id="bind-username" placeholder="請輸入您原有的手機電話或帳號" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
+          <label class="block text-xs font-bold text-on-surface-variant mb-1.5">已註冊的手機電話 / 帳號 *</label>
+          <input type="text" id="bind-username" placeholder="請輸入您原有的手機電話或帳號" class="w-full bg-surface-container-high border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-700 mb-1.5">密碼 *</label>
-          <input type="password" id="bind-password" placeholder="請輸入密碼" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
+          <label class="block text-xs font-bold text-on-surface-variant mb-1.5">密碼 *</label>
+          <input type="password" id="bind-password" placeholder="請輸入密碼" class="w-full bg-surface-container-high border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
         </div>
 
         <!-- Bind Submit Button -->
@@ -140,33 +141,33 @@
         <input type="hidden" id="reg-avatar-url" />
 
         <div>
-          <label class="block text-xs font-bold text-gray-700 mb-1.5">姓名 / 暱稱 *</label>
-          <input type="text" id="reg-name" placeholder="請輸入姓名或選手暱稱" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
+          <label class="block text-xs font-bold text-on-surface-variant mb-1.5">姓名 / 暱稱 *</label>
+          <input type="text" id="reg-name" placeholder="請輸入姓名或選手暱稱" class="w-full bg-surface-container-high border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-700 mb-1.5">手機電話 / 帳號 *</label>
-          <input type="text" id="reg-username" placeholder="請輸入手機電話或欲設定之帳號" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
+          <label class="block text-xs font-bold text-on-surface-variant mb-1.5">手機電話 / 帳號 *</label>
+          <input type="text" id="reg-username" placeholder="請輸入手機電話或欲設定之帳號" class="w-full bg-surface-container-high border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-gray-700 mb-1.5">設定密碼 *</label>
-            <input type="password" id="reg-password" placeholder="請輸入密碼" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
+            <label class="block text-xs font-bold text-on-surface-variant mb-1.5">設定密碼 *</label>
+            <input type="password" id="reg-password" placeholder="請輸入密碼" class="w-full bg-surface-container-high border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
           </div>
           <div>
-            <label class="block text-xs font-bold text-gray-700 mb-1.5">確認密碼 *</label>
-            <input type="password" id="reg-confirm-password" placeholder="再次輸入密碼" class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
+            <label class="block text-xs font-bold text-on-surface-variant mb-1.5">確認密碼 *</label>
+            <input type="password" id="reg-confirm-password" placeholder="再次輸入密碼" class="w-full bg-surface-container-high border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary-green focus:ring-2 focus:ring-primary-green/20 outline-none transition-all"/>
           </div>
         </div>
 
         <!-- Register Submit Button -->
-        <button onclick="handleRegisterSubmit()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-bold text-base shadow-lg shadow-emerald-600/20 active:scale-[0.99] transition-all">
+        <button onclick="handleRegisterSubmit()" class="w-full bg-line-green hover:bg-line-green-hover text-white py-3.5 rounded-xl font-bold text-base shadow-lg shadow-line-green/20 active:scale-[0.99] transition-all">
           確認註冊並完成登入
         </button>
 
         <div class="text-center pt-2">
-          <button onclick="switchAuthTab('login')" class="text-xs text-gray-500 hover:text-primary-green font-bold hover:underline">
+          <button onclick="switchAuthTab('login')" class="text-xs text-on-surface-variant hover:text-primary-green font-bold hover:underline">
             已有帳號？返回登入頁面 ➔
           </button>
         </div>
@@ -176,7 +177,7 @@
   </main>
 
   <!-- Footer -->
-  <footer class="p-4 text-center font-label-caps text-xs text-gray-400 border-t border-white/10">
+  <footer class="p-4 text-center font-label-caps text-xs text-on-surface-variant border-t border-outline-variant">
       © 2026 展夢.飛翔 版權所有
   </footer>
 
@@ -226,26 +227,26 @@
       const subtitle = document.getElementById('auth-card-subtitle');
 
       // Reset
-      btnLogin.className = "flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all";
-      btnBind.className = "hidden flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all";
-      btnReg.className = "flex-1 py-2 rounded-lg text-gray-500 hover:text-primary-green transition-all";
+      btnLogin.className = "flex-1 py-2 rounded-lg text-on-surface-variant hover:text-primary-green transition-all";
+      btnBind.className = "hidden flex-1 py-2 rounded-lg text-on-surface-variant hover:text-primary-green transition-all";
+      btnReg.className = "flex-1 py-2 rounded-lg text-on-surface-variant hover:text-primary-green transition-all";
 
       formLogin.classList.add('hidden');
       formBind.classList.add('hidden');
       formReg.classList.add('hidden');
 
       if (tab === 'login') {
-        btnLogin.className = "flex-1 py-2 rounded-lg bg-white shadow text-primary-green font-bold transition-all";
+        btnLogin.className = "flex-1 py-2 rounded-lg bg-primary-fixed text-on-primary-fixed font-bold transition-all";
         formLogin.classList.remove('hidden');
         title.textContent = "會員登入";
         subtitle.textContent = "直接輸入帳號或電話號碼進行登入";
       } else if (tab === 'bind') {
-        btnBind.className = "flex-1 py-2 rounded-lg bg-white shadow text-line-green font-bold transition-all";
+        btnBind.className = "flex-1 py-2 rounded-lg bg-line-green text-white font-bold transition-all";
         formBind.classList.remove('hidden');
         title.textContent = "LINE 帳號綁定";
         subtitle.textContent = "輸入您已註冊之手機電話/帳號完成 LINE 帳號連結";
       } else {
-        btnReg.className = "flex-1 py-2 rounded-lg bg-white shadow text-primary-green font-bold transition-all";
+        btnReg.className = "flex-1 py-2 rounded-lg bg-primary-fixed text-on-primary-fixed font-bold transition-all";
         formReg.classList.remove('hidden');
         title.textContent = "建立會員帳號";
         subtitle.textContent = "請填寫以下資訊完成新使用者註冊";
