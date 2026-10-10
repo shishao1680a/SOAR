@@ -108,6 +108,7 @@ class DBService:
                         line_id VARCHAR(255),
                         avatar_url TEXT,
                         phone VARCHAR(255),
+                        address TEXT DEFAULT '',
                         role VARCHAR(50) DEFAULT 'user',
                         register_date VARCHAR(100)
                     )
@@ -302,6 +303,8 @@ class DBService:
                 conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS packager_ratio NUMERIC(5, 2) DEFAULT 60"))
                 conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS platform_ratio NUMERIC(5, 2) DEFAULT 20"))
                 conn.execute(text("ALTER TABLE order_materials ADD COLUMN IF NOT EXISTS qty_used NUMERIC(12, 3) DEFAULT 0"))
+                # 2026-10-10 主人指定：LINE 首次登入改填「姓名／手機／寄送地址」，需要這個欄位。
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
 
                 # 常用索引
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_id ON inventory_logs (product_id)"))
@@ -460,7 +463,7 @@ class DBService:
             print(f"Error binding LINE account: {e}")
             return False, f"綁定失敗: {str(e)}", None
 
-    def register_user(self, username, password, name, phone, role='user', line_id='', avatar_url=''):
+    def register_user(self, username, password, name, phone, role='user', line_id='', avatar_url='', address=''):
         """註冊新使用者（密碼存雜湊，ID 用 uuid 避免撞號）"""
         try:
             now_str = self._get_taiwan_now_str()
@@ -477,12 +480,12 @@ class DBService:
                     return False, "該帳號已註冊過，請直接進行帳號綁定或登入！"
 
                 conn.execute(text("""
-                    INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, role, register_date)
-                    VALUES (:id, :username, :password, :name, :line_id, :avatar_url, :phone, :role, :register_date)
+                    INSERT INTO users (id, username, password, name, line_id, avatar_url, phone, address, role, register_date)
+                    VALUES (:id, :username, :password, :name, :line_id, :avatar_url, :phone, :address, :role, :register_date)
                 """), {
                     "id": user_id, "username": username, "password": password_hash,
                     "name": name, "line_id": line_id, "avatar_url": avatar,
-                    "phone": phone, "role": role, "register_date": now_str,
+                    "phone": phone, "address": address, "role": role, "register_date": now_str,
                 })
             return True, "註冊成功！"
         except Exception as e:

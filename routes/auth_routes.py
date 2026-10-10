@@ -35,11 +35,12 @@ def api_register():
     phone = data.get('phone', '').strip()
     line_id = data.get('line_id', '').strip()
     avatar_url = data.get('avatar_url', '').strip()
+    address = data.get('address', '').strip()
 
     if not name or not username or not password:
         return jsonify({"status": "error", "message": "姓名、帳號與密碼為必填欄位！"}), 400
 
-    success, msg = db_service.register_user(username, password, name, phone, role='user', line_id=line_id, avatar_url=avatar_url)
+    success, msg = db_service.register_user(username, password, name, phone, role='user', line_id=line_id, avatar_url=avatar_url, address=address)
     if success:
         return jsonify({"status": "success", "message": msg})
     return jsonify({"status": "error", "message": msg}), 400
@@ -157,7 +158,8 @@ def api_line_callback():
         }
         return redirect(url_for('main.home'))
 
-    redirect_target = f"/login?tab=bind&line_id={quote(line_user_id)}&name={quote(display_name)}&avatar={quote(picture_url)}"
+    # 2026-10-10 主人指定：登入頁只保留 LINE，未註冊過的 LINE 直接開啟「填寫資料」畫面。
+    redirect_target = f"/login?tab=register&line_id={quote(line_user_id)}&name={quote(display_name)}&avatar={quote(picture_url)}"
     return redirect(redirect_target)
 
 @auth_bp.route('/api/user/current', methods=['GET'])
