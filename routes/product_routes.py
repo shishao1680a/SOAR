@@ -12,6 +12,8 @@ product_bp = Blueprint('product', __name__)
 PUBLIC_PRODUCT_FIELDS = (
     'id', 'name', 'category', 'material', 'price', 'stock_qty', 'badge',
     'image_url', 'images_json', 'items_json', 'description', 'is_uv', 'detail_blocks_json',
+    # 2026-10-10：前台商品頁兩個選項群組的標題（可在後台自訂）
+    'variant_label', 'color_label',
 )
 ITEM_SECRET_FIELDS = ('cost_price', 'uv_cost_price')
 

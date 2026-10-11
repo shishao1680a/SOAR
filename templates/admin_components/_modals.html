@@ -93,11 +93,22 @@
             <span class="font-bold text-xs text-white flex items-center gap-1">
               <span class="material-symbols-outlined text-primary-fixed text-sm">tune</span> 項目規格 (Variants)
             </span>
-            <p class="text-[10px] text-gray-400">可新增多個款式項目，各項目可各自設定價格與圖片</p>
+            <p class="text-[10px] text-gray-400">可新增多個款式項目，各項目可各自設定價格與圖片；下方兩個標題會顯示在前台商品頁</p>
           </div>
           <button type="button" onclick="addProductItem()" class="px-2.5 py-1.5 bg-line-green/20 text-line-green hover:bg-line-green hover:text-white border border-line-green/40 text-xs font-bold rounded transition-all flex items-center gap-1 shadow">
             <span class="material-symbols-outlined text-sm">add_circle</span> + 新增項目
           </button>
+        </div>
+        <!-- 2026-10-10 主人指定：前台兩個選項群組的標題，可由使用者自行輸入 -->
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <div>
+            <label class="block font-bold text-primary-fixed mb-1">主選項標題（前台顯示）</label>
+            <input type="text" id="prod-edit-variant-label" placeholder="例: 樣式 / 尺寸" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
+          </div>
+          <div>
+            <label class="block font-bold text-line-green mb-1">次選項標題（前台顯示）</label>
+            <input type="text" id="prod-edit-color-label" placeholder="例: 顏色" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2 rounded outline-none focus:border-line-green" />
+          </div>
         </div>
         <div id="product-items-list-container" class="space-y-3 max-h-[220px] overflow-y-auto pr-1">
           <!-- Dynamically rendered items -->

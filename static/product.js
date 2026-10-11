@@ -8,6 +8,9 @@
   const stock=()=>Math.max(0,Number(color?.stock_qty??variant?.stock_qty??p.stock_qty)||0);
   const price=()=>Number(variant?.price??p.price)||0;
   const hasColors=()=>Array.isArray(variant?.colors)&&variant.colors.length>0;
+  // 2026-10-10 主人指定：兩個選項群組的標題由後台自訂，沒設定時用預設值。
+  const variantLabel=((p.variant_label||'')+'').trim()||'樣式/尺寸';
+  const colorLabel=((p.color_label||'')+'').trim()||'顏色';
   function image(img,url){img.onerror=()=>{img.onerror=null;img.src=fallback};img.src=url||fallback}
   function gallery(){
     const urls=[color?.image_url,variant?.image_url,p.image_url,...parse(p.images_json)].filter(x=>typeof x==='string'&&x);
@@ -15,17 +18,20 @@
     unique.forEach(url=>{const b=document.createElement('button'),img=document.createElement('img');b.type='button';b.setAttribute('aria-label','查看商品圖片');img.alt=p.name;image(img,url);b.append(img);b.onclick=()=>image($('main-image'),url);$('thumbnails').append(b)});
   }
   function options(){
+    const vLabelEl=$('variant-label'),cLabelEl=$('color-label');
+    if(vLabelEl){vLabelEl.textContent=variantLabel;vLabelEl.hidden=variants.length===0}
+    if(cLabelEl){cLabelEl.textContent=colorLabel;cLabelEl.hidden=!hasColors()}
     $('variants').replaceChildren();
     variants.forEach(v=>{const b=document.createElement('button');b.type='button';b.textContent=v.name||'未命名款式';b.classList.toggle('selected',v===variant);b.setAttribute('aria-pressed',String(v===variant));b.onclick=()=>{variant=v;color=null;options();update()};$('variants').append(b)});
     $('colors').replaceChildren();
     (hasColors()?variant.colors:[]).forEach(c=>{const b=document.createElement('button');b.type='button';b.textContent=c.name||'未命名顏色';b.classList.toggle('selected',c===color);b.setAttribute('aria-pressed',String(c===color));b.onclick=()=>{color=c;options();update()};$('colors').append(b)});
   }
   function update(){
-    $('price').textContent='NT$ '+price().toFixed(2);$('stock').textContent=hasColors()&&!color?'請選擇顏色':'剩餘 '+stock()+' 件';
+    $('price').textContent='NT$ '+price().toFixed(2);$('stock').textContent=hasColors()&&!color?('請選擇'+colorLabel):'剩餘 '+stock()+' 件';
     $('variant-description').textContent=variant?.description||'';
     $('quantity').max=String(Math.min(999,stock()));
     if(Number($('quantity').value)>stock())$('quantity').value=String(Math.max(1,Math.min(999,stock())));
-    $('add-cart').disabled=stock()<=0||(hasColors()&&!color);$('add-cart').textContent=hasColors()&&!color?'請先選擇顏色':stock()>0?'加入購物車':'目前缺貨';gallery();
+    $('add-cart').disabled=stock()<=0||(hasColors()&&!color);$('add-cart').textContent=hasColors()&&!color?('請先選擇'+colorLabel):stock()>0?'加入購物車':'目前缺貨';gallery();
   }
   function persist(){if(!SoarCart.save(cart))$('message').textContent='瀏覽器無法保存購物車，請允許本機儲存後再試';renderCart()}
   $('add-cart').onclick=()=>{

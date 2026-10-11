@@ -178,6 +178,9 @@ def api_admin_save_product():
     designer_ratio = float(data.get('designer_ratio', 20) or 20)
     packager_ratio = float(data.get('packager_ratio', 60) or 60)
     platform_ratio = float(data.get('platform_ratio', 20) or 20)
+    # 2026-10-10：前台兩個選項群組的標題（留空則用預設值）
+    variant_label = (data.get('variant_label') or '').strip() or '樣式/尺寸'
+    color_label = (data.get('color_label') or '').strip() or '顏色'
 
     detail_json = None
     if 'detail_blocks' in data:
@@ -193,6 +196,7 @@ def api_admin_save_product():
         badge, image_url, images_json, description, is_uv, items_json=items_json,
         designer_ratio=designer_ratio, packager_ratio=packager_ratio, platform_ratio=platform_ratio,
         detail_blocks_json=detail_json,
+        variant_label=variant_label, color_label=color_label,
     )
     if saved:
         return jsonify({"status": "success", "message": "商品儲存成功"})

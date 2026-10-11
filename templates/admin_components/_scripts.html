@@ -717,6 +717,9 @@
     setVal('prod-edit-platform-ratio', p ? (p.platform_ratio !== undefined ? p.platform_ratio : 20) : 20);
     setVal('prod-edit-badge', p ? p.badge : '');
     setVal('prod-edit-image', p ? p.image_url : '');
+    // 2026-10-10 主人指定：前台商品頁兩個選項群組的標題，可在後台自訂
+    setVal('prod-edit-variant-label', p ? (p.variant_label || '樣式/尺寸') : '樣式/尺寸');
+    setVal('prod-edit-color-label', p ? (p.color_label || '顏色') : '顏色');
     
     let multiImgsText = '';
     try {
@@ -770,6 +773,8 @@
       image_url: document.getElementById('prod-edit-image').value.trim() || (imagesRaw[0] || ''),
       images: imagesRaw,
       description: document.getElementById('prod-edit-desc').value.trim(),
+      variant_label: document.getElementById('prod-edit-variant-label').value.trim(),
+      color_label: document.getElementById('prod-edit-color-label').value.trim(),
       items: currentProductItems,
       detail_blocks: serializeDetailBlocks()
     };

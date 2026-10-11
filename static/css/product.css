@@ -32,6 +32,9 @@ main{max-width:1120px;margin:32px auto;padding:0 22px}
 h1{font-size:28px;line-height:1.35;overflow-wrap:anywhere;margin:12px 0}
 h2{font-size:22px}
 .label{color:var(--cyan);font-size:13px}
+/* 2026-10-10 主人指定：前台兩個選項群組的標題（內容可在後台自訂） */
+.option-label{margin:16px 0 6px;font-size:13px;font-weight:700;color:var(--cyan);letter-spacing:.04em}
+.option-label[hidden]{display:none}
 .price{font-weight:800;font-size:32px;color:var(--cyan);margin:16px 0}
 .intro,.small,figcaption{color:var(--muted)}
 .choices{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
