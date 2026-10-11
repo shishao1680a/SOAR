@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, send_from_directory, abort
 from extensions import db_service
-from routes.product_routes import to_public_product
+from routes.product_routes import to_public_product, user_name_map
 from detail_content import read_detail_blocks
 from extensions import UPLOAD_FOLDER
 
@@ -16,7 +16,8 @@ def product_detail(prod_id):
     product = next((p for p in db_service.get_products() if p['id'] == prod_id), None)
     if product is None:
         abort(404)
-    public = to_public_product(product)
+    # 2026-10-11：作者以人員 ID 查最新姓名（與訂單設計者同一套邏輯）
+    public = to_public_product(product, user_name_map())
     return render_template('product.html', product=public,
                            detail_blocks=read_detail_blocks(public.get('detail_blocks_json')))
 

@@ -35,17 +35,34 @@ def _strip_item_secrets(items_json):
     return json.dumps(cleaned, ensure_ascii=False)
 
 
-def to_public_product(prod):
+def user_name_map():
+    """2026-10-11 主人指定：作者顯示要比照設計者──存 ID、顯示時查最新姓名。
+
+    回傳 {人員ID: 姓名}。取不到時回傳空表，呼叫端會退回商品上的姓名備援值。
+    """
+    try:
+        return {u.get('id'): u.get('name') for u in db_service.get_all_users() if u.get('id')}
+    except Exception as e:
+        print(f"Error building user name map: {e}")
+        return {}
+
+
+def to_public_product(prod, name_map=None):
     """只保留前台需要的欄位，避免成本與分潤比例經公開 API 外洩。"""
     out = {k: prod.get(k) for k in PUBLIC_PRODUCT_FIELDS}
     out['items_json'] = _strip_item_secrets(prod.get('items_json'))
+    # 作者：優先用 author_user_id 查「現在」的姓名；查不到才用商品上存檔時的姓名。
+    uid = prod.get('author_user_id') or ''
+    live_name = (name_map or {}).get(uid) if uid else None
+    out['author'] = live_name or prod.get('author') or ''
     return out
 
 
 @product_bp.route('/api/products', methods=['GET'])
 def api_get_products():
     """取得前台商品列表（僅回傳前台可見欄位）"""
-    products = [to_public_product(p) for p in db_service.get_products()]
+    name_map = user_name_map()
+    products = [to_public_product(p, name_map) for p in db_service.get_products()]
     return jsonify({"status": "success", "data": products})
 
 @product_bp.route('/api/product-options', methods=['GET'])
