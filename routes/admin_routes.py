@@ -183,6 +183,7 @@ def api_admin_save_product():
     color_label = (data.get('color_label') or '').strip() or '顏色'
     # 2026-10-11：商品作者（前台商品列表與商品頁會顯示「作者：XXX」，留空則不顯示）
     author = (data.get('author') or '').strip()
+    author_user_id = (data.get('author_user_id') or '').strip()
 
     detail_json = None
     if 'detail_blocks' in data:
@@ -200,6 +201,7 @@ def api_admin_save_product():
         detail_blocks_json=detail_json,
         variant_label=variant_label, color_label=color_label,
         author=author,
+        author_user_id=author_user_id,
     )
     if saved:
         return jsonify({"status": "success", "message": "商品儲存成功"})

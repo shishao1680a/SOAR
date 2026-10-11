@@ -59,10 +59,12 @@
         <label class="block font-bold text-gray-200 mb-1">商品名稱</label>
         <input type="text" id="prod-edit-name" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2.5 rounded outline-none focus:border-primary-fixed" placeholder="例如: VORTEX H-BLOCK 避震套件" />
       </div>
-      <!-- 2026-10-11 主人指定：商品作者，前台商品列表與商品頁會顯示 -->
+      <!-- 2026-10-11 主人指定：商品作者，前台商品列表與商品頁會顯示；名單與訂單結算的「設計者」相同 -->
       <div>
         <label class="block font-bold text-gray-200 mb-1">作者</label>
-        <input type="text" id="prod-edit-author" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2.5 rounded outline-none focus:border-primary-fixed" placeholder="例如: 張小龍（留空則前台不顯示）" />
+        <select id="prod-edit-author" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps p-2.5 rounded outline-none focus:border-primary-fixed">
+          <option value="">（不指定）</option>
+        </select>
       </div>
 
       <div class="grid grid-cols-2 gap-3">

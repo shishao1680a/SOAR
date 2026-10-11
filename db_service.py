@@ -125,6 +125,7 @@ class DBService:
                         stock_qty INTEGER DEFAULT 50,
                         badge VARCHAR(100),
                         author TEXT DEFAULT '',
+                        author_user_id VARCHAR(255) DEFAULT '',
                         image_url TEXT,
                         images_json TEXT,
                         items_json TEXT DEFAULT '[]',
@@ -144,6 +145,8 @@ class DBService:
                 conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS color_label TEXT DEFAULT '顏色'"))
                 # 2026-10-11 主人指定：商品可標示「作者」，前台列表與商品頁都會顯示。
                 conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS author TEXT DEFAULT ''"))
+                # 2026-10-11 主人指定：作者改為從成員名單挑選，另存人員 ID 以便對應訂單設計者。
+                conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS author_user_id VARCHAR(255) DEFAULT ''"))
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS login_attempts (
                         key VARCHAR(80) PRIMARY KEY,
@@ -696,17 +699,17 @@ class DBService:
     def save_product(self, prod_id, name, category, material, price, cost_price, uv_cost_price,
                      stock_qty, badge, image_url, images_json, description, is_uv, items_json='[]',
                      designer_ratio=20, packager_ratio=60, platform_ratio=20, detail_blocks_json=None,
-                     variant_label='樣式/尺寸', color_label='顏色', author=''):
+                     variant_label='樣式/尺寸', color_label='顏色', author='', author_user_id=''):
         try:
             self._execute("""
                 INSERT INTO products (id, name, category, material, price, cost_price, uv_cost_price, stock_qty,
                                       badge, image_url, images_json, items_json, description, is_uv,
                                       designer_ratio, packager_ratio, platform_ratio, detail_blocks_json,
-                                      variant_label, color_label, author)
+                                      variant_label, color_label, author, author_user_id)
                 VALUES (:id, :name, :category, :material, :price, :cost_price, :uv_cost_price, :stock_qty,
                         :badge, :image_url, :images_json, :items_json, :description, :is_uv,
                         :designer_ratio, :packager_ratio, :platform_ratio, COALESCE(:detail_blocks_json, '[]'),
-                        :variant_label, :color_label, :author)
+                        :variant_label, :color_label, :author, :author_user_id)
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name, category = EXCLUDED.category, material = EXCLUDED.material,
                     price = EXCLUDED.price, cost_price = EXCLUDED.cost_price,
@@ -720,7 +723,8 @@ class DBService:
                     detail_blocks_json = COALESCE(:detail_blocks_json, products.detail_blocks_json),
                     variant_label = EXCLUDED.variant_label,
                     color_label = EXCLUDED.color_label,
-                    author = EXCLUDED.author
+                    author = EXCLUDED.author,
+                    author_user_id = EXCLUDED.author_user_id
             """, {
                 "id": prod_id, "name": name, "category": category, "material": material,
                 "price": price, "cost_price": cost_price, "uv_cost_price": uv_cost_price,
@@ -731,6 +735,7 @@ class DBService:
                 "platform_ratio": platform_ratio, "detail_blocks_json": detail_blocks_json,
                 "variant_label": variant_label, "color_label": color_label,
                 "author": author,
+                "author_user_id": author_user_id,
             })
             return True
         except Exception as e:

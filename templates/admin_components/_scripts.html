@@ -704,10 +704,36 @@
     if (el) el.value = (val !== undefined && val !== null) ? val : '';
   }
 
+  // 2026-10-11 主人指定：商品「作者」改成下拉選單，名單與訂單結算的「設計者」相同。
+  let currentAuthorUserId = '';
+
+  function fillProductAuthorSelect() {
+    const sel = document.getElementById('prod-edit-author');
+    if (!sel) return;
+    const users = getEligibleUsers();
+    sel.innerHTML = '<option value="">（不指定）</option>' + users.map(u =>
+      `<option value="${esc(u.id)}" ${String(currentAuthorUserId) === String(u.id) ? 'selected' : ''}>${esc(u.name)} (${esc(u.role === 'admin' ? '最高管理員' : '助理教練')})</option>`
+    ).join('');
+  }
+
+  function renderProductAuthorOptions(p) {
+    let targetId = p ? (p.author_user_id || '') : '';
+    if (!targetId && p && p.author) {
+      const hit = getEligibleUsers().find(u => (u.name || '').trim() === String(p.author).trim());
+      if (hit) targetId = hit.id;
+    }
+    currentAuthorUserId = targetId ? String(targetId) : '';
+    fillProductAuthorSelect();
+    // 成員名單若還沒載入（例如使用者直接開商品視窗），載入完成後再填一次。
+    if (!dataLoaded.users) {
+      ensureUsersLoaded().then(fillProductAuthorSelect).catch(() => {});
+    }
+  }
+
   function openProductModal(p = null) {
     setVal('prod-edit-id', p ? p.id : '');
     setVal('prod-edit-name', p ? p.name : '');
-    setVal('prod-edit-author', p ? (p.author || '') : '');
+    renderProductAuthorOptions(p);
     setVal('prod-edit-category', p ? p.category : '3d-print');
     setVal('prod-edit-material', p ? p.material : 'TPU_95A');
     setVal('prod-edit-price', p ? p.price : '45.00');
@@ -759,6 +785,10 @@
   async function saveProductSubmit() {
     if (!readyDetailBlocks()) { alert('詳細介紹有圖片未完成上傳，請重試或移除該段落'); return; }
     const imagesRaw = document.getElementById('prod-edit-images-list').value.split('\n').map(s => s.trim()).filter(Boolean);
+    // 2026-10-11：作者下拉的名單 ID 與姓名一起送出（前台顯示姓名，訂單結算用 ID 對應設計者）
+    const authorSel = document.getElementById('prod-edit-author');
+    const authorUserId = authorSel ? (authorSel.value || '') : '';
+    const authorUser = getEligibleUsers().find(u => String(u.id) === String(authorUserId));
     const payload = {
       id: document.getElementById('prod-edit-id').value,
       name: document.getElementById('prod-edit-name').value.trim(),
@@ -774,7 +804,8 @@
       image_url: document.getElementById('prod-edit-image').value.trim() || (imagesRaw[0] || ''),
       images: imagesRaw,
       description: document.getElementById('prod-edit-desc').value.trim(),
-      author: document.getElementById('prod-edit-author').value.trim(),
+      author_user_id: authorUserId,
+      author: authorUser ? (authorUser.name || '') : '',
       variant_label: document.getElementById('prod-edit-variant-label').value.trim(),
       color_label: document.getElementById('prod-edit-color-label').value.trim(),
       items: currentProductItems,
@@ -2165,10 +2196,22 @@
 
     const baseOther = parseFloat(order.other_cost || 0);
     const baseShipping = parseFloat(order.shipping_cost || 0);
+    // 2026-10-11 主人指定：訂單項目對應的商品若有作者，設計者預設帶入那個人
+    const eligibleUsers = getEligibleUsers();
     shipmentProducts = items.map((itm, idx) => {
       const qty = parseInt(itm.qty || 1, 10) || 1;
       const unitPrice = roundInt(parseFloat(itm.price !== undefined ? itm.price : ((order.total_amount || 0) / qty)) || 0);
       const ratios = resolveProductRatios(itm);
+      const authorProd = productsList.find(x => String(x.id) === String(itm.id || ''));
+      let autoDesignerId = '';
+      if (authorProd) {
+        if (authorProd.author_user_id && eligibleUsers.some(u => String(u.id) === String(authorProd.author_user_id))) {
+          autoDesignerId = String(authorProd.author_user_id);
+        } else if (authorProd.author) {
+          const hit = eligibleUsers.find(u => (u.name || '').trim() === String(authorProd.author).trim());
+          if (hit) autoDesignerId = String(hit.id);
+        }
+      }
       return {
         idx: idx,
         productId: itm.id || null,
@@ -2181,7 +2224,7 @@
         otherCost: baseOther,
         shippingCost: baseShipping,
         netProfit: 0,
-        designerId: '',
+        designerId: autoDesignerId,
         packagerId: '',
         designerRatio: ratios.designer,
         packagerRatio: ratios.packager,
