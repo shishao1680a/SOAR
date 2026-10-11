@@ -613,6 +613,7 @@
                 <h3 class="font-headline-md text-on-surface text-base leading-tight"><a href="/products/${encodeURIComponent(p.id)}">${esc(p.name)}</a></h3>
                 <span class="font-label-caps text-primary-fixed font-bold text-sm">$${esc(parseFloat(p.price).toFixed(2))}</span>
               </div>
+              ${p.author ? ('<p class="font-label-caps text-[11px] text-primary-fixed mb-1">作者：' + esc(p.author) + '</p>') : ''}
               <p class="text-on-surface-variant text-xs line-clamp-2 leading-relaxed mb-3">${esc(p.description)}</p>
             </div>
 

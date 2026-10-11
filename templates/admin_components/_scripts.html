@@ -707,6 +707,7 @@
   function openProductModal(p = null) {
     setVal('prod-edit-id', p ? p.id : '');
     setVal('prod-edit-name', p ? p.name : '');
+    setVal('prod-edit-author', p ? (p.author || '') : '');
     setVal('prod-edit-category', p ? p.category : '3d-print');
     setVal('prod-edit-material', p ? p.material : 'TPU_95A');
     setVal('prod-edit-price', p ? p.price : '45.00');
@@ -773,6 +774,7 @@
       image_url: document.getElementById('prod-edit-image').value.trim() || (imagesRaw[0] || ''),
       images: imagesRaw,
       description: document.getElementById('prod-edit-desc').value.trim(),
+      author: document.getElementById('prod-edit-author').value.trim(),
       variant_label: document.getElementById('prod-edit-variant-label').value.trim(),
       color_label: document.getElementById('prod-edit-color-label').value.trim(),
       items: currentProductItems,

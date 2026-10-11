@@ -14,6 +14,8 @@ PUBLIC_PRODUCT_FIELDS = (
     'image_url', 'images_json', 'items_json', 'description', 'is_uv', 'detail_blocks_json',
     # 2026-10-10：前台商品頁兩個選項群組的標題（可在後台自訂）
     'variant_label', 'color_label',
+    # 2026-10-11：商品作者（前台列表與商品頁顯示）
+    'author',
 )
 ITEM_SECRET_FIELDS = ('cost_price', 'uv_cost_price')
 
