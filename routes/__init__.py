@@ -7,6 +7,7 @@ from .admin_routes import admin_bp
 from .material_routes import material_bp
 from .order_routes import order_bp
 from .line_routes import line_bp
+from .shop_routes import shop_bp
 
 __all__ = [
     'main_bp',
@@ -17,4 +18,5 @@ __all__ = [
     'material_bp',
     'order_bp',
     'line_bp',
+    'shop_bp',
 ]

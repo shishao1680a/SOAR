@@ -1,7 +1,8 @@
 import json
 import uuid
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from extensions import db_service, line_service, _run_in_background, StockError
+import shop_service
 
 product_bp = Blueprint('product', __name__)
 
@@ -74,11 +75,18 @@ def api_get_product_options():
 
 @product_bp.route('/api/orders', methods=['POST'])
 def api_create_order():
-    """前台會員下單 API"""
+    """前台結帳 API：必須登入，並帶收件與寄送方式。"""
+    user = session.get('user') or {}
+    if not user.get('id'):
+        return jsonify({"status": "error", "code": "login_required",
+                        "message": "請先使用 LINE 登入"}), 401
     data = request.get_json() or {}
     cart_items = data.get('cart', [])
-    user_name = (data.get('user_name') or '社團會員').strip()[:60]
-    user_line_id = (data.get('user_line_id') or 'GUEST').strip()[:100]
+    ok, message, shipping = shop_service.validate_shipping(data.get('shipping'))
+    if not ok:
+        return jsonify({"status": "error", "message": message}), 400
+    user_name = (user.get('name') or '').strip()[:60] or '社團會員'
+    user_line_id = (user.get('line_id') or '').strip()[:100]
 
     if not isinstance(cart_items, list) or not cart_items:
         return jsonify({"status": "error", "message": "Cart is empty"}), 400
@@ -160,35 +168,42 @@ def api_create_order():
         total_amount += unit_price * qty
 
     total_amount = round(total_amount, 2)
+    fee = shop_service.shipping_fee_for(total_amount)
     order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
     try:
-        saved = db_service.save_order_with_stock(
-            order_id, 'USER_TEMP', user_name, user_line_id, validated_items, total_amount
+        saved = db_service.create_checkout_order(
+            order_id, user['id'], user_name, user_line_id, validated_items,
+            total_amount, fee, shipping
         )
     except StockError as se:
         return jsonify({"status": "error", "message": str(se)}), 400
+    if not saved:
+        return jsonify({"status": "error", "message": "訂單儲存失敗，請稍後重試"}), 500
 
-    if saved:
-        order_details = "\n".join([
-            f"• {it.get('name')} x{it.get('qty', 1)} (${float(it.get('price')):.2f})"
-            for it in validated_items
-        ])
-        line_msg = (
-            f"🛒 【展夢.飛翔 新訂單通知】\n"
-            f"----------------------------\n"
-            f"訂單編號: {order_id}\n"
-            f"訂購人: {user_name} ({user_line_id})\n"
-            f"明細:\n{order_details}\n"
-            f"----------------------------\n"
-            f"總計金額: ${total_amount:.2f}\n\n"
-            f"訂單已儲存至 PostgreSQL，請工程團隊進行 3D 切片與印刷排單！"
-        )
-        _run_in_background(line_service.push_text_message, None, line_msg)
-
-        return jsonify({
-            "status": "success",
-            "order_id": order_id,
-            "line_pushed": True,
-            "message": "Order created successfully"
-        })
-    return jsonify({"status": "error", "message": "Failed to save order"}), 500
+    db_service.update_user_address_if_empty(user['id'], shipping['address'])
+    order = {
+        'id': order_id, 'user_name': user_name,
+        'items_json': json.dumps(validated_items, ensure_ascii=False),
+        'total_amount': total_amount, 'shipping_fee': fee,
+        'shipping_method': shipping['method'],
+        'shipping_recipient': shipping['recipient'],
+        'shipping_phone': shipping['phone'],
+        'shipping_address': shipping['address'],
+        'shipping_store': shipping.get('store') or '',
+    }
+    base_url = shop_service.public_base(request.url_root)
+    group = None
+    try:
+        groups = db_service.get_line_groups() or []
+        group = groups[0]['id'] if groups else None
+    except Exception:
+        group = None
+    _run_in_background(line_service.push_text_message, group, shop_service.group_order_message(order))
+    _run_in_background(line_service.push_user_text, user_line_id,
+                       shop_service.customer_order_message(order, base_url), str(uuid.uuid4()))
+    return jsonify({
+        "status": "success",
+        "order_id": order_id,
+        "amount_due": str(float(total_amount) + float(fee)),
+        "message": "Order created successfully"
+    })

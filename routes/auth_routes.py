@@ -7,6 +7,28 @@ from login_guard import password_attempt, LoginLimited
 
 auth_bp = Blueprint('auth', __name__)
 
+
+def _safe_next(value):
+    value = (value or '').strip()
+    if value.startswith('/') and not value.startswith('//'):
+        return value
+    return None
+
+
+@auth_bp.route('/login/line')
+def line_login_start():
+    """直接導向 LINE 登入；登入後回到 next 指定的站內頁面。"""
+    nxt = _safe_next(request.args.get('next'))
+    session['post_login_next'] = nxt
+    state = uuid.uuid4().hex
+    session['oauth_state'] = state
+    session.pop('reservation_oauth_scene', None)
+    redirect_uri = os.getenv('LINE_LOGIN_REDIRECT_URI', f"{request.host_url.rstrip('/')}/api/line/callback")
+    url = line_service.get_login_url(state, redirect_uri=redirect_uri)
+    if not url:
+        return "LINE Login 尚未設定，請聯繫管理者", 503
+    return redirect(url)
+
 def _limited_response(exc):
     minutes = (exc.seconds + 59) // 60
     response = jsonify({"status": "error", "message": f"登入失敗次數過多，請約 {minutes} 分鐘後再試", "retry_after": exc.seconds})
@@ -110,6 +132,11 @@ def api_line_bind_account():
 @auth_bp.route('/api/line/login-url', methods=['GET'])
 def api_line_login_url():
     """取得 LINE Login 授權 URL"""
+    nxt = _safe_next(request.args.get('next'))
+    if nxt:
+        session['post_login_next'] = nxt
+    else:
+        session.pop('post_login_next', None)
     state = uuid.uuid4().hex
     session['oauth_state'] = state
     session.pop('reservation_oauth_scene', None)
@@ -175,10 +202,13 @@ def api_line_callback():
             "avatar_url": existing_user['avatar_url'] or picture_url,
             "role": existing_user['role']
         }
-        return redirect(url_for('main.home'))
+        nxt = _safe_next(session.pop('post_login_next', None))
+        return redirect(nxt or url_for('main.home'))
 
     # 2026-10-10 主人指定：登入頁只保留 LINE，未註冊過的 LINE 直接開啟「填寫資料」畫面。
-    redirect_target = f"/login?tab=register&line_id={quote(line_user_id)}&name={quote(display_name)}&avatar={quote(picture_url)}"
+    nxt = _safe_next(session.pop('post_login_next', None))
+    extra = f"&next={quote(nxt)}" if nxt else ''
+    redirect_target = f"/login?tab=register&line_id={quote(line_user_id)}&name={quote(display_name)}&avatar={quote(picture_url)}{extra}"
     return redirect(redirect_target)
 
 @auth_bp.route('/api/user/current', methods=['GET'])

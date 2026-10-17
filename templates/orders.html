@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>訂單查詢｜展夢・飛翔</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/shop.css') }}">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">展夢・飛翔</a>
+  <a href="/checkout">購物車結帳</a>
+  <a href="/">商品大廳</a>
+</header>
+
+<main class="wrap">
+  <h1>訂單查詢</h1>
+  <p class="sub">{{ member.name }}，這裡列出你的訂單；匯款後請填寫帳號後 5 碼，我們會盡快核對。</p>
+  <div id="banner" class="banner" hidden></div>
+  <div id="list"></div>
+  <div id="pager" class="pager" hidden>
+    <button class="btn ghost" id="prev">← 上一頁</button>
+    <span id="page-info"></span>
+    <button class="btn ghost" id="next">下一頁 →</button>
+  </div>
+</main>
+
+<dialog id="remit-dialog">
+  <div class="dlg">
+    <h3>填寫匯款末五碼</h3>
+    <p id="remit-hint">請輸入匯款帳號的最後 5 位數字。</p>
+    <div class="field">
+      <label for="last5">匯款帳號後 5 碼</label>
+      <input id="last5" maxlength="5" inputmode="numeric" autocomplete="off" placeholder="例如 12345">
+    </div>
+    <p id="remit-msg" class="msg" role="status" aria-live="polite"></p>
+    <div class="acts">
+      <button class="btn ghost" id="remit-cancel">取消</button>
+      <button class="btn primary" id="remit-save">送出</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="{{ url_for('static', filename='js/orders.js') }}"></script>
+</body>
+</html>

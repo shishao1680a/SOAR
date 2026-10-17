@@ -2039,6 +2039,8 @@
       const statusText = isTest ? '打印測試' : isCancelled ? '已取消' : isShipped ? '已寄送' : '待處理解算';
       const statusCls = isTest ? 'bg-cyan-400/20 text-cyan-300 border border-cyan-400' : isCancelled ? 'bg-error/20 text-error border border-error' : isShipped ? 'bg-line-green/20 text-line-green border border-line-green' : 'bg-secondary-container/20 text-secondary-container border border-secondary-container';
 
+      const payMap = {UNPAID:'待匯款', REPORTED:'已回報', CONFIRMED:'已確認收款', NOT_RECEIVED:'未收到', AMOUNT_MISMATCH:'金額有誤'};
+      const payLabel = payMap[o.payment_status] || '—';
       let items = [];
       try { items = typeof o.items_json === 'string' ? JSON.parse(o.items_json || '[]') : (o.items_json || []); } catch(e) {}
       if (!Array.isArray(items) || items.length === 0) items = [{ name: '線上列印作品', qty: 1, price: o.total_amount || 0 }];
@@ -2080,6 +2082,12 @@
             <span class="px-2 py-0.5 text-[11px] rounded font-bold ${statusCls}">${statusText}</span>
           </div>
           <div class="text-xs text-gray-200">訂購人：<span class="font-bold text-white">${esc(o.user_name || '線上會員')}</span> <span class="text-on-surface-variant">（${esc(o.user_line_id || '-')}）</span></div>
+          ${o.shipping_method ? `<div class="text-xs text-gray-300 bg-surface-container rounded-lg p-2 space-y-1">
+            <div>付款狀態：<span class="font-bold text-primary-fixed">${esc(payLabel)}</span>${o.remit_last5 ? `　末五碼 <span class="font-mono text-cyan-300">${esc(o.remit_last5)}</span>` : ''}</div>
+            <div>寄送：${esc(o.shipping_method === 'SEVEN' ? '7-11 收件' : '郵寄到家')}${o.shipping_store ? '｜' + esc(o.shipping_store) : ''}</div>
+            <div>收件人：${esc(o.shipping_recipient || '-')}／${esc(o.shipping_phone || '-')}</div>
+            <div>地址：${esc(o.shipping_address || '-')}</div>
+          </div>` : ''}
           <div class="bg-surface-container rounded-lg p-2">${itemsHtml}</div>
           <div class="grid grid-cols-3 gap-2 text-xs">
             <div class="p-2 bg-surface-container rounded border border-outline-variant"><div class="text-[10px] text-gray-400">總金額</div><div class="text-primary-fixed font-black">$${esc(parseFloat(o.total_amount || 0).toFixed(2))}</div></div>

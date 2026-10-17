@@ -320,6 +320,34 @@ class DBService:
                 # 2026-10-10 主人指定：LINE 首次登入改填「姓名／手機／寄送地址」，需要這個欄位。
                 conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
 
+                # 2026-10-17 線上結帳：收件、付款與匯款回報欄位（只新增，不改舊資料）
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_recipient VARCHAR(100)"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_phone VARCHAR(30)"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_method VARCHAR(20)"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_address TEXT"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_store VARCHAR(100)"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) DEFAULT 'TRANSFER'"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'UNPAID'"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS remit_last5 VARCHAR(10)"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS remit_reported_at TIMESTAMP"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_confirmed_at TIMESTAMP"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_confirmed_by VARCHAR(200)"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_by VARCHAR(20)"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(10, 2) DEFAULT 0"))
+                conn.execute(text("""CREATE TABLE IF NOT EXISTS order_payment_events (
+                    id SERIAL PRIMARY KEY,
+                    order_id VARCHAR(100) NOT NULL,
+                    action VARCHAR(24) NOT NULL,
+                    remit_last5 VARCHAR(10),
+                    actor_line_id VARCHAR(64),
+                    actor_name VARCHAR(100),
+                    note VARCHAR(200) DEFAULT '',
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )"""))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_orders_user_line ON orders (user_line_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_payment_events_order ON order_payment_events (order_id)"))
+
                 # 常用索引
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_id ON inventory_logs (product_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_name ON inventory_logs (product_name)"))
@@ -1357,6 +1385,139 @@ class DBService:
             if connection is not None:
                 raise
             return False
+
+    # ---------- 2026-10-17 線上結帳 ----------
+
+    def get_user_by_id(self, user_id):
+        return self._fetch_one('SELECT * FROM users WHERE id=:id', {'id': user_id})
+
+    def update_user_address_if_empty(self, user_id, address):
+        """會員地址原本空白時，才把這次結帳填的地址寫回。"""
+        try:
+            address = (address or '').strip()
+            if not address:
+                return
+            self._execute("""UPDATE users SET address=:a WHERE id=:id
+                AND (address IS NULL OR btrim(address)='')""", {'a': address, 'id': user_id})
+        except Exception as e:
+            print(f"WARN: cannot update user address: {e}")
+
+    def create_checkout_order(self, order_id, user_id, user_name, user_line_id, items, subtotal, shipping_fee, shipping):
+        """建立線上結帳訂單；商品金額與顧客應付運費分開存，庫存同交易扣減。"""
+        try:
+            now_str = self._get_taiwan_now_str()
+            items_json = json.dumps(items, ensure_ascii=False)
+            with self.engine.begin() as conn:
+                self.lock_stock_products(conn, items)
+                conn.execute(text("""
+                    INSERT INTO orders (id, user_id, user_name, user_line_id, items_json, total_amount,
+                                        status, created_at, shipping_recipient, shipping_phone, shipping_method,
+                                        shipping_address, shipping_store, payment_method, payment_status, shipping_fee)
+                    VALUES (:id, :user_id, :user_name, :user_line_id, :items_json, :total_amount,
+                            'PENDING', :created_at, :recipient, :phone, :method,
+                            :address, :store, 'TRANSFER', 'UNPAID', :shipping_fee)
+                """), {
+                    'id': order_id, 'user_id': user_id, 'user_name': user_name,
+                    'user_line_id': user_line_id, 'items_json': items_json,
+                    'total_amount': subtotal, 'created_at': now_str,
+                    'recipient': shipping['recipient'], 'phone': shipping['phone'],
+                    'method': shipping['method'], 'address': shipping['address'],
+                    'store': shipping.get('store') or '', 'shipping_fee': shipping_fee,
+                })
+                self.deduct_stock(conn, items, order_id=order_id)
+            return True
+        except StockError:
+            raise
+        except Exception as e:
+            print(f"Error creating checkout order: {e}")
+            return False
+
+    def get_user_orders(self, user_id, line_id, page=1):
+        page = max(1, int(page or 1))
+        per_page = 20
+        where = '(user_id=:uid OR user_line_id=:line)'
+        params = {'uid': user_id or '', 'line': line_id or ''}
+        total = int(self._fetch_one(f'SELECT COUNT(*) AS n FROM orders WHERE {where}', params)['n'] or 0)
+        rows = self._fetch_dicts(
+            f"""SELECT * FROM orders WHERE {where}
+                ORDER BY created_at DESC NULLS LAST, id DESC
+                LIMIT {per_page} OFFSET {(page - 1) * per_page}""",
+            params,
+        )
+        pages = max(1, (total + per_page - 1) // per_page)
+        return {'total': total, 'page': page, 'pages': pages, 'rows': rows}
+
+    def get_order_for_user(self, order_id, user_id, line_id):
+        return self._fetch_one(
+            'SELECT * FROM orders WHERE id=:id AND (user_id=:uid OR user_line_id=:line)',
+            {'id': order_id, 'uid': user_id or '', 'line': line_id or ''},
+        )
+
+    @staticmethod
+    def _add_payment_event(conn, order_id, action, last5=None, actor_line_id=None, actor_name=None, note=''):
+        conn.execute(text("""INSERT INTO order_payment_events
+            (order_id, action, remit_last5, actor_line_id, actor_name, note)
+            VALUES (:o, :a, :l, :uid, :name, :note)"""),
+            {'o': order_id, 'a': action, 'l': last5, 'uid': actor_line_id,
+             'name': actor_name, 'note': (note or '')[:200]})
+
+    def report_remittance(self, order_id, user_id, line_id, last5):
+        with self.engine.begin() as conn:
+            row = conn.execute(text("""SELECT * FROM orders WHERE id=:id
+                AND (user_id=:uid OR user_line_id=:line) FOR UPDATE"""),
+                {'id': order_id, 'uid': user_id or '', 'line': line_id or ''}).first()
+            if not row:
+                raise ValueError('找不到訂單')
+            order = dict(row._mapping)
+            if not order.get('shipping_method'):
+                raise ValueError('此訂單為舊版訂單，沒有寄送資料，請聯繫客服')
+            if order.get('status') != 'PENDING':
+                raise ValueError('此訂單已出貨或已取消，無法回報匯款')
+            if (order.get('payment_status') or 'UNPAID') == 'CONFIRMED':
+                raise ValueError('此訂單已確認收款，如需修改請聯繫客服')
+            conn.execute(text("""UPDATE orders SET payment_status='REPORTED', remit_last5=:l5,
+                remit_reported_at=CURRENT_TIMESTAMP WHERE id=:id"""), {'l5': last5, 'id': order_id})
+            self._add_payment_event(conn, order_id, 'REPORTED', last5)
+            return dict(conn.execute(text('SELECT * FROM orders WHERE id=:id'), {'id': order_id}).first()._mapping)
+
+    def cancel_order_customer(self, order_id, user_id, line_id):
+        with self.engine.begin() as conn:
+            row = conn.execute(text("""SELECT * FROM orders WHERE id=:id
+                AND (user_id=:uid OR user_line_id=:line) FOR UPDATE"""),
+                {'id': order_id, 'uid': user_id or '', 'line': line_id or ''}).first()
+            if not row:
+                return False, '找不到訂單'
+            order = dict(row._mapping)
+            if not order.get('shipping_method'):
+                return False, '此訂單為舊版訂單，無法在線上取消'
+            if order.get('status') != 'PENDING':
+                return False, '此訂單已出貨或已取消'
+            if (order.get('payment_status') or 'UNPAID') != 'UNPAID':
+                return False, '已回報匯款的訂單請聯繫客服取消'
+            conn.execute(text('DELETE FROM sales_logs WHERE order_id=:id'), {'id': order_id})
+            conn.execute(text("""UPDATE orders SET status='CANCELLED', cancelled_at=CURRENT_TIMESTAMP,
+                cancelled_by='CUSTOMER' WHERE id=:id"""), {'id': order_id})
+            self._add_payment_event(conn, order_id, 'CANCELLED')
+        return True, '訂單已取消，庫存已釋放'
+
+    def set_payment_status(self, order_id, status, actor_line_id=None, actor_name=None, note=''):
+        if status not in ('CONFIRMED', 'NOT_RECEIVED', 'AMOUNT_MISMATCH'):
+            raise ValueError('不支援的付款狀態')
+        with self.engine.begin() as conn:
+            row = conn.execute(text('SELECT * FROM orders WHERE id=:id FOR UPDATE'), {'id': order_id}).first()
+            if not row:
+                raise ValueError('找不到訂單')
+            order = dict(row._mapping)
+            if order.get('status') == 'CANCELLED':
+                raise ValueError('訂單已取消，無法更新付款狀態')
+            if (order.get('payment_status') or 'UNPAID') == 'UNPAID' and not order.get('remit_last5'):
+                raise ValueError('客人尚未回報匯款')
+            conn.execute(text("""UPDATE orders SET payment_status=:s,
+                payment_confirmed_at=CASE WHEN :s='CONFIRMED' THEN CURRENT_TIMESTAMP ELSE payment_confirmed_at END,
+                payment_confirmed_by=CASE WHEN :s='CONFIRMED' THEN :who ELSE payment_confirmed_by END
+                WHERE id=:id"""), {'s': status, 'who': (actor_name or actor_line_id or '群組成員')[:200], 'id': order_id})
+            self._add_payment_event(conn, order_id, status, None, actor_line_id, actor_name, note)
+            return dict(conn.execute(text('SELECT * FROM orders WHERE id=:id'), {'id': order_id}).first()._mapping)
 
     def cancel_order(self, order_id):
         """取消訂單：狀態改 CANCELLED，並刪除 sales_logs 釋放庫存。"""

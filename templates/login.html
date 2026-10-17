@@ -259,7 +259,10 @@
           const roleMap = { admin: '管理員', assistant_coach: '助理教練', user: '一般使用者' };
           alert(`登入成功！歡迎回來，${json.user.name}（${roleMap[json.user.role] || json.user.role}）`);
           
-          if (json.user.role === 'admin' || json.user.role === 'assistant_coach') {
+          const next = new URLSearchParams(location.search).get('next');
+          if (next && next.startsWith('/') && !next.startsWith('//')) {
+            window.location.href = next;
+          } else if (json.user.role === 'admin' || json.user.role === 'assistant_coach') {
             window.location.href = '/admin';
           } else {
             window.location.href = '/';
@@ -360,7 +363,8 @@
 
     async function handleLineLogin() {
       try {
-        const res = await fetch('/api/line/login-url');
+        const nxt = new URLSearchParams(location.search).get('next');
+        const res = await fetch('/api/line/login-url' + (nxt ? '?next=' + encodeURIComponent(nxt) : ''));
         const json = await res.json();
         if (json.status === 'success' && json.url) {
           window.location.href = json.url;

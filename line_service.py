@@ -1,9 +1,10 @@
 import os
-import requests
 import re
+import uuid
+import requests
 from urllib.parse import urlencode
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.models import MessageEvent, PostbackEvent, TextMessage, TextSendMessage
 from linebot.exceptions import LineBotApiError, InvalidSignatureError
 
 class LineService:
@@ -56,6 +57,49 @@ class LineService:
                 else:
                     print("⚠️ Cannot reply SOAR command because LINE_CHANNEL_ACCESS_TOKEN is missing on Railway!")
 
+        @self.handler.add(PostbackEvent)
+        def handle_postback(event):
+            """匯款回報的三個按鈕：更新付款狀態並回覆客人。"""
+            payload = (getattr(event.postback, 'data', '') or '').split(':')
+            if len(payload) != 3 or payload[0] != 'remit':
+                return
+            order_id, action = payload[1], payload[2]
+            try:
+                from extensions import db_service
+                import shop_service
+                group_id = getattr(event.source, 'group_id', None)
+                allowed = {g.get('id') for g in (db_service.get_line_groups() or [])}
+                if self.group_id:
+                    allowed.add(self.group_id)
+                if group_id not in allowed:
+                    return
+                actor_id = getattr(event.source, 'user_id', '') or ''
+                actor_name = actor_id
+                if self.line_bot_api and actor_id:
+                    try:
+                        profile = self.line_bot_api.get_profile(actor_id)
+                        actor_name = getattr(profile, 'display_name', None) or actor_id
+                    except Exception:
+                        pass
+                order = db_service.set_payment_status(order_id, action, actor_id, actor_name)
+                labels = {'CONFIRMED': '確認收到', 'NOT_RECEIVED': '尚未收到', 'AMOUNT_MISMATCH': '匯款金額有誤'}
+                if self.line_bot_api:
+                    self.line_bot_api.reply_message(
+                        event.reply_token,
+                        TextSendMessage(text=f"已更新訂單 {order_id}：{labels.get(action, action)}"))
+                text = shop_service.customer_payment_message(order, action)
+                if text:
+                    self.push_user_text(order.get('user_line_id') or '', text, str(uuid.uuid4()))
+            except Exception as exc:
+                print(f"Postback handling failed: {exc}")
+                try:
+                    if self.line_bot_api:
+                        self.line_bot_api.reply_message(
+                            event.reply_token,
+                            TextSendMessage(text='操作失敗，請稍後再試或使用後台確認。'))
+                except Exception:
+                    pass
+
     def handle_webhook(self, body, signature):
         """處理 LINE Webhook 簽章驗證與事件派發。
 
@@ -88,6 +132,27 @@ class LineService:
         except LineBotApiError as e:
             print(f"LINE Bot Push Message Error: {e.status_code} - {e.error.message}")
             return False
+
+    def push_flex(self, group_id, alt_text, contents):
+        """推播 Flex 訊息（匯款回報的三個按鈕）。"""
+        target = group_id or self.group_id
+        if not self.access_token or not target:
+            print("LINE Bot API or Group ID not configured.")
+            return False
+        try:
+            response = requests.post(
+                'https://api.line.me/v2/bot/message/push',
+                headers={'Authorization': f'Bearer {self.access_token}'},
+                json={'to': target, 'messages': [
+                    {'type': 'flex', 'altText': alt_text, 'contents': contents}]},
+                timeout=(3, 8),
+            )
+            if response.status_code == 200:
+                return True
+            print(f"LINE flex push failed: HTTP {response.status_code}")
+        except requests.RequestException as exc:
+            print(f"LINE flex push error: {exc}")
+        return False
 
     def push_messages_chunked(self, group_id, message_objects):
         """

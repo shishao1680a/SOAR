@@ -48,13 +48,10 @@
     cart.forEach(x=>{const row=document.createElement('div');row.className='cart-row';const img=document.createElement('img');img.alt=x.name;image(img,x.image_url);const body=document.createElement('div'),name=document.createElement('p'),amount=document.createElement('p'),qty=document.createElement('input'),del=document.createElement('button');name.textContent=x.name+(x.color_name?'（'+x.color_name+'）':'');amount.textContent='NT$ '+Number(x.price).toFixed(2);qty.type='number';qty.min='1';qty.max='999';qty.value=x.qty;qty.setAttribute('aria-label',x.name+'數量');qty.onchange=()=>{const n=Number(qty.value);if(!Number.isInteger(n)||n<1||n>999){qty.value=x.qty;return}x.qty=n;persist()};del.textContent='移除';del.onclick=()=>{cart=cart.filter(i=>i!==x);persist()};body.append(name,amount,qty,del);row.append(img,body);$('cart-items').append(row)});
   }
   $('cart-open').onclick=()=>{cart=SoarCart.load();renderCart();$('cart-dialog').showModal()};$('cart-close').onclick=()=>$('cart-dialog').close();
-  $('checkout').onclick=async()=>{
-    if(sending||!cart.length)return;sending=true;$('checkout').disabled=true;
-    try{
-      const u=await fetch('/api/user/current').then(r=>r.json());const user=u.status==='success'?u.user:null;
-      const r=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cart,user_name:user?.name||'社團會員',user_line_id:user?.line_id||'GUEST'})});const data=await r.json();
-      if(data.status==='success') {cart=[];persist();$('cart-message').textContent='訂單已送出！訂單編號：'+data.order_id} else $('cart-message').textContent=data.message||'訂單送出失敗';
-    }catch(e){$('cart-message').textContent='連線失敗，購物車已保留，請稍後重試'}finally{sending=false;$('checkout').disabled=false}
+  $('checkout').onclick=()=>{
+    cart=SoarCart.load();
+    if(!cart.length){$('cart-message').textContent='購物車目前沒有商品';return}
+    window.location.href='/checkout';
   };
   document.querySelectorAll('.detail-image').forEach(img=>img.onerror=()=>{const note=document.createElement('p');note.className='broken-image';note.textContent='圖片暫時無法顯示';img.replaceWith(note)});
   window.addEventListener('storage',()=>{cart=SoarCart.load();renderCart()});options();update();renderCart();

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>結帳｜展夢・飛翔</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/shop.css') }}">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">展夢・飛翔</a>
+  <a href="/orders">訂單查詢</a>
+  <a href="/">商品大廳</a>
+</header>
+
+<main class="wrap">
+  <h1>填寫收件與付款資訊</h1>
+  <p class="sub">送出後會用 LINE 通知你訂單內容與匯款方式。</p>
+  <div id="banner" class="banner" hidden></div>
+
+  <div class="dock">
+    <section class="card">
+      <h2>收件資訊</h2>
+
+      <div class="row2">
+        <div class="field">
+          <label for="recipient">收件者姓名</label>
+          <input id="recipient" maxlength="100" autocomplete="name" value="{{ member.name }}">
+        </div>
+        <div class="field">
+          <label for="phone">收件手機</label>
+          <input id="phone" maxlength="30" inputmode="tel" autocomplete="tel" value="{{ member.phone }}">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>寄送方式</label>
+        <div class="seg" id="method">
+          <label><input type="radio" name="ship" value="HOME" checked>郵寄到家</label>
+          <label><input type="radio" name="ship" value="SEVEN">7-11 收件</label>
+        </div>
+      </div>
+
+      <div class="field" id="store-wrap" hidden>
+        <label for="store">7-11 門市名稱</label>
+        <input id="store" maxlength="100" placeholder="請照門市招牌填寫，例如：泰武門市">
+      </div>
+
+      <div class="field">
+        <label for="address" id="address-label">收件地址</label>
+        <input id="address" maxlength="200" autocomplete="street-address" value="{{ member.address }}">
+      </div>
+
+      <div class="field">
+        <label>付款方式</label>
+        <div class="paybox">
+          <b>匯款</b><br>
+          客製化商品需先付款；未來將新增線上支付。<br>
+          確認送出訂單後，再進行匯款作業。匯款完畢後，可至「訂單查詢」頁面填寫匯款帳號後 5 碼。<br>
+          <span class="acct">第一銀行（007）16168171704</span>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="card summary">
+        <h2>訂單金額</h2>
+        <ul id="items" class="items"></ul>
+        <div class="total-row"><span>商品小計</span><span id="subtotal">NT$ 0</span></div>
+        <div class="total-row"><span>運費</span><span id="fee">NT$ 0</span></div>
+        <div class="total-row grand"><span>應付金額</span><span id="total">NT$ 0</span></div>
+        <button id="submit" class="btn primary block" style="margin-top:16px">確認送出訂單</button>
+        <p id="msg" class="msg" role="status" aria-live="polite"></p>
+        <p class="note">送出後立即保留庫存；尚未回報匯款前，可到訂單查詢自行取消。</p>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script src="{{ url_for('static', filename='cart_store.js') }}"></script>
+<script src="{{ url_for('static', filename='js/checkout.js') }}"></script>
+</body>
+</html>

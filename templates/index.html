@@ -32,6 +32,9 @@
             公佈欄
             <span class="bg-secondary-container text-on-surface text-[10px] px-1.5 rounded-full not-italic">NEW</span>
           </button>
+          <a href="/orders" class="text-on-surface-variant font-label-caps uppercase hover:text-primary-fixed transition-colors">
+            訂單查詢
+          </a>
           <a href="/admin" class="text-primary-fixed font-label-caps uppercase hover:underline flex items-center gap-1">
             <span class="material-symbols-outlined text-sm">admin_panel_settings</span> 管理員後台
           </a>
@@ -75,6 +78,10 @@
       <span class="material-symbols-outlined text-xl">campaign</span>
       社團公佈欄
     </button>
+    <a href="/orders" class="flex flex-col items-center text-on-surface-variant font-label-caps text-[10px]">
+      <span class="material-symbols-outlined text-xl">receipt_long</span>
+      訂單查詢
+    </a>
     <button onclick="openLineModal('profile')" class="flex flex-col items-center text-line-green font-label-caps text-[10px]">
       <span class="material-symbols-outlined text-xl">chat</span>
       LINE 功能
@@ -770,34 +777,7 @@
         alert("購物車為空，請先選擇 3D/UV 列印作品！");
         return;
       }
-
-      const userDisplayName = currentUser ? currentUser.name : "社團會員";
-      const userLineId = currentUser ? (currentUser.line_id || "GUEST") : "GUEST";
-      const total = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.qty), 0);
-
-      try {
-        const res = await fetch('/api/orders', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            cart: cart,
-            user_name: userDisplayName,
-            user_line_id: userLineId,
-            total_amount: total
-          })
-        });
-        const json = await res.json();
-        if (json.status === 'success') {
-          alert(`訂單已送出！\n訂單編號：${json.order_id}\n\n我們會盡快用 LINE 與你確認出貨細節。`);
-          cart = [];
-          updateCartUI();
-          toggleCartDrawer();
-        } else {
-          alert(`訂單送出失敗: ${json.message}`);
-        }
-      } catch (e) {
-        alert('連線失敗，訂單尚未確認送出。購物車已保留，請稍後重試。');
-      }
+      window.location.href = '/checkout';
     }
 
     function openLineModal(mode) {

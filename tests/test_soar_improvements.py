@@ -140,12 +140,18 @@ class SoarImprovements(unittest.TestCase):
         db_service._execute("DELETE FROM inventory_logs WHERE product_id='soar-test-product'")
         db_service._execute("DELETE FROM sales_logs WHERE product_id='soar-test-product'")
         self.assertTrue(db_service.add_inventory_log('soar-test-product','測試收納盒','款式 A',3,100,'測試','','測試','綠色'))
+        shipping={'recipient':'測試會員','phone':'0912345678','method':'HOME','address':'屏東縣測試路 1 號'}
+        with self.client.session_transaction() as s:
+            s['user']={'id':'soar-test-user','role':'user','name':'測試會員','line_id':'U'+'c'*32}
         for item in [{'id':'soar-test-product','qty':1}, {'id':'soar-test-product','qty':1,'variant_name':'款式 A'},
                      {'id':'soar-test-product','qty':1.5,'variant_name':'款式 A','color_name':'綠色'}]:
-            self.assertEqual(self.client.post('/api/orders',json={'cart':[item]}).status_code,400)
-        body={'cart':[{'id':'soar-test-product','qty':2,'variant_name':'款式 A','color_name':'綠色','price':1}]}
+            self.assertEqual(self.client.post('/api/orders',json={'cart':[item],'shipping':shipping}).status_code,400)
+        body={'cart':[{'id':'soar-test-product','qty':2,'variant_name':'款式 A','color_name':'綠色','price':1}],'shipping':shipping}
         def order(_):
-            with app.test_client() as c:return c.post('/api/orders',json=body).status_code
+            with app.test_client() as c:
+                with c.session_transaction() as sess:
+                    sess['user']={'id':'soar-test-user','role':'user','name':'測試會員','line_id':'U'+'c'*32}
+                return c.post('/api/orders',json=body).status_code
         with patch('routes.product_routes._run_in_background'):
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(order,range(2)))
         self.assertEqual(sorted(results),[200,400],results)
