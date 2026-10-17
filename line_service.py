@@ -31,7 +31,7 @@ class LineService:
             print("WARNING: LINE_CHANNEL_SECRET is missing! Signature validation disabled.")
 
     def _register_webhook_handlers(self):
-        """註冊事件處理器 (例如: 在群組內打 flbr 指令自動回覆 GID)"""
+        """註冊事件處理器 (例如: 在群組內打 soar 指令自動回覆 GID)"""
         if not self.handler:
             return
 
@@ -40,7 +40,7 @@ class LineService:
             text_content = event.message.text.strip().lower()
             print(f"[LINE Webhook Event] Message received: '{text_content}'")
             
-            if text_content == 'flbr':
+            if text_content == 'soar':
                 source_id = getattr(event.source, 'group_id', None) or getattr(event.source, 'room_id', None) or getattr(event.source, 'user_id', None)
                 reply_text = f"【展夢.飛翔 群組 ID 通知】\n本群組的 GID 為：\n{source_id}\n\n請複製上方 GID 貼至管理員後台【LINE 群組維護】即可完成設定！"
                 
@@ -50,11 +50,11 @@ class LineService:
                             event.reply_token,
                             TextSendMessage(text=reply_text)
                         )
-                        print(f"✅ Replied FLBR command with GID: {source_id}")
+                        print(f"✅ Replied SOAR command with GID: {source_id}")
                     except Exception as e:
-                        print(f"❌ Error replying FLBR command via LineBotApi: {e}")
+                        print(f"❌ Error replying SOAR command via LineBotApi: {e}")
                 else:
-                    print("⚠️ Cannot reply FLBR command because LINE_CHANNEL_ACCESS_TOKEN is missing on Railway!")
+                    print("⚠️ Cannot reply SOAR command because LINE_CHANNEL_ACCESS_TOKEN is missing on Railway!")
 
     def handle_webhook(self, body, signature):
         """處理 LINE Webhook 簽章驗證與事件派發。

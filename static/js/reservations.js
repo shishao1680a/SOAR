@@ -27,7 +27,7 @@
     const signature = JSON.stringify(products.map(p => [p.id,p.name,p.price,p.description,p.items_json,p.image_url,p.stock_qty]));
     if ($('products').dataset.signature === signature) return;
     $('products').dataset.signature = signature;
-    $('products').innerHTML = products.map((p, i) => `<article class="product">${p.image_url ? `<img src="${esc(p.image_url)}" alt="" loading="lazy">` : ''}<h3>${esc(p.name)}</h3><p>${esc(p.description || '')}</p><p class="price">NT$ ${money(p.price)} · ${p.stock_qty>0?`可售 ${p.stock_qty} 件`:'售罄'}</p>${variants(p).length ? `<label>${esc(p.variant_label || '款式')}<select data-variant="${i}"><option value="">請選擇</option>${variants(p).map((v,j)=>`<option value="${j}" ${Math.min(p.stock_qty,v.stock_qty)<=0?'disabled':''}>${esc(v.name)} · NT$ ${money(v.price ?? p.price)} · ${Math.min(p.stock_qty,v.stock_qty)>0?`可售 ${Math.min(p.stock_qty,v.stock_qty)} 件`:'售罄'}</option>`).join('')}</select></label>` : ''}<label data-color-wrap="${i}" hidden>${esc(p.color_label || '顏色')}<select data-color="${i}"></select></label><label>數量<input type="number" min="1" max="999" step="1" value="1" data-qty="${i}"></label><button data-add="${i}" ${p.stock_qty<=0?'disabled':''}>${p.stock_qty<=0?'售罄':'加入預約清單'}</button></article>`).join('') || '<p>目前沒有開放現場製作的商品。</p>';
+    $('products').innerHTML = products.map((p, i) => `<article class="product">${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy" data-image="${i}">` : ''}<h3>${esc(p.name)}</h3><p>${esc(p.description || '')}</p><p class="price">NT$ ${money(p.price)} · ${p.stock_qty>0?`可售 ${p.stock_qty} 件`:'售罄'}</p>${variants(p).length ? `<label>${esc(p.variant_label || '款式')}<select data-variant="${i}"><option value="">請選擇</option>${variants(p).map((v,j)=>`<option value="${j}" ${Math.min(p.stock_qty,v.stock_qty)<=0?'disabled':''}>${esc(v.name)} · NT$ ${money(v.price ?? p.price)} · ${Math.min(p.stock_qty,v.stock_qty)>0?`可售 ${Math.min(p.stock_qty,v.stock_qty)} 件`:'售罄'}</option>`).join('')}</select></label>` : ''}<label data-color-wrap="${i}" hidden>${esc(p.color_label || '顏色')}<select data-color="${i}"></select></label><label>數量<input type="number" min="1" max="999" step="1" value="1" data-qty="${i}"></label><button data-add="${i}" ${p.stock_qty<=0?'disabled':''}>${p.stock_qty<=0?'售罄':'加入預約清單'}</button></article>`).join('') || '<p>目前沒有開放現場製作的商品。</p>';
   }
   function renderCart() {
     $('cart').innerHTML = cart.map((it,i) => `<div class="cart-item"><span>${esc(it.name)} ${esc(it.variant_name)} ${esc(it.variant_color)} ×${it.qty}<br>NT$ ${money(Number(it.price)*it.qty)}</span><button data-remove="${i}" aria-label="移除 ${esc(it.name)}">移除</button></div>`).join('') + (cart.length ? `<p><b>預估合計 NT$ ${money(cart.reduce((sum,it)=>sum+Number(it.price)*it.qty,0))}</b><br><small>正式金額會在取號時依商品價格計算。</small></p>` : '<p class="muted">請先加入要預約的商品。</p>');
@@ -95,11 +95,25 @@
     const list=all.data || [];
     $('admin-products').innerHTML=list.map(p=>`<label><input type="checkbox" data-flag="${esc(p.id)}" ${p.onsite_enabled?'checked':''}>${esc(p.name)} · NT$ ${money(p.price)}（現場製作）</label>`).join('') || '<p>請先至商品管理新增商品。</p>';
   }
+  function setProductImage(i,url){
+    const img=document.querySelector(`[data-image="${i}"]`); if(!img||!url)return;
+    if(img.getAttribute('src')===url)return;
+    img.onerror=()=>{img.onerror=null;const back=products[i].image_url;if(back&&img.getAttribute('src')!==back)img.src=back;};
+    img.src=url;
+  }
   $('products').addEventListener('change',e=>{
-    if(!e.target.matches('[data-variant]'))return;
-    const i=Number(e.target.dataset.variant), v=variants(products[i])[e.target.value], colors=v?.colors || [];
-    const wrap=document.querySelector(`[data-color-wrap="${i}"]`), sel=document.querySelector(`[data-color="${i}"]`);
-    wrap.hidden=!colors.length; sel.innerHTML='<option value="">請選擇</option>'+colors.map(c=>`<option value="${esc(c.name)}" ${c.stock_qty<=0?'disabled':''}>${esc(c.name)} · ${c.stock_qty>0?`可售 ${c.stock_qty} 件`:'售罄'}</option>`).join('');
+    if(!e.target.matches('[data-variant],[data-color]'))return;
+    const i=Number(e.target.dataset.variant ?? e.target.dataset.color);
+    if(i<0||i>=products.length)return;
+    const p=products[i], sel=document.querySelector(`[data-variant="${i}"]`), v=sel?variants(p)[sel.value]:null;
+    if(e.target.matches('[data-variant]')){
+      const colors=v?.colors || [];
+      const wrap=document.querySelector(`[data-color-wrap="${i}"]`), colorSel=document.querySelector(`[data-color="${i}"]`);
+      wrap.hidden=!colors.length; colorSel.innerHTML='<option value="">請選擇</option>'+colors.map(c=>`<option value="${esc(c.name)}" ${c.stock_qty<=0?'disabled':''}>${esc(c.name)} · ${c.stock_qty>0?`可售 ${c.stock_qty} 件`:'售罄'}</option>`).join('');
+    }
+    const colorName=(document.querySelector(`[data-color="${i}"]`)?.value)||'';
+    const color=v?.colors?.find(c=>c.name===colorName);
+    setProductImage(i,color?.image_url||v?.image_url||p.image_url);
   });
   $('products').addEventListener('click',e=>{
     const button=e.target.closest('[data-add]'); if(!button)return;
