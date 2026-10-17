@@ -47,7 +47,8 @@ h2{font-size:22px}
 .text-block{white-space:pre-wrap;overflow-wrap:anywhere}
 .description{margin:28px 0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px}
 .description figure{margin:24px 0}
-.detail-image{max-width:100%;width:100%;height:auto}
+.detail-image{display:block;max-width:100%;width:100%;height:auto;margin:0 auto}
+.description figcaption{text-align:center}
 .broken-image{background:var(--panel-low);padding:24px;color:var(--muted)}
 dialog{position:fixed;inset:0 0 0 auto;margin:0;width:min(100%,430px);height:100dvh;max-height:100dvh;border:0;border-left:1px solid var(--line);padding:20px;background:var(--panel);color:var(--ink)}
 dialog::backdrop{background:#000a}

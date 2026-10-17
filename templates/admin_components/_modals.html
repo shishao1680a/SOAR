@@ -173,15 +173,16 @@
 
     <section class="pb-5" aria-label="詳細圖文介紹">
       <h3 class="font-bold text-white mb-2">商品詳細介紹（文字與圖片依序排列）</h3>
-      <p class="text-xs text-on-surface-variant mb-3">圖片必須成功上傳至雲端；移除段落不會刪除雲端圖。</p>
+      <p class="text-xs text-on-surface-variant mb-3">每張圖片可設定顯示寬度，保持原比例並置中；圖片必須成功上傳至雲端；移除段落不會刪除雲端圖。</p>
       <div id="detail-block-editor"></div>
       <div class="detail-editor-controls"><button type="button" onclick="addDetailBlock('text')">＋ 文字</button><button type="button" onclick="addDetailBlock('image')">＋ 圖片</button><button type="button" onclick="previewDetailBlocks()">切換預覽</button></div>
       <div id="detail-preview" hidden></div>
     </section>
     <style>
       .detail-editor-block{border:1px solid #66756b;border-radius:8px;padding:14px;margin:12px 0;color:#edf4ee;background:#1c2a22}
-      .detail-editor-block textarea,.detail-editor-block input{display:block;width:100%;margin:10px 0;padding:8px;background:#263c2e;color:white;border:1px solid #66756b;border-radius:6px}
-      .detail-editor-block img,#detail-preview img{max-width:100%;max-height:320px;object-fit:contain}
+      .detail-editor-block textarea,.detail-editor-block input,.detail-editor-block select{display:block;width:100%;margin:10px 0;padding:8px;background:#263c2e;color:white;border:1px solid #66756b;border-radius:6px}
+      .detail-editor-block img,#detail-preview img{display:block;max-width:100%;height:auto;margin:0 auto}
+      #detail-preview figure{margin:24px 0}#detail-preview figcaption{text-align:center}
       .detail-editor-controls{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.detail-editor-controls button{border:1px solid #7c9a85;border-radius:6px;padding:9px 13px;background:#263c2e;color:white}.detail-editor-controls button:disabled{opacity:.4}
       #detail-preview{background:white;color:#24352c;padding:20px;border-radius:8px;overflow-wrap:anywhere}
     </style>

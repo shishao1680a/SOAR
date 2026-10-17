@@ -34,7 +34,13 @@ def validate_detail_blocks(value):
                 raise ValueError('詳細介紹圖片必須由本站成功上傳至 Cloudinary')
             if not isinstance(caption, str) or len(caption) > 500:
                 raise ValueError('圖片說明最多 500 字')
-            blocks.append({'type': 'image', 'url': url, 'caption': caption})
+            image = {'type': 'image', 'url': url, 'caption': caption}
+            if 'width' in block:
+                width = block['width']
+                if type(width) is not int or width not in (25, 50, 75, 100):
+                    raise ValueError('圖片顯示寬度只接受 25%、50%、75% 或 100%')
+                image['width'] = width
+            blocks.append(image)
         else:
             raise ValueError('詳細介紹只接受文字或圖片段落')
     if len(json.dumps(blocks, ensure_ascii=False)) > 250000:

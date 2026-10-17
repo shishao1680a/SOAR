@@ -1,4 +1,5 @@
 let currentDetailBlocks=[];
+function detailImageWidth(block){return [25,50,75,100].includes(block.width)?block.width:100}
 function loadDetailBlocks(p){
   try{currentDetailBlocks=JSON.parse(p?.detail_blocks_json||'[]');if(!Array.isArray(currentDetailBlocks))currentDetailBlocks=[]}catch(e){currentDetailBlocks=[]}
   document.getElementById('detail-preview').hidden=true;
@@ -12,7 +13,11 @@ function renderDetailBlocks(){
     const box=document.createElement('div');box.className='detail-editor-block';const title=document.createElement('strong');title.textContent=(i+1)+'. '+(block.type==='text'?'文字段落':'圖片段落');box.append(title);
     if(block.type==='text'){const input=document.createElement('textarea');input.rows=4;input.maxLength=10000;input.value=block.text||'';input.placeholder='輸入商品介紹，支援換行';input.setAttribute('aria-label','文字段落 '+(i+1));input.oninput=()=>block.text=input.value;box.append(input)}
     else{
-      if(block.url){const img=document.createElement('img');img.src=block.url;img.alt=block.caption||'介紹圖片';box.append(img)}
+      if(block.url){const img=document.createElement('img');img.src=block.url;img.alt=block.caption||'介紹圖片';img.style.width=detailImageWidth(block)+'%';box.append(img)}
+      const sizeLabel=document.createElement('label');sizeLabel.textContent='圖片顯示寬度（保持原比例）';
+      const size=document.createElement('select');size.setAttribute('aria-label','圖片顯示寬度 '+(i+1));
+      for(const width of [25,50,75,100]){const option=document.createElement('option');option.value=width;option.textContent=width+'%';size.append(option)}
+      size.value=String(detailImageWidth(block));size.onchange=()=>{block.width=Number(size.value);const img=box.querySelector('img');if(img)img.style.width=block.width+'%';if(!document.getElementById('detail-preview').hidden)renderDetailPreview()};sizeLabel.append(size);box.append(sizeLabel);
       const file=document.createElement('input');file.type='file';file.accept='.jpg,.jpeg,.png,.webp,.gif';file.disabled=!!block.pending;file.setAttribute('aria-label','上傳圖片段落 '+(i+1));file.onchange=async()=>{
         if(!file.files[0])return;const chosen=file.files[0];block.pending=true;block.error='';renderDetailBlocks();
         try{const form=new FormData();form.append('file',chosen);form.append('require_cloud','1');const r=await fetch('/api/admin/upload-image',{method:'POST',body:form});const data=await r.json();if(!r.ok||data.status!=='success'||!data.is_cloud)throw Error(data.message||'雲端上傳失敗');block.url=data.url}
@@ -25,5 +30,6 @@ function renderDetailBlocks(){
   });
 }
 function readyDetailBlocks(){return !currentDetailBlocks.some(b=>b.pending||b.error||(b.type==='image'&&!b.url))}
-function serializeDetailBlocks(){return currentDetailBlocks.map(b=>b.type==='text'?{type:'text',text:b.text||''}:{type:'image',url:b.url,caption:b.caption||''})}
-function previewDetailBlocks(){const host=document.getElementById('detail-preview');host.replaceChildren();for(const b of currentDetailBlocks){if(b.type==='text'){const p=document.createElement('p');p.style.whiteSpace='pre-wrap';p.textContent=b.text;host.append(p)}else if(b.url){const img=document.createElement('img');img.src=b.url;img.alt=b.caption||'';const p=document.createElement('p');p.textContent=b.caption;host.append(img,p)}}host.hidden=!host.hidden}
+function serializeDetailBlocks(){return currentDetailBlocks.map(b=>b.type==='text'?{type:'text',text:b.text||''}:{type:'image',url:b.url,caption:b.caption||'',width:detailImageWidth(b)})}
+function renderDetailPreview(){const host=document.getElementById('detail-preview');host.replaceChildren();for(const b of currentDetailBlocks){if(b.type==='text'){const p=document.createElement('p');p.style.whiteSpace='pre-wrap';p.textContent=b.text;host.append(p)}else if(b.url){const figure=document.createElement('figure');const img=document.createElement('img');img.src=b.url;img.alt=b.caption||'';img.style.width=detailImageWidth(b)+'%';figure.append(img);if(b.caption){const caption=document.createElement('figcaption');caption.textContent=b.caption;figure.append(caption)}host.append(figure)}}}
+function previewDetailBlocks(){renderDetailPreview();const host=document.getElementById('detail-preview');host.hidden=!host.hidden}
