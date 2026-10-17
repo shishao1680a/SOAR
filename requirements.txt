@@ -10,3 +10,4 @@ PyMuPDF==1.28.2
 cloudinary==1.46.2
 google-generativeai==0.8.6
 Pillow==12.3.0
+qrcode==8.2

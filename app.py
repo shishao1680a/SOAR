@@ -39,6 +39,9 @@ app.register_blueprint(material_bp)
 app.register_blueprint(order_bp)
 app.register_blueprint(line_bp)
 
+from routes.reservation_routes import reservation_bp
+app.register_blueprint(reservation_bp)
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_DEBUG', '').strip().lower() in ('1', 'true', 'yes', 'on')

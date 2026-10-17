@@ -18,6 +18,9 @@ cloudinary_service = CloudinaryService()
 material_recognize_service = MaterialRecognizeService()
 line_service = LineService()
 
+from reservation_service import ReservationService
+reservation_service = ReservationService(db_service)
+
 # 檔案上傳設定
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')

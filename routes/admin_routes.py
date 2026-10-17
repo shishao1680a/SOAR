@@ -211,7 +211,11 @@ def api_admin_save_product():
 @admin_or_coach_required
 def api_admin_delete_product(prod_id):
     """管理員下架/刪除商品"""
-    deleted = db_service.delete_product(prod_id)
+    from db_service import StockError
+    try:
+        deleted = db_service.delete_product(prod_id)
+    except StockError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 409
     if deleted:
         return jsonify({"status": "success", "message": "商品已下架刪除"})
     return jsonify({"status": "error", "message": "刪除失敗"}), 500

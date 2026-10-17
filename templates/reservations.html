@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>現場預約與叫號｜展夢・飛翔</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/reservations.css') }}">
+  <script defer src="{{ url_for('static', filename='js/reservations.js') }}"></script>
+</head>
+<body>
+  <header><a href="/">展夢・飛翔</a><span>現場製作預約</span><a href="/logout">登出</a></header>
+  <main>
+    <section class="queue-board" aria-label="目前叫號">
+      <p class="eyebrow">ON-SITE RESERVATION</p><h1 id="scene-name">現場商品預約</h1>
+      <p>目前叫到</p><strong id="current-number" aria-live="polite">—</strong>
+      <p id="scene-status">正在讀取場次……</p><small id="refresh-status">每 5 秒更新叫號</small>
+    </section>
+    <p id="feedback" role="status" hidden></p>
+    <section id="login-panel" class="panel" hidden>
+      <h2>用 LINE 取得預約號碼</h2><p>加入官方帳號以接收取號及到號通知，再填寫姓名即可。</p>
+      <button id="login-button" class="primary">LINE 登入／確認加入好友</button>
+      <p class="muted">不需要填手機、地址。取號不保留庫存，報到時確認。</p>
+    </section>
+    <section id="booking-panel" class="panel" hidden>
+      <h2>選擇現場製作商品</h2>
+      <label>報到姓名<input id="guest-name" maxlength="100" autocomplete="name" placeholder="請填寫現場報到姓名"></label>
+      <div id="products" class="product-grid"></div>
+      <div id="cart"></div>
+      <p class="warning">取號不保留庫存，報到時確認。商品價格以取號時為準。</p>
+      <button id="reserve-button" class="primary">確認預約並取號</button>
+    </section>
+    <section id="mine-panel" class="panel" hidden><h2>我的預約</h2><div id="my-tickets"></div></section>
+    <section id="admin-panel" class="panel" hidden>
+      <div class="section-heading"><h2>現場管理</h2><a href="/admin">商品新增／修改／刪除 ↗</a></div>
+      <div class="toolbar"><label>場次紀錄<select id="scene-select"></select></label></div>
+      <div class="toolbar"><label>新場次名稱<input id="new-scene-name" maxlength="100" placeholder="例如：10/17 現場製作"></label><button id="create-scene">開新場次</button></div>
+      <div id="scene-controls" hidden>
+        <div class="toolbar"><button id="pause-scene">暫停取號</button><button id="end-scene" class="danger">結束場次</button></div>
+        <div class="qr-box"><img id="scene-qr" alt="現場預約 QR Code" width="160" height="160"><div><strong>現場入口</strong><p><a id="scene-link"></a></p><small>免輸入現場碼，連結可被轉傳。</small></div></div>
+        <label>統一到號通知文字<textarea id="call-message" maxlength="1000" rows="3"></textarea></label>
+        <button id="save-message">儲存通知文字</button>
+        <div class="section-heading"><h3>預約隊伍</h3><button id="call-next" class="primary">通知下一號到場</button></div>
+        <p class="muted">LINE 已接受不代表已收到或已讀；可繼續叫號，不必等前一位報到。</p>
+        <div id="admin-tickets"></div>
+      </div>
+      <h3>可預約商品</h3><p class="muted">只有勾選「現場製作」的商品會出現在客人頁面。取消勾選不取消既有預約。</p><div id="admin-products"></div>
+    </section>
+  </main>
+  <footer>展夢・飛翔 · 現場取號不保留庫存，報到後建立訂單。</footer>
+</body></html>

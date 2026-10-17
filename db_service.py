@@ -780,8 +780,17 @@ class DBService:
 
     def delete_product(self, prod_id):
         try:
-            self._execute("DELETE FROM products WHERE id = :id", {"id": prod_id})
+            with self.engine.begin() as conn:
+                conn.execute(text("SELECT id FROM products WHERE id=:id FOR UPDATE"), {'id': prod_id})
+                active = conn.execute(text("""SELECT 1 FROM reservations r,
+                    jsonb_array_elements(r.items_json::jsonb) item
+                    WHERE r.status IN ('WAITING','CALLED') AND item->>'id'=:id LIMIT 1"""), {'id': prod_id}).first()
+                if active:
+                    raise StockError('商品仍有未完成預約，請先停止現場預約並處理隊伍')
+                conn.execute(text("DELETE FROM products WHERE id=:id"), {'id': prod_id})
             return True
+        except StockError:
+            raise
         except Exception as e:
             print(f"Error deleting product {prod_id}: {e}")
             return False
@@ -1187,7 +1196,9 @@ class DBService:
 
     def get_all_orders(self):
         try:
-            rows = self._fetch_dicts("SELECT * FROM orders ORDER BY created_at DESC NULLS LAST, id DESC")
+            rows = self._fetch_dicts("""SELECT o.*, rs.name AS reservation_session_name FROM orders o
+                LEFT JOIN reservation_sessions rs ON rs.id=o.reservation_session_id
+                ORDER BY o.created_at DESC NULLS LAST, o.id DESC""")
             if rows:
                 order_ids = [r['id'] for r in rows]
                 mat_rows = self._fetch_dicts("""
@@ -1245,7 +1256,7 @@ class DBService:
             print(f"Error saving order: {e}")
             return False
 
-    def save_order_with_stock(self, order_id, user_id, user_name, user_line_id, items, total_amount):
+    def save_order_with_stock(self, order_id, user_id, user_name, user_line_id, items, total_amount, connection=None):
         """原子下單：同一交易內鎖定商品列、檢查庫存並寫入 sales_logs 扣減庫存。
 
         items: [{id, name, price, qty, variant_name}]
@@ -1254,10 +1265,10 @@ class DBService:
         try:
             now_str = self._get_taiwan_now_str()
             items_json = json.dumps(items, ensure_ascii=False)
-            with self.engine.begin() as conn:
-                pids = list({str(it['id']) for it in items})
+            with (nullcontext(connection) if connection is not None else self.engine.begin()) as conn:
+                pids = sorted({str(it['id']) for it in items})
                 prod_rows = conn.execute(
-                    text("SELECT id, name FROM products WHERE id = ANY(:pids) FOR UPDATE"),
+                    text("SELECT id, name FROM products WHERE id = ANY(:pids) ORDER BY id FOR UPDATE"),
                     {"pids": pids},
                 ).fetchall()
                 prod_map = {dict(r._mapping)['id']: dict(r._mapping)['name'] for r in prod_rows}
@@ -1338,6 +1349,8 @@ class DBService:
         except StockError:
             raise
         except Exception as e:
+            if connection is not None:
+                raise
             print(f"Error saving order with stock: {e}")
             return False
 

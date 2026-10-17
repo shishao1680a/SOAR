@@ -1,5 +1,7 @@
 import os
 import requests
+import re
+from urllib.parse import urlencode
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from linebot.exceptions import LineBotApiError, InvalidSignatureError
@@ -114,7 +116,7 @@ class LineService:
 
         return success
 
-    def get_login_url(self, state, redirect_uri=None):
+    def get_login_url(self, state, redirect_uri=None, add_friend=False):
         """產生真正的 LINE Login OAuth 2.1 授權網址"""
         r_uri = redirect_uri or self.redirect_uri
         if not self.login_channel_id:
@@ -127,7 +129,9 @@ class LineService:
             "state": state,
             "scope": "profile openid email"
         }
-        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+        if add_friend:
+            params["bot_prompt"] = "aggressive"
+        query_string = urlencode(params)
         return f"{url}?{query_string}"
 
     def exchange_code_for_token(self, code, redirect_uri=None):
@@ -143,7 +147,7 @@ class LineService:
             "client_secret": self.login_channel_secret
         }
         try:
-            res = requests.post(token_url, headers=headers, data=data)
+            res = requests.post(token_url, headers=headers, data=data, timeout=(3, 8))
             if res.status_code == 200:
                 return res.json()
             else:
@@ -158,7 +162,7 @@ class LineService:
         profile_url = "https://api.line.me/v2/profile"
         headers = {"Authorization": f"Bearer {access_token}"}
         try:
-            res = requests.get(profile_url, headers=headers)
+            res = requests.get(profile_url, headers=headers, timeout=(3, 8))
             if res.status_code == 200:
                 return res.json()
             else:
@@ -167,3 +171,29 @@ class LineService:
         except Exception as e:
             print(f"Failed to get LINE user profile: {e}")
             return None
+
+    def get_friendship_status(self, access_token):
+        try:
+            response = requests.get('https://api.line.me/friendship/v1/status',
+                headers={'Authorization': f'Bearer {access_token}'}, timeout=(3, 8))
+            if response.status_code == 200:
+                return response.json().get('friendFlag') is True
+        except (requests.RequestException, ValueError):
+            pass
+        return None
+
+    def push_user_text(self, user_id, content, retry_key):
+        """個人預約通知；禁止退回管理群組，回傳值不代表已讀或送達。"""
+        if not isinstance(user_id, str) or not re.fullmatch(r'U[0-9a-f]{32}', user_id):
+            return False, '缺少有效的 LINE 個人收件人'
+        if not self.access_token:
+            return False, '尚未設定 LINE Messaging API'
+        try:
+            response = requests.post('https://api.line.me/v2/bot/message/push',
+                headers={'Authorization': f'Bearer {self.access_token}', 'X-Line-Retry-Key': retry_key},
+                json={'to': user_id, 'messages': [{'type': 'text', 'text': content}]}, timeout=(3, 8))
+            if response.status_code == 200 or (response.status_code == 409 and response.headers.get('x-line-accepted-request-id')):
+                return True, ''
+            return False, f'LINE 回應 HTTP {response.status_code}，請檢查額度或設定'
+        except requests.RequestException:
+            return False, 'LINE 連線中斷或逾時，可重試'

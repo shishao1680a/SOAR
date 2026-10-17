@@ -15,7 +15,7 @@ PUBLIC_PRODUCT_FIELDS = (
     # 2026-10-10：前台商品頁兩個選項群組的標題（可在後台自訂）
     'variant_label', 'color_label',
     # 2026-10-11：商品作者（前台列表與商品頁顯示）
-    'author',
+    'author', 'onsite_enabled',
 )
 ITEM_SECRET_FIELDS = ('cost_price', 'uv_cost_price')
 

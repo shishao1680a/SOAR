@@ -112,6 +112,7 @@ def api_line_login_url():
     """取得 LINE Login 授權 URL"""
     state = uuid.uuid4().hex
     session['oauth_state'] = state
+    session.pop('reservation_oauth_scene', None)
     redirect_uri = os.getenv('LINE_LOGIN_REDIRECT_URI', f"{request.host_url.rstrip('/')}/api/line/callback")
     url = line_service.get_login_url(state, redirect_uri=redirect_uri)
     if url:
@@ -125,6 +126,7 @@ def api_line_callback():
     state = request.args.get('state')
     error = request.args.get('error')
 
+    reservation_scene = session.pop('reservation_oauth_scene', None)
     if error or not code:
         return f"LINE Login 取消授權或失敗: {error}", 400
 
@@ -145,6 +147,23 @@ def api_line_callback():
     line_user_id = profile.get('userId')
     display_name = profile.get('displayName', 'LINE 使用者')
     picture_url = profile.get('pictureUrl', '')
+
+    if reservation_scene is not None:
+        import re
+        if not isinstance(line_user_id, str) or not re.fullmatch(r'U[0-9a-f]{32}', line_user_id):
+            return "LINE 身分驗證失敗，請重新登入", 400
+        friendship = line_service.get_friendship_status(access_token)
+        if friendship is None:
+            return "無法確認官方帳號好友狀態，請確認 LINE 官方帳號連結設定後重試", 503
+        session['reservation_identity'] = {'line_id': line_user_id, 'name': display_name, 'friend': friendship}
+        # 僅使用剛經過 LINE 驗證的身分查詢會員，不採用客戶端傳來的 LINE ID。
+        member = db_service.get_user_by_line_id(line_user_id)
+        if member:
+            session['user'] = {k: member.get(k) for k in ('id','username','name','line_id','avatar_url','role')}
+            session['reservation_identity']['name'] = member.get('name') or display_name
+        else:
+            session.pop('user', None)
+        return redirect(url_for('reservation.page', scene=reservation_scene))
 
     existing_user = db_service.get_user_by_line_id(line_user_id)
     if existing_user:

@@ -2073,6 +2073,7 @@
             <div>
               <div class="text-[10px] text-gray-400">訂單編號</div>
               <div class="font-mono text-cyan-300 font-bold text-sm">${esc(o.id)}</div>
+              ${o.source === 'onsite' ? `<div class="text-xs text-primary-fixed">現場預約 · ${esc(o.reservation_session_name || '')} · ${esc(String(o.reservation_number).padStart(3, '0'))} 號</div>` : ''}
               <div class="text-[10px] text-gray-400 mt-1">時間</div>
               <div class="text-[11px] text-on-surface-variant">${esc(o.created_at || '-')}</div>
             </div>

@@ -26,6 +26,9 @@
       </div>
 
       <div class="flex items-center gap-4 text-xs font-label-caps">
+        {% if session.get('user', {}).get('role') == 'admin' %}
+        <a href="/reservations" class="text-primary-fixed hover:underline">現場預約管理</a>
+        {% endif %}
         <a href="/" class="text-on-surface-variant hover:text-white flex items-center gap-1 transition-colors">
           <span class="material-symbols-outlined text-sm">home</span> 回首頁
         </a>
