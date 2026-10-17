@@ -18,14 +18,14 @@
     <section id="login-panel" class="panel" hidden>
       <h2>用 LINE 取得預約號碼</h2><p>加入官方帳號以接收取號及到號通知，再填寫姓名即可。</p>
       <button id="login-button" class="primary">LINE 登入／確認加入好友</button>
-      <p class="muted">不需要填手機、地址。取號不保留庫存，報到時確認。</p>
+      <p class="muted">不需要填手機、地址。預約成功即扣庫存，取消預約才釋放。</p>
     </section>
     <section id="booking-panel" class="panel" hidden>
       <h2>選擇現場製作商品</h2>
       <label>報到姓名<input id="guest-name" maxlength="100" autocomplete="name" placeholder="請填寫現場報到姓名"></label>
       <div id="products" class="product-grid"></div>
       <div id="cart"></div>
-      <p class="warning">取號不保留庫存，報到時確認。商品價格以取號時為準。</p>
+      <p class="warning">預約成功即扣庫存，取消預約才釋放。商品價格以取號時為準。</p>
       <button id="reserve-button" class="primary">確認預約並取號</button>
     </section>
     <section id="mine-panel" class="panel" hidden><h2>我的預約</h2><div id="my-tickets"></div></section>
@@ -38,12 +38,12 @@
         <div class="qr-box"><img id="scene-qr" alt="現場預約 QR Code" width="160" height="160"><div><strong>現場入口</strong><p><a id="scene-link"></a></p><small>免輸入現場碼，連結可被轉傳。</small></div></div>
         <label>統一到號通知文字<textarea id="call-message" maxlength="1000" rows="3"></textarea></label>
         <button id="save-message">儲存通知文字</button>
-        <div class="section-heading"><h3>預約隊伍</h3><button id="call-next" class="primary">通知下一號到場</button></div>
+        <h3>預約隊伍</h3>
         <p class="muted">LINE 已接受不代表已收到或已讀；可繼續叫號，不必等前一位報到。</p>
         <div id="admin-tickets"></div>
       </div>
       <h3>可預約商品</h3><p class="muted">只有勾選「現場製作」的商品會出現在客人頁面。取消勾選不取消既有預約。</p><div id="admin-products"></div>
     </section>
   </main>
-  <footer>展夢・飛翔 · 現場取號不保留庫存，報到後建立訂單。</footer>
+  <footer>展夢・飛翔 · 預約成功即扣庫存，取消預約才釋放；報到後建立訂單。</footer>
 </body></html>

@@ -165,16 +165,19 @@ def create_scene():
 def scene_action(sid, action):
     data = request.get_json()
     if action == 'call-next':
-        ticket = service.call_next(sid, data.get('ticket_id'))
-        service.dispatch_ticket(ticket['id'], line_service)
-        return jsonify(status='success', ticket=ticket_output(ticket))
+        raise ReservationError('已改為逐號通知，請重新整理頁面後使用「通知到場」')
     return jsonify(status='success', scene=service.update_scene(sid, action, data.get('message'), data.get('confirmed') is True))
 
 
 @reservation_bp.post('/api/admin/reservations/tickets/<rid>/<action>')
 @endpoint(admin=True)
 def ticket_action(rid, action):
-    ticket = service.ticket_action(request.get_json().get('session_id'), rid, action)
+    data = request.get_json()
+    if action == 'notify':
+        ticket, nid = service.notify(data.get('session_id'), rid, data.get('request_key'))
+        service.dispatch(nid, line_service)
+    else:
+        ticket = service.ticket_action(data.get('session_id'), rid, action)
     return jsonify(status='success', ticket=ticket_output(ticket))
 
 

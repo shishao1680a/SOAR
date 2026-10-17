@@ -51,8 +51,84 @@ class ReservationService:
                     last_error VARCHAR(200) NOT NULL DEFAULT '', created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     attempted_at TIMESTAMP, UNIQUE(reservation_id,kind))""",
                 "CREATE INDEX IF NOT EXISTS reservation_session_status ON reservations(session_id,status,number)",
+                "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS stock_state VARCHAR(12) NOT NULL DEFAULT 'LEGACY'",
+                "ALTER TABLE reservation_notifications ADD COLUMN IF NOT EXISTS request_key VARCHAR(40)",
+                "ALTER TABLE reservation_notifications DROP CONSTRAINT IF EXISTS reservation_notifications_reservation_id_kind_key",
+                "CREATE UNIQUE INDEX IF NOT EXISTS reservation_notification_action ON reservation_notifications(reservation_id,kind,request_key)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS reservation_single_booked ON reservation_notifications(reservation_id) WHERE kind='BOOKED'",
+                "CREATE TABLE IF NOT EXISTS reservation_stock_mode (id INTEGER PRIMARY KEY CHECK(id=1), mode VARCHAR(12) NOT NULL CHECK(mode IN ('MAINTENANCE','READY')))",
+                "INSERT INTO reservation_stock_mode(id,mode) VALUES(1,'MAINTENANCE') ON CONFLICT(id) DO NOTHING",
             ):
                 c.execute(text(statement))
+
+    def ready(self):
+        return self.db._fetch_one('SELECT mode FROM reservation_stock_mode WHERE id=1')['mode'] == 'READY'
+
+    def require_ready(self, c):
+        # 分享鎖維持到交易結束，維護切換會等待已開始的交易完成。
+        if c.execute(text('SELECT mode FROM reservation_stock_mode WHERE id=1 FOR SHARE')).scalar() != 'READY':
+            raise ReservationError('庫存切換維護中，請稍後重試')
+
+    def verify_hold(self, c, ticket):
+        items = decode_items(ticket['items_json'])
+        rows = c.execute(text('SELECT * FROM sales_logs WHERE reservation_id=:id ORDER BY reservation_line'), {'id':ticket['id']}).fetchall()
+        if ticket['stock_state'] != 'HELD' or len(rows) != len(items):
+            raise ReservationError('預約庫存紀錄不完整，請洽管理者核對')
+        for index, (row, it) in enumerate(zip(rows, items)):
+            r = row._mapping
+            if (r['reservation_line'],r['product_id'],r['item_name'],r['sub_option'],r['qty'],r['order_id']) != (index,it['id'],it.get('variant_name') or '-',it.get('variant_color') or '',it['qty'],None):
+                raise ReservationError('預約庫存明細不符，請洽管理者核對')
+        return items
+
+    def release_hold(self, c, ticket):
+        items = self.verify_hold(c, ticket)
+        self.db.lock_stock_products(c, items)
+        c.execute(text('DELETE FROM sales_logs WHERE reservation_id=:id AND order_id IS NULL'), {'id':ticket['id']})
+        c.execute(text("UPDATE reservations SET stock_state='RELEASED' WHERE id=:id"), {'id':ticket['id']})
+
+    def migrate_stock(self, dry_run=False):
+        """維護期間一次補扣舊預約；全部成功才開放。dry_run 永遠 rollback。"""
+        with self.db.engine.connect() as c:
+            tx = c.begin()
+            try:
+                c.execute(text('SELECT mode FROM reservation_stock_mode WHERE id=1 FOR UPDATE'))
+                c.execute(text('SELECT id FROM reservation_sessions ORDER BY id FOR UPDATE')).fetchall()
+                tickets = [dict(r._mapping) for r in c.execute(text("SELECT * FROM reservations WHERE status IN ('WAITING','CALLED','NO_SHOW') ORDER BY session_id,number FOR UPDATE"))]
+                all_items = [it for t in tickets for it in decode_items(t['items_json'])]
+                self.db.lock_stock_products(c, all_items)
+                added = 0
+                for t in tickets:
+                    if t['stock_state'] == 'HELD':
+                        self.verify_hold(c,t)
+                        continue
+                    if t['stock_state'] != 'LEGACY':
+                        raise ReservationError('既有預約庫存狀態不符，停止切換')
+                    if c.execute(text('SELECT 1 FROM sales_logs WHERE reservation_id=:id'), {'id':t['id']}).first():
+                        raise ReservationError('既有預約已有未核對的扣減，停止切換')
+                    items = decode_items(t['items_json'])
+                    self.snapshot(c,items,onsite=False)  # 驗證現存商品、款色，不改舊單價。
+                    self.db.deduct_stock(c,items,reservation_id=t['id'])
+                    c.execute(text("UPDATE reservations SET stock_state='HELD' WHERE id=:id"), {'id':t['id']})
+                    added += 1
+                c.execute(text("UPDATE reservation_stock_mode SET mode='READY' WHERE id=1"))
+                result = {'active':len(tickets),'backfilled':added,'dry_run':dry_run}
+                tx.rollback() if dry_run else tx.commit()
+                return result
+            except Exception:
+                tx.rollback()
+                raise
+
+    def rollback_stock(self):
+        """先由部署工具停止所有新舊工作程序，再解除未報到扣減；訂單扣減保留。"""
+        with self.db.engine.begin() as c:
+            c.execute(text("UPDATE reservation_stock_mode SET mode='MAINTENANCE' WHERE id=1"))
+            c.execute(text('SELECT id FROM reservation_sessions ORDER BY id FOR UPDATE')).fetchall()
+            tickets = [dict(r._mapping) for r in c.execute(text("SELECT * FROM reservations WHERE stock_state='HELD' ORDER BY session_id,number FOR UPDATE"))]
+            self.db.lock_stock_products(c,[it for t in tickets for it in decode_items(t['items_json'])])
+            for ticket in tickets:
+                self.release_hold(c,ticket)
+                c.execute(text("UPDATE reservations SET stock_state='LEGACY' WHERE id=:id"), {'id':ticket['id']})
+            return len(tickets)
 
     @staticmethod
     def row(result):
@@ -97,7 +173,11 @@ class ReservationService:
             elif action == 'end':
                 if not confirmed:
                     raise ReservationError('請確認取消所有未報到預約後結束場次')
-                c.execute(text("UPDATE reservations SET status='CANCELLED' WHERE session_id=:id AND status IN ('WAITING','CALLED')"), {'id': sid})
+                tickets = [dict(r._mapping) for r in c.execute(text("SELECT * FROM reservations WHERE session_id=:id AND status IN ('WAITING','CALLED','NO_SHOW') ORDER BY number FOR UPDATE"), {'id':sid})]
+                self.db.lock_stock_products(c,[it for t in tickets for it in decode_items(t['items_json'])])
+                for ticket in tickets:
+                    self.release_hold(c,ticket)
+                c.execute(text("UPDATE reservations SET status='CANCELLED' WHERE session_id=:id AND status IN ('WAITING','CALLED','NO_SHOW')"), {'id': sid})
                 c.execute(text("UPDATE reservation_sessions SET status='ENDED',ended_at=CURRENT_TIMESTAMP WHERE id=:id"), {'id': sid})
             else:
                 raise ReservationError('不支援的場次操作')
@@ -139,10 +219,12 @@ class ReservationService:
                            'variant_name': variant, 'variant_color': color})
         return output
 
-    def add_notification(self, c, ticket, kind, body):
-        c.execute(text('''INSERT INTO reservation_notifications(id,reservation_id,kind,body,retry_key)
-            VALUES(:id,:rid,:kind,:body,:key) ON CONFLICT(reservation_id,kind) DO NOTHING'''),
-            {'id': uuid.uuid4().hex, 'rid': ticket['id'], 'kind': kind, 'body': body, 'key': str(uuid.uuid4())})
+    def add_notification(self, c, ticket, kind, body, key=None):
+        nid = uuid.uuid4().hex
+        c.execute(text("""INSERT INTO reservation_notifications(id,reservation_id,kind,body,retry_key,request_key)
+            VALUES(:id,:rid,:kind,:body,:retry,:key)"""),
+            {'id':nid,'rid':ticket['id'],'kind':kind,'body':body,'retry':str(uuid.uuid4()),'key':key})
+        return nid
 
     def reserve(self, sid, identity, name, requested, key, query_url):
         name = str(name or '').strip()
@@ -153,6 +235,7 @@ class ReservationService:
         except (ValueError, TypeError, AttributeError):
             raise ReservationError('請重新整理頁面後取號')
         with self.db.engine.begin() as c:
+            self.require_ready(c)
             scene = self.scene(sid, c, True)
             if not scene:
                 raise ReservationError('場次不存在')
@@ -176,11 +259,13 @@ class ReservationService:
                           total_amount=total, request_key=key)
             c.execute(text('''INSERT INTO reservations(id,session_id,number,line_id,name,items_json,total_amount,request_key)
                 VALUES(:id,:session_id,:number,:line_id,:name,:items_json,:total_amount,:request_key)'''), ticket)
+            self.db.deduct_stock(c, items, reservation_id=ticket['id'])
+            c.execute(text("UPDATE reservations SET stock_state='HELD' WHERE id=:id"), {'id':ticket['id']})
             c.execute(text('UPDATE reservation_sessions SET next_number=next_number+1 WHERE id=:id'), {'id': sid})
             summary = '\n'.join(f'• {it["name"]} {it["variant_name"]} {it["variant_color"]} ×{it["qty"]}' for it in items)
             if len(summary) > 3500:
                 summary = summary[:3500] + '\n（完整明細請開啟查詢頁）'
-            body = f'【現場預約】{scene["name"]}\n您的號碼：{ticket["number"]:03d}\n{summary}\n合計：NT$ {total:,.2f}\n取號不保留庫存，報到時確認。\n查詢：{query_url}'
+            body = f'【現場預約】{scene["name"]}\n您的號碼：{ticket["number"]:03d}\n{summary}\n合計：NT$ {total:,.2f}\n預約成功即扣庫存，取消預約才釋放。\n查詢：{query_url}'
             self.add_notification(c, ticket, 'BOOKED', body)
             return self.row(c.execute(text('SELECT * FROM reservations WHERE id=:id'), {'id': ticket['id']}))
 
@@ -190,24 +275,30 @@ class ReservationService:
             sql += ' AND line_id=:uid'
         return self.db._fetch_dicts(sql + ' ORDER BY number', {'sid': sid, 'uid': line_id})
 
-    def call_next(self, sid, expected_id):
+    def notify(self, sid, rid, request_key):
+        try:
+            key = str(uuid.UUID(str(request_key)))
+        except (ValueError,TypeError,AttributeError):
+            raise ReservationError('請重新整理頁面後通知')
         with self.db.engine.begin() as c:
-            scene = self.scene(sid, c, True)
-            if not scene or scene['status'] == 'ENDED':
-                raise ReservationError('場次不存在或已結束')
-            previous = self.row(c.execute(text('SELECT * FROM reservations WHERE id=:id AND session_id=:sid'), {'id': expected_id, 'sid': sid}))
-            if previous and previous['status'] == 'CALLED':
-                return previous
-            ticket = self.row(c.execute(text("SELECT * FROM reservations WHERE session_id=:sid AND status='WAITING' ORDER BY number LIMIT 1 FOR UPDATE"), {'sid': sid}))
-            if not ticket or ticket['id'] != expected_id:
-                raise ReservationError('隊伍已更新，請重新確認下一號')
-            c.execute(text("UPDATE reservations SET status='CALLED',called_at=CURRENT_TIMESTAMP WHERE id=:id"), {'id': ticket['id']})
-            c.execute(text('UPDATE reservation_sessions SET current_number=:n WHERE id=:id'), {'n': ticket['number'], 'id': sid})
-            self.add_notification(c, ticket, 'CALLED', f'【{scene["name"]} 到號通知】\n{ticket["name"]}，您的號碼 {ticket["number"]:03d} 已到號。\n{scene["call_message"]}')
-            return self.row(c.execute(text('SELECT * FROM reservations WHERE id=:id'), {'id': ticket['id']}))
+            self.require_ready(c)
+            scene = self.scene(sid,c,True)
+            ticket = self.row(c.execute(text('SELECT * FROM reservations WHERE id=:id AND session_id=:sid FOR UPDATE'), {'id':rid,'sid':sid}))
+            if not ticket:
+                raise ReservationError('找不到預約')
+            existing = c.execute(text("SELECT id FROM reservation_notifications WHERE reservation_id=:id AND kind='CALLED' AND request_key=:key"), {'id':rid,'key':key}).scalar()
+            if existing:
+                return ticket,existing
+            if not scene or scene['status']=='ENDED' or ticket['status'] not in ('WAITING','CALLED','NO_SHOW'):
+                raise ReservationError('預約已結束，無法通知到場')
+            c.execute(text("UPDATE reservations SET status='CALLED',called_at=CURRENT_TIMESTAMP WHERE id=:id"), {'id':rid})
+            c.execute(text('UPDATE reservation_sessions SET current_number=GREATEST(COALESCE(current_number,0),:n) WHERE id=:id'), {'id':sid,'n':ticket['number']})
+            nid = self.add_notification(c,ticket,'CALLED',f'【{scene["name"]} 到號通知】\n{ticket["name"]}，您的號碼 {ticket["number"]:03d} 已到號。\n{scene["call_message"]}',key)
+            return self.row(c.execute(text('SELECT * FROM reservations WHERE id=:id'), {'id':rid})),nid
 
     def ticket_action(self, sid, rid, action, line_id=None):
         with self.db.engine.begin() as c:
+            self.require_ready(c)
             scene = self.scene(sid, c, True)
             ticket = self.row(c.execute(text('SELECT * FROM reservations WHERE id=:id AND session_id=:sid FOR UPDATE'), {'id': rid, 'sid': sid}))
             if not ticket or (line_id and ticket['line_id'] != line_id):
@@ -219,21 +310,26 @@ class ReservationService:
             if not scene or scene['status'] == 'ENDED':
                 raise ReservationError('場次已結束')
             if action == 'check-in' and not line_id:
-                if ticket['status'] != 'CALLED':
+                if ticket['status'] not in ('CALLED','NO_SHOW'):
                     raise ReservationError('請先叫號，再標記報到')
-                items = decode_items(ticket['items_json'])
-                self.snapshot(c, items, onsite=False)  # 驗證目前款式，保留原單價。
+                items = self.verify_hold(c, ticket)
+                self.db.lock_stock_products(c,items)
                 order_id = 'ONS-' + ticket['id']
                 member = self.row(c.execute(text('SELECT id FROM users WHERE line_id=:uid ORDER BY id LIMIT 1'), {'uid': ticket['line_id']}))
-                self.db.save_order_with_stock(order_id, member['id'] if member else 'ONSITE', ticket['name'],
-                                              ticket['line_id'], items, ticket['total_amount'], connection=c)
+                c.execute(text("""INSERT INTO orders(id,user_id,user_name,user_line_id,items_json,total_amount,status,created_at)
+                    VALUES(:id,:uid,:name,:line,:items,:total,'PENDING',:now)"""),
+                    {'id':order_id,'uid':member['id'] if member else 'ONSITE','name':ticket['name'],
+                     'line':ticket['line_id'],'items':ticket['items_json'],'total':ticket['total_amount'],'now':self.db._get_taiwan_now_str()})
+                c.execute(text('UPDATE sales_logs SET order_id=:oid WHERE reservation_id=:id AND order_id IS NULL'), {'oid':order_id,'id':rid})
                 c.execute(text("UPDATE orders SET source='onsite',reservation_session_id=:sid,reservation_number=:n,shipping_cost=0 WHERE id=:id"),
                           {'sid': sid, 'n': ticket['number'], 'id': order_id})
-                c.execute(text("UPDATE reservations SET status='CHECKED_IN',order_id=:oid,checked_in_at=CURRENT_TIMESTAMP WHERE id=:id"), {'oid': order_id, 'id': rid})
+                c.execute(text("UPDATE reservations SET status='CHECKED_IN',stock_state='TRANSFERRED',order_id=:oid,checked_in_at=CURRENT_TIMESTAMP WHERE id=:id"), {'oid': order_id, 'id': rid})
             elif action in ('cancel', 'no-show'):
-                allowed = ('WAITING', 'CALLED') if action == 'cancel' else ('CALLED',)
+                allowed = ('WAITING', 'CALLED', 'NO_SHOW') if action == 'cancel' else ('CALLED',)
                 if ticket['status'] not in allowed or (line_id and action != 'cancel'):
                     raise ReservationError('此狀態無法執行操作；已報到請至訂單管理處理')
+                if action == 'cancel':
+                    self.release_hold(c,ticket)
                 c.execute(text('UPDATE reservations SET status=:s WHERE id=:id'), {'s': 'CANCELLED' if action == 'cancel' else 'NO_SHOW', 'id': rid})
             else:
                 raise ReservationError('不支援的預約操作')
@@ -249,7 +345,7 @@ class ReservationService:
                 c.execute(text("UPDATE reservation_notifications SET status='FAILED',last_error='通知超過安全重試期限，請人工核對收訊；為避免重複發送已停止重試' WHERE id=:id"), {'id': nid})
                 return
             ticket = self.row(c.execute(text('SELECT * FROM reservations WHERE id=:id'), {'id': n['reservation_id']}))
-            if ticket['status'] in ('CANCELLED', 'NO_SHOW'):
+            if ticket['status'] in ('CANCELLED', 'CHECKED_IN'):
                 c.execute(text("UPDATE reservation_notifications SET status='SKIPPED' WHERE id=:id"), {'id': nid})
                 return
             try:

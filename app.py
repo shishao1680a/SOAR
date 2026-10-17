@@ -42,6 +42,15 @@ app.register_blueprint(line_bp)
 from routes.reservation_routes import reservation_bp
 app.register_blueprint(reservation_bp)
 
+
+@app.before_request
+def inventory_cutover_guard():
+    from flask import request, jsonify
+    from extensions import reservation_service
+    if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and not reservation_service.ready():
+        return jsonify(status='error', message='庫存切換維護中，請稍後重試'), 503
+
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_DEBUG', '').strip().lower() in ('1', 'true', 'yes', 'on')

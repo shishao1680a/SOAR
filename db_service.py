@@ -301,6 +301,9 @@ class DBService:
                 conn.execute(text("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS sub_option VARCHAR(255) DEFAULT ''"))
                 conn.execute(text("ALTER TABLE inventory_logs ADD COLUMN IF NOT EXISTS operator_name VARCHAR(255) DEFAULT '管理員'"))
                 conn.execute(text("ALTER TABLE sales_logs ADD COLUMN IF NOT EXISTS sub_option VARCHAR(255) DEFAULT ''"))
+                conn.execute(text("ALTER TABLE sales_logs ADD COLUMN IF NOT EXISTS reservation_id VARCHAR(40)"))
+                conn.execute(text("ALTER TABLE sales_logs ADD COLUMN IF NOT EXISTS reservation_line INTEGER"))
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS sales_reservation_line ON sales_logs(reservation_id,reservation_line) WHERE reservation_id IS NOT NULL"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS total_capacity VARCHAR(255) DEFAULT ''"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT ''"))
                 conn.execute(text("ALTER TABLE material_purchases ADD COLUMN IF NOT EXISTS measure_type VARCHAR(20) DEFAULT 'capacity'"))
@@ -674,18 +677,17 @@ class DBService:
                                 int(sg.get('sold_qty') or 0) for sg in merged_sales.values()
                                 if (sg.get('item_name') or '-').strip() in (itm_name, '-', '-- 全品項預設/主商品 --')
                             )
-                            itm['stock_qty'] = max(0, item_purchased - item_sold)
+                            itm['stock_qty'] = max(0, min(p['stock_qty'], item_purchased - item_sold))
                             colors = itm.get('colors')
                             if isinstance(colors, list):
                                 for c in colors:
                                     cname = (c.get('name') or '').strip()
                                     if not cname:
                                         continue
-                                    pk = (pid, pname, itm_name, cname)
-                                    nk = ('', pname, itm_name, cname)
-                                    cp = sub_purch.get(pk, sub_purch.get(nk, 0))
-                                    cs = sub_sold.get(pk, sub_sold.get(nk, 0))
-                                    c['stock_qty'] = max(0, cp - cs)
+                                    def color_total(logs):
+                                        return sum(qty for (log_pid,log_name,log_item,log_color),qty in logs.items()
+                                                   if (log_pid==pid or log_name==pname) and log_item==itm_name and log_color==cname)
+                                    c['stock_qty'] = max(0, min(itm['stock_qty'], color_total(sub_purch) - color_total(sub_sold)))
                         p['items_json'] = json.dumps(items_arr, ensure_ascii=False)
                 except Exception as ex:
                     print(f"Error calculating item stock for product {p.get('id')}: {ex}")
@@ -784,7 +786,7 @@ class DBService:
                 conn.execute(text("SELECT id FROM products WHERE id=:id FOR UPDATE"), {'id': prod_id})
                 active = conn.execute(text("""SELECT 1 FROM reservations r,
                     jsonb_array_elements(r.items_json::jsonb) item
-                    WHERE r.status IN ('WAITING','CALLED') AND item->>'id'=:id LIMIT 1"""), {'id': prod_id}).first()
+                    WHERE r.status IN ('WAITING','CALLED','NO_SHOW') AND item->>'id'=:id LIMIT 1"""), {'id': prod_id}).first()
                 if active:
                     raise StockError('商品仍有未完成預約，請先停止現場預約並處理隊伍')
                 conn.execute(text("DELETE FROM products WHERE id=:id"), {'id': prod_id})
@@ -1256,26 +1258,87 @@ class DBService:
             print(f"Error saving order: {e}")
             return False
 
-    def save_order_with_stock(self, order_id, user_id, user_name, user_line_id, items, total_amount, connection=None):
-        """原子下單：同一交易內鎖定商品列、檢查庫存並寫入 sales_logs 扣減庫存。
+    def lock_stock_products(self, conn, items):
+        pids = sorted({str(it.get('id') or '') for it in items})
+        rows = conn.execute(text("SELECT id,name FROM products WHERE id=ANY(:ids) ORDER BY id FOR UPDATE"), {'ids':pids}).fetchall()
+        products = {r._mapping['id']:r._mapping['name'] for r in rows}
+        if any(pid not in products for pid in pids):
+            raise StockError('商品不存在或已下架，請重新整理頁面')
+        return products
 
-        items: [{id, name, price, qty, variant_name}]
-        庫存不足時拋出 StockError（交易自動 rollback）。
-        """
+    def deduct_stock(self, conn, items, order_id=None, reservation_id=None):
+        """購物、改單與預約共用商品鎖與款色檢查；同交易中的前一項扣減也會計入。"""
+        prod_map = self.lock_stock_products(conn, items)
+        now_str = self._get_taiwan_now_str()
+        for line_index, it in enumerate(items):
+            pid = str(it['id'])
+            pname = prod_map[pid]
+            variant = (it.get('variant_name') or it.get('item_name') or '').strip()
+            item_key = variant or '-'
+            qty = int(it.get('qty') or 0)
+            if qty <= 0:
+                raise StockError('商品數量必須大於 0')
+
+            purchased = conn.execute(text("""
+                SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
+                WHERE (product_id IS NOT NULL AND product_id = :pid)
+                   OR (product_name IS NOT NULL AND product_name = :pname)
+            """), {"pid": pid, "pname": pname}).scalar() or 0
+            sold = conn.execute(text("""
+                SELECT COALESCE(SUM(qty), 0) FROM sales_logs
+                WHERE (product_id IS NOT NULL AND product_id = :pid)
+                   OR (product_name IS NOT NULL AND product_name = :pname)
+            """), {"pid": pid, "pname": pname}).scalar() or 0
+            available = int(purchased) - int(sold)
+
+            if variant:
+                purch_item = conn.execute(text("""
+                    SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
+                    WHERE ((product_id IS NOT NULL AND product_id = :pid)
+                        OR (product_name IS NOT NULL AND product_name = :pname))
+                      AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
+                """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
+                sold_item = conn.execute(text("""
+                    SELECT COALESCE(SUM(qty), 0) FROM sales_logs
+                    WHERE ((product_id IS NOT NULL AND product_id = :pid)
+                        OR (product_name IS NOT NULL AND product_name = :pname))
+                      AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
+                """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
+                available = min(available, int(purch_item) - int(sold_item))
+
+            color = (it.get('variant_color') or '').strip()
+            if color:
+                color_purchased = conn.execute(text("""
+                    SELECT COALESCE(SUM(purchase_qty),0) FROM inventory_logs
+                    WHERE ((product_id IS NOT NULL AND product_id=:pid) OR (product_name IS NOT NULL AND product_name=:pname))
+                      AND item_name=:item AND sub_option=:color
+                """), {"pid": pid, "pname": pname, "item": variant, "color": color}).scalar() or 0
+                color_sold = conn.execute(text("""
+                    SELECT COALESCE(SUM(qty),0) FROM sales_logs
+                    WHERE ((product_id IS NOT NULL AND product_id=:pid) OR (product_name IS NOT NULL AND product_name=:pname))
+                      AND item_name=:item AND sub_option=:color
+                """), {"pid": pid, "pname": pname, "item": variant, "color": color}).scalar() or 0
+                available = min(available, int(color_purchased) - int(color_sold))
+            if qty > available:
+                raise StockError(
+                    f"商品「{it.get('name') or pname}」庫存不足（剩餘 {max(available, 0)} 件）"
+                )
+
+            conn.execute(text("""
+                INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at, reservation_id, reservation_line)
+                VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at, :reservation_id, :reservation_line)
+            """), {
+                "reservation_id": reservation_id, "reservation_line": line_index if reservation_id else None,
+                "order_id": order_id, "product_id": pid, "product_name": pname, "sub_option": (it.get('variant_color') or ''),
+                "item_name": item_key, "qty": qty, "created_at": now_str,
+            })
+
+    def save_order_with_stock(self, order_id, user_id, user_name, user_line_id, items, total_amount, connection=None):
         try:
             now_str = self._get_taiwan_now_str()
             items_json = json.dumps(items, ensure_ascii=False)
             with (nullcontext(connection) if connection is not None else self.engine.begin()) as conn:
-                pids = sorted({str(it['id']) for it in items})
-                prod_rows = conn.execute(
-                    text("SELECT id, name FROM products WHERE id = ANY(:pids) ORDER BY id FOR UPDATE"),
-                    {"pids": pids},
-                ).fetchall()
-                prod_map = {dict(r._mapping)['id']: dict(r._mapping)['name'] for r in prod_rows}
-                missing = [pid for pid in pids if pid not in prod_map]
-                if missing:
-                    raise StockError("商品不存在或已下架，請重新整理頁面")
-
+                self.lock_stock_products(conn, items)
                 conn.execute(text("""
                     INSERT INTO orders (id, user_id, user_name, user_line_id, items_json, total_amount,
                                         status, created_at)
@@ -1286,72 +1349,13 @@ class DBService:
                     "total_amount": total_amount, "created_at": now_str,
                 })
 
-                for it in items:
-                    pid = str(it['id'])
-                    pname = prod_map[pid]
-                    variant = (it.get('variant_name') or '').strip()
-                    item_key = variant or '-'
-                    qty = int(it.get('qty') or 0)
-
-                    purchased = conn.execute(text("""
-                        SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
-                        WHERE (product_id IS NOT NULL AND product_id = :pid)
-                           OR (product_name IS NOT NULL AND product_name = :pname)
-                    """), {"pid": pid, "pname": pname}).scalar() or 0
-                    sold = conn.execute(text("""
-                        SELECT COALESCE(SUM(qty), 0) FROM sales_logs
-                        WHERE (product_id IS NOT NULL AND product_id = :pid)
-                           OR (product_name IS NOT NULL AND product_name = :pname)
-                    """), {"pid": pid, "pname": pname}).scalar() or 0
-                    available = int(purchased) - int(sold)
-
-                    if variant:
-                        purch_item = conn.execute(text("""
-                            SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
-                            WHERE ((product_id IS NOT NULL AND product_id = :pid)
-                                OR (product_name IS NOT NULL AND product_name = :pname))
-                              AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
-                        """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
-                        sold_item = conn.execute(text("""
-                            SELECT COALESCE(SUM(qty), 0) FROM sales_logs
-                            WHERE ((product_id IS NOT NULL AND product_id = :pid)
-                                OR (product_name IS NOT NULL AND product_name = :pname))
-                              AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
-                        """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
-                        available = min(available, int(purch_item) - int(sold_item))
-
-                    color = (it.get('variant_color') or '').strip()
-                    if color:
-                        color_purchased = conn.execute(text("""
-                            SELECT COALESCE(SUM(purchase_qty),0) FROM inventory_logs
-                            WHERE ((product_id IS NOT NULL AND product_id=:pid) OR (product_name IS NOT NULL AND product_name=:pname))
-                              AND item_name=:item AND sub_option=:color
-                        """), {"pid": pid, "pname": pname, "item": variant, "color": color}).scalar() or 0
-                        color_sold = conn.execute(text("""
-                            SELECT COALESCE(SUM(qty),0) FROM sales_logs
-                            WHERE ((product_id IS NOT NULL AND product_id=:pid) OR (product_name IS NOT NULL AND product_name=:pname))
-                              AND item_name=:item AND sub_option=:color
-                        """), {"pid": pid, "pname": pname, "item": variant, "color": color}).scalar() or 0
-                        available = min(available, int(color_purchased) - int(color_sold))
-                    if qty > available:
-                        raise StockError(
-                            f"商品「{it.get('name') or pname}」庫存不足（剩餘 {max(available, 0)} 件）"
-                        )
-
-                    conn.execute(text("""
-                        INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at)
-                        VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at)
-                    """), {
-                        "order_id": order_id, "product_id": pid, "product_name": pname, "sub_option": (it.get('variant_color') or ''),
-                        "item_name": item_key, "qty": qty, "created_at": now_str,
-                    })
+                self.deduct_stock(conn, items, order_id=order_id)
             return True
         except StockError:
             raise
-        except Exception as e:
+        except Exception:
             if connection is not None:
                 raise
-            print(f"Error saving order with stock: {e}")
             return False
 
     def cancel_order(self, order_id):
@@ -1394,71 +1398,20 @@ class DBService:
                     return False, "已寄送或已取消的訂單無法修改"
 
                 # 先移除舊銷售紀錄（釋放庫存），再依新明細重新扣減
+                stock_items = [it for it in items if it.get('id')]
+                old_items = [dict(id=r._mapping['product_id']) for r in conn.execute(text("SELECT DISTINCT product_id FROM sales_logs WHERE order_id=:id AND product_id IS NOT NULL"), {'id':str(order_id)})]
+                # 鎖定新舊商品，統一順序，避免多品項改單與預約互相搶庫存。
+                existing_old = [it for it in old_items if conn.execute(text('SELECT 1 FROM products WHERE id=:id'),it).first()]
+                self.lock_stock_products(conn, stock_items + existing_old)
                 conn.execute(text("DELETE FROM sales_logs WHERE order_id = :id"), {"id": str(order_id)})
-
+                self.deduct_stock(conn, stock_items, order_id=str(order_id))
                 for it in items:
-                    pid = str(it.get('id') or '').strip()
-                    name = (it.get('name') or it.get('product_name') or '線上列印作品').strip()
-                    variant = (it.get('variant_name') or it.get('item_name') or '').strip()
-                    qty = int(it.get('qty') or 0)
-                    item_key = variant or '-'
-
-                    if pid:
-                        prod_row = conn.execute(
-                            text("SELECT id, name FROM products WHERE id = :pid FOR UPDATE"),
-                            {"pid": pid},
-                        ).first()
-                        if not prod_row:
-                            raise StockError(f"商品「{name}」不存在或已刪除，請先修正再儲存")
-                        pname = prod_row._mapping["name"]
-
-                        purchased = conn.execute(text("""
-                            SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
-                            WHERE (product_id IS NOT NULL AND product_id = :pid)
-                               OR (product_name IS NOT NULL AND product_name = :pname)
-                        """), {"pid": pid, "pname": pname}).scalar() or 0
-                        sold = conn.execute(text("""
-                            SELECT COALESCE(SUM(qty), 0) FROM sales_logs
-                            WHERE (product_id IS NOT NULL AND product_id = :pid)
-                               OR (product_name IS NOT NULL AND product_name = :pname)
-                        """), {"pid": pid, "pname": pname}).scalar() or 0
-                        available = int(purchased) - int(sold)
-
-                        if variant:
-                            purch_item = conn.execute(text("""
-                                SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
-                                WHERE ((product_id IS NOT NULL AND product_id = :pid)
-                                    OR (product_name IS NOT NULL AND product_name = :pname))
-                                  AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
-                            """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
-                            sold_item = conn.execute(text("""
-                                SELECT COALESCE(SUM(qty), 0) FROM sales_logs
-                                WHERE ((product_id IS NOT NULL AND product_id = :pid)
-                                    OR (product_name IS NOT NULL AND product_name = :pname))
-                                  AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
-                            """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
-                            available = min(available, int(purch_item) - int(sold_item))
-
-                        if qty > available:
-                            raise StockError(
-                                f"商品「{name}」庫存不足（剩餘 {max(available, 0)} 件）"
-                            )
-
-                        conn.execute(text("""
-                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at)
-                            VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at)
-                        """), {
-                            "order_id": str(order_id), "product_id": pid, "product_name": pname, "sub_option": (it.get('variant_color') or ''),
-                            "item_name": item_key, "qty": qty, "created_at": now_str,
-                        })
-                    else:
-                        conn.execute(text("""
-                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at)
-                            VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at)
-                        """), {
-                            "order_id": str(order_id), "product_id": None, "product_name": name, "sub_option": (it.get('variant_color') or ''),
-                            "item_name": item_key, "qty": qty, "created_at": now_str,
-                        })
+                    if not it.get('id'):
+                        conn.execute(text("""INSERT INTO sales_logs(order_id,product_name,item_name,sub_option,qty,created_at)
+                            VALUES(:oid,:name,:item,:color,:qty,:now)"""), {'oid':str(order_id),
+                            'name':it.get('name') or it.get('product_name') or '線上列印作品',
+                            'item':it.get('variant_name') or it.get('item_name') or '-',
+                            'color':it.get('variant_color') or '', 'qty':int(it.get('qty') or 0),'now':now_str})
 
                 conn.execute(text("""
                     UPDATE orders SET items_json = :items_json, total_amount = :total_amount, status = 'PENDING'
@@ -1515,68 +1468,20 @@ class DBService:
                 current_status = row._mapping["status"]
 
                 # 1) 釋放舊庫存，依新明細重新扣減
+                stock_items = [it for it in items if it.get('id')]
+                old_items = [dict(id=r._mapping['product_id']) for r in conn.execute(text("SELECT DISTINCT product_id FROM sales_logs WHERE order_id=:id AND product_id IS NOT NULL"), {'id':str(order_id)})]
+                # 鎖定新舊商品，統一順序，避免多品項改單與預約互相搶庫存。
+                existing_old = [it for it in old_items if conn.execute(text('SELECT 1 FROM products WHERE id=:id'),it).first()]
+                self.lock_stock_products(conn, stock_items + existing_old)
                 conn.execute(text("DELETE FROM sales_logs WHERE order_id = :id"), {"id": str(order_id)})
+                self.deduct_stock(conn, stock_items, order_id=str(order_id))
                 for it in items:
-                    pid = str(it.get('id') or '').strip()
-                    name = (it.get('name') or it.get('product_name') or '線上列印作品').strip()
-                    variant = (it.get('variant_name') or it.get('item_name') or '').strip()
-                    qty = int(it.get('qty') or 0)
-                    item_key = variant or '-'
-
-                    if pid:
-                        prod_row = conn.execute(
-                            text("SELECT id, name FROM products WHERE id = :pid FOR UPDATE"),
-                            {"pid": pid},
-                        ).first()
-                        if not prod_row:
-                            raise StockError(f"商品「{name}」不存在或已刪除，請先修正再儲存")
-                        pname = prod_row._mapping["name"]
-
-                        purchased = conn.execute(text("""
-                            SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
-                            WHERE (product_id IS NOT NULL AND product_id = :pid)
-                               OR (product_name IS NOT NULL AND product_name = :pname)
-                        """), {"pid": pid, "pname": pname}).scalar() or 0
-                        sold = conn.execute(text("""
-                            SELECT COALESCE(SUM(qty), 0) FROM sales_logs
-                            WHERE (product_id IS NOT NULL AND product_id = :pid)
-                               OR (product_name IS NOT NULL AND product_name = :pname)
-                        """), {"pid": pid, "pname": pname}).scalar() or 0
-                        available = int(purchased) - int(sold)
-
-                        if variant:
-                            purch_item = conn.execute(text("""
-                                SELECT COALESCE(SUM(purchase_qty), 0) FROM inventory_logs
-                                WHERE ((product_id IS NOT NULL AND product_id = :pid)
-                                    OR (product_name IS NOT NULL AND product_name = :pname))
-                                  AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
-                            """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
-                            sold_item = conn.execute(text("""
-                                SELECT COALESCE(SUM(qty), 0) FROM sales_logs
-                                WHERE ((product_id IS NOT NULL AND product_id = :pid)
-                                    OR (product_name IS NOT NULL AND product_name = :pname))
-                                  AND (item_name = :item OR item_name = '-' OR item_name = '-- 全品項預設/主商品 --')
-                            """), {"pid": pid, "pname": pname, "item": variant}).scalar() or 0
-                            available = min(available, int(purch_item) - int(sold_item))
-
-                        if qty > available:
-                            raise StockError(f"商品「{name}」庫存不足（剩餘 {max(available, 0)} 件）")
-
-                        conn.execute(text("""
-                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at)
-                            VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at)
-                        """), {
-                            "order_id": str(order_id), "product_id": pid, "product_name": pname, "sub_option": (it.get('variant_color') or ''),
-                            "item_name": item_key, "qty": qty, "created_at": now_str,
-                        })
-                    else:
-                        conn.execute(text("""
-                            INSERT INTO sales_logs (order_id, product_id, product_name, item_name, sub_option, qty, created_at)
-                            VALUES (:order_id, :product_id, :product_name, :item_name, :sub_option, :qty, :created_at)
-                        """), {
-                            "order_id": str(order_id), "product_id": None, "product_name": name, "sub_option": (it.get('variant_color') or ''),
-                            "item_name": item_key, "qty": qty, "created_at": now_str,
-                        })
+                    if not it.get('id'):
+                        conn.execute(text("""INSERT INTO sales_logs(order_id,product_name,item_name,sub_option,qty,created_at)
+                            VALUES(:oid,:name,:item,:color,:qty,:now)"""), {'oid':str(order_id),
+                            'name':it.get('name') or it.get('product_name') or '線上列印作品',
+                            'item':it.get('variant_name') or it.get('item_name') or '-',
+                            'color':it.get('variant_color') or '', 'qty':int(it.get('qty') or 0),'now':now_str})
 
                 # 2) 更新訂單明細、總額與淨利潤
                 conn.execute(text("""
