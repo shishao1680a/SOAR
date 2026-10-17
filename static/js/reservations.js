@@ -7,7 +7,7 @@
   const labels = {OPEN:'開放取號',PAUSED:'暫停取號，既有預約照常服務',ENDED:'場次已結束',WAITING:'等候中',CALLED:'已到號，請至現場報到',CHECKED_IN:'已報到',CANCELLED:'已取消',NO_SHOW:'未到場',PENDING:'待發送',ACCEPTED:'LINE 已接受（未確認送達）',FAILED:'發送失敗',SKIPPED:'預約已結束，未發送'};
   let sceneId = new URLSearchParams(location.search).get('scene') || '';
   let state = null, admin = null, cart = [], products = [], key = crypto.randomUUID(), loading = false;
-  let messageDirty = false, messageScene = '';
+  let messageDirty = false, messageScene = '', messageRevision = 0;
   const notifyKeys = new Map();
   function feedback(message, error = false) { $('feedback').hidden = !message; $('feedback').textContent = message; $('feedback').classList.toggle('error', error); }
   async function api(path, body) {
@@ -74,6 +74,7 @@
     finally { loading=false; }
   }
   async function renderAdmin() {
+    const revision=messageRevision;
     admin=await api('/api/admin/reservations'+(sceneId?'?scene='+encodeURIComponent(sceneId):''));
     $('scene-select').innerHTML='<option value="">選擇場次</option>'+admin.scenes.map(s=>`<option value="${esc(s.id)}" ${s.id===sceneId?'selected':''}>${esc(s.name)} · ${esc(labels[s.status])}</option>`).join('');
     const s=admin.scene;
@@ -83,7 +84,7 @@
       $('pause-scene').disabled=!active; $('end-scene').disabled=!active; $('save-message').disabled=!active;
       $('pause-scene').textContent=s.status==='PAUSED'?'恢復取號':'暫停取號';
       if(messageScene!==s.id){ messageDirty=false; messageScene=s.id; }
-      if(!messageDirty) $('call-message').value=s.call_message;
+      if(!messageDirty&&revision===messageRevision) $('call-message').value=s.call_message;
       $('scene-qr').src='/api/admin/reservations/sessions/'+s.id+'/qr.svg';
       const url=location.origin+'/reservations?scene='+encodeURIComponent(s.id);
       $('scene-link').href=url; $('scene-link').textContent=url;
@@ -124,8 +125,13 @@
   $('scene-select').onchange=e=>{sceneId=e.target.value;location.assign('/reservations'+(sceneId?'?scene='+encodeURIComponent(sceneId):''));};
   $('pause-scene').onclick=e=>action(e.target,async()=>{await api('/api/admin/reservations/sessions/'+sceneId+'/'+(admin.scene.status==='PAUSED'?'resume':'pause'),{});});
   $('end-scene').onclick=e=>action(e.target,async()=>{const count=admin.tickets.filter(t=>['WAITING','CALLED','NO_SHOW'].includes(t.status)).length;if(confirm(`結束場次將取消 ${count} 筆未報到預約並釋放庫存，保留所有紀錄。確定結束？`))await api('/api/admin/reservations/sessions/'+sceneId+'/end',{confirmed:true});});
-  $('call-message').addEventListener('input',()=>{messageDirty=true;});
-  $('save-message').onclick=e=>action(e.target,async()=>{await api('/api/admin/reservations/sessions/'+sceneId+'/message',{message:$('call-message').value});messageDirty=false;feedback('已儲存通知文字');});
+  $('call-message').addEventListener('input',()=>{messageDirty=true;messageRevision++;});
+  $('save-message').onclick=e=>action(e.target,async()=>{
+    const message=$('call-message').value;
+    await api('/api/admin/reservations/sessions/'+sceneId+'/message',{message});
+    if($('call-message').value===message){messageDirty=false;messageRevision++;}
+    feedback('已儲存通知文字');
+  });
   $('admin-products').addEventListener('change',e=>{const el=e.target;if(el.matches('[data-flag]'))action(el,async()=>{await api('/api/admin/reservations/products/'+encodeURIComponent(el.dataset.flag),{enabled:el.checked});});});
   document.addEventListener('click',e=>{
     const b=e.target.closest('[data-ticket],[data-retry]');if(!b)return;
@@ -137,11 +143,20 @@
       const path=b.dataset.management==='true'?'/api/admin/reservations/tickets/'+b.dataset.ticket+'/'+cmd:'/api/reservations/'+b.dataset.ticket+'/cancel';
       const body={session_id:sceneId};
       if(cmd==='notify'){
-        if(!notifyKeys.has(b.dataset.ticket))notifyKeys.set(b.dataset.ticket,crypto.randomUUID());
-        body.request_key=notifyKeys.get(b.dataset.ticket);
+        const message=$('call-message').value;
+        if(!message.trim()||message.length>1000)throw new Error('到號通知文字請輸入 1～1000 字');
+        const pending=notifyKeys.get(b.dataset.ticket);
+        if(!pending||pending.message!==message)notifyKeys.set(b.dataset.ticket,{key:crypto.randomUUID(),message});
+        const notification=notifyKeys.get(b.dataset.ticket);
+        body.request_key=notification.key;
+        body.message=notification.message;
       }
       const r=await api(path,body);
-      if(cmd==='notify')notifyKeys.delete(b.dataset.ticket);
+      if(cmd==='notify'){
+        // 較早請求的回覆不能刪除稍後另一則通知的重試 key。
+        if(notifyKeys.get(b.dataset.ticket)?.key===body.request_key)notifyKeys.delete(b.dataset.ticket);
+        if($('call-message').value===body.message){messageDirty=false;messageRevision++;}
+      }
       feedback(cmd==='check-in'?'報到成功，已建立訂單 '+r.ticket.order_id:cmd==='notify'?'已通知到場，請查看通知結果':'預約狀態已更新');
     });
   });

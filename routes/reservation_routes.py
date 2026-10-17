@@ -174,7 +174,7 @@ def scene_action(sid, action):
 def ticket_action(rid, action):
     data = request.get_json()
     if action == 'notify':
-        ticket, nid = service.notify(data.get('session_id'), rid, data.get('request_key'))
+        ticket, nid = service.notify(data.get('session_id'), rid, data.get('request_key'), data.get('message'))
         service.dispatch(nid, line_service)
     else:
         ticket = service.ticket_action(data.get('session_id'), rid, action)

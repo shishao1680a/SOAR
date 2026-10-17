@@ -275,7 +275,7 @@ class ReservationService:
             sql += ' AND line_id=:uid'
         return self.db._fetch_dicts(sql + ' ORDER BY number', {'sid': sid, 'uid': line_id})
 
-    def notify(self, sid, rid, request_key):
+    def notify(self, sid, rid, request_key, message=None):
         try:
             key = str(uuid.UUID(str(request_key)))
         except (ValueError,TypeError,AttributeError):
@@ -291,6 +291,12 @@ class ReservationService:
                 return ticket,existing
             if not scene or scene['status']=='ENDED' or ticket['status'] not in ('WAITING','CALLED','NO_SHOW'):
                 raise ReservationError('預約已結束，無法通知到場')
+            if message is not None:
+                if not isinstance(message, str) or not message.strip() or len(message) > 1000:
+                    raise ReservationError('到號通知文字請輸入 1～1000 字')
+                scene['call_message'] = message.strip()
+                c.execute(text('UPDATE reservation_sessions SET call_message=:message WHERE id=:id'),
+                          {'message': scene['call_message'], 'id': sid})
             c.execute(text("UPDATE reservations SET status='CALLED',called_at=CURRENT_TIMESTAMP WHERE id=:id"), {'id':rid})
             c.execute(text('UPDATE reservation_sessions SET current_number=GREATEST(COALESCE(current_number,0),:n) WHERE id=:id'), {'id':sid,'n':ticket['number']})
             nid = self.add_notification(c,ticket,'CALLED',f'【{scene["name"]} 到號通知】\n{ticket["name"]}，您的號碼 {ticket["number"]:03d} 已到號。\n{scene["call_message"]}',key)

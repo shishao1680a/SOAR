@@ -364,4 +364,66 @@ class Reservations(unittest.TestCase):
         self.call(t);self.assertEqual(self.checkin(t).status_code,200)
 
 
+    def test_notify_saves_current_text_and_freezes_each_message(self):
+        t=self.book().json['ticket'];path=f'/api/admin/reservations/tickets/{t["id"]}/notify'
+        key=str(uuid.uuid4());message='您的預約_星光盃限定商品 已到號，請至現場報到。'
+        body={'session_id':self.sid,'request_key':key,'message':message}
+        r=self.post(self.client,path,body);self.assertEqual(r.status_code,200,r.json)
+        self.assertEqual(service.scene(self.sid)['call_message'],message)
+        original=db._fetch_one("SELECT * FROM reservation_notifications WHERE kind='CALLED'")
+        self.assertEqual(original['body'],f'【現場測試 到號通知】\n測試客人，您的號碼 001 已到號。\n{message}')
+        self.assertEqual(self.mock_push.call_args.args[1],original['body'])
+        message2='請到服務台報到，謝謝。'
+        self.assertEqual(self.post(self.client,path,dict(body,request_key=str(uuid.uuid4()),message=message2)).status_code,200)
+        self.assertEqual(service.scene(self.sid)['call_message'],message2)
+        # 同次請求重送即使夾帶另一段文字，也不能改寫既有事件或目前已存文字。
+        self.assertEqual(self.post(self.client,path,dict(body,message='重送不得覆寫')).status_code,200)
+        self.assertEqual(service.scene(self.sid)['call_message'],message2)
+        self.assertEqual(db._fetch_one('SELECT body FROM reservation_notifications WHERE id=:id',{'id':original['id']})['body'],original['body'])
+        self.assertEqual(db._fetch_one("SELECT COUNT(*) n FROM reservation_notifications WHERE kind='CALLED'")['n'],2)
+        self.assertEqual(self.mock_push.call_count,3)
+
+    def test_invalid_notify_text_changes_nothing(self):
+        t=self.book().json['ticket'];original=service.scene(self.sid)['call_message']
+        for message in ('','  ','x'*1001,123,[]):
+            r=self.post(self.client,f'/api/admin/reservations/tickets/{t["id"]}/notify',
+                        {'session_id':self.sid,'request_key':str(uuid.uuid4()),'message':message})
+            self.assertEqual(r.status_code,409,r.json)
+            self.assertEqual(service.scene(self.sid)['call_message'],original)
+        self.assertEqual(db._fetch_one('SELECT status FROM reservations')['status'],'WAITING')
+        self.assertIsNone(service.scene(self.sid)['current_number'])
+        self.assertEqual(db._fetch_one("SELECT COUNT(*) n FROM reservation_notifications WHERE kind='CALLED'")['n'],0)
+        self.assertEqual(db._fetch_one('SELECT SUM(qty) n FROM sales_logs')['n'],2)
+        self.assertEqual(self.mock_push.call_count,1)
+
+    def test_failed_notify_retry_preserves_original_text_and_key(self):
+        t=self.book().json['ticket'];key=str(uuid.uuid4());message='新版到號文字'
+        self.mock_push.return_value=(False,'LINE 服務中斷')
+        r=self.post(self.client,f'/api/admin/reservations/tickets/{t["id"]}/notify',
+                    {'session_id':self.sid,'request_key':key,'message':message})
+        self.assertEqual(r.status_code,200,r.json)
+        note=db._fetch_one("SELECT * FROM reservation_notifications WHERE kind='CALLED'")
+        self.assertEqual(note['status'],'FAILED');self.assertEqual(service.scene(self.sid)['call_message'],message)
+        service.update_scene(self.sid,'message',message='稍後使用的另一段文字')
+        self.mock_push.return_value=(True,'')
+        self.post(self.client,f'/api/admin/reservations/notifications/{note["id"]}/retry')
+        self.assertEqual(self.mock_push.call_args.args[1:],(note['body'],note['retry_key']))
+        self.assertEqual(service.scene(self.sid)['call_message'],'稍後使用的另一段文字')
+        self.assertEqual(db._fetch_one("SELECT COUNT(*) n FROM reservation_notifications WHERE kind='CALLED'")['n'],1)
+
+    def test_concurrent_notifications_use_their_own_submitted_text(self):
+        a=self.book(self.guest()).json['ticket'];b=self.book(self.guest(2)).json['ticket']
+        requests=[(a,str(uuid.uuid4()),'第一位的通知文字'),(b,str(uuid.uuid4()),'第二位的通知文字')]
+        def notify(args):
+            ticket,key,message=args;c=app.test_client();self.as_admin(c);c.get('/api/reservations/state')
+            return self.post(c,f'/api/admin/reservations/tickets/{ticket["id"]}/notify',
+                             {'session_id':self.sid,'request_key':key,'message':message}).status_code
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:codes=list(pool.map(notify,requests))
+        self.assertEqual(codes,[200,200])
+        for ticket,key,message in requests:
+            note=db._fetch_one("SELECT body FROM reservation_notifications WHERE request_key=:key",{'key':key})
+            self.assertEqual(note['body'].split('\n',2)[-1],message)
+        self.assertEqual(service.scene(self.sid)['current_number'],2)
+
+
 if __name__=='__main__':unittest.main()
