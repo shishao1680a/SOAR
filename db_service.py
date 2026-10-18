@@ -373,6 +373,11 @@ class DBService:
                 )"""))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages (line_user_id, id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_threads_last ON chat_threads (last_message_at DESC)"))
+                conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS via VARCHAR(8) NOT NULL DEFAULT 'line'"))
+                conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_name VARCHAR(255)"))
+                conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_mime VARCHAR(100)"))
+                conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_size INTEGER"))
+                conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_data BYTEA"))
 
                 # 常用索引
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_id ON inventory_logs (product_id)"))
@@ -2116,15 +2121,30 @@ class DBService:
                     last_message_at = CURRENT_TIMESTAMP"""),
                 {'l': line_user_id, 'u': user_id, 'n': (display_name or '')[:255]})
 
+    MESSAGE_COLUMNS = """id, line_user_id, direction, kind, body, image_url, admin_id, admin_name,
+        status, error, read_at, created_at, via, attachment_name, attachment_mime, attachment_size,
+        (attachment_data IS NOT NULL) AS has_attachment"""
+
     def chat_add_message(self, line_user_id, direction, kind='text', body='', image_url=None,
-                         admin_id=None, admin_name=None, status='SENT', error=''):
+                         admin_id=None, admin_name=None, status='SENT', error='',
+                         via='line', attachment=None):
+        attachment = attachment or {}
         with self.engine.begin() as conn:
             row = conn.execute(text("""INSERT INTO chat_messages
-                (line_user_id, direction, kind, body, image_url, admin_id, admin_name, status, error)
-                VALUES (:l, :d, :k, :b, :img, :aid, :an, :s, :e) RETURNING *"""),
+                (line_user_id, direction, kind, body, image_url, admin_id, admin_name, status, error,
+                 via, attachment_name, attachment_mime, attachment_size, attachment_data)
+                VALUES (:l, :d, :k, :b, :img, :aid, :an, :s, :e,
+                        :via, :aname, :amime, :asize, :adata)
+                RETURNING id, line_user_id, direction, kind, body, image_url, admin_id, admin_name,
+                          status, error, read_at, created_at, via, attachment_name, attachment_mime,
+                          attachment_size, (attachment_data IS NOT NULL) AS has_attachment"""),
                 {'l': line_user_id, 'd': direction, 'k': kind, 'b': body or '',
                  'img': image_url, 'aid': admin_id, 'an': admin_name,
-                 's': status, 'e': (error or '')[:300]}).first()
+                 's': status, 'e': (error or '')[:300], 'via': via or 'line',
+                 'aname': (attachment.get('name') or '')[:255] or None,
+                 'amime': (attachment.get('mime') or '')[:100] or None,
+                 'asize': attachment.get('size'),
+                 'adata': attachment.get('data')}).first()
             bump = 1 if direction == 'IN' else 0
             conn.execute(text("""INSERT INTO chat_threads (line_user_id, last_message_at, unread_count)
                 VALUES (:l, CURRENT_TIMESTAMP, :bump)
@@ -2139,7 +2159,13 @@ class DBService:
                       {'s': status, 'e': (error or '')[:300], 'id': message_id})
 
     def chat_get_message(self, message_id):
-        return self._fetch_one('SELECT * FROM chat_messages WHERE id=:id', {'id': message_id})
+        return self._fetch_one(
+            f'SELECT {self.MESSAGE_COLUMNS} FROM chat_messages WHERE id=:id', {'id': message_id})
+
+    def chat_get_attachment(self, message_id):
+        return self._fetch_one("""SELECT id, line_user_id, direction, kind, attachment_data,
+            attachment_mime, attachment_name, attachment_size
+            FROM chat_messages WHERE id=:id AND attachment_data IS NOT NULL""", {'id': message_id})
 
     def chat_threads(self, limit=100):
         return self._fetch_dicts("""SELECT t.*, u.name AS member_name,
@@ -2155,7 +2181,7 @@ class DBService:
             LIMIT :n""", {'n': max(1, min(int(limit or 100), 200))})
 
     def chat_messages(self, line_user_id, after_id=0, limit=200):
-        return self._fetch_dicts("""SELECT * FROM chat_messages
+        return self._fetch_dicts(f"""SELECT {self.MESSAGE_COLUMNS} FROM chat_messages
             WHERE line_user_id=:l AND id > :a ORDER BY id ASC LIMIT :n""",
             {'l': line_user_id, 'a': int(after_id or 0), 'n': max(1, min(int(limit or 200), 500))})
 

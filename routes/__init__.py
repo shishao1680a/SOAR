@@ -9,6 +9,7 @@ from .order_routes import order_bp
 from .line_routes import line_bp
 from .shop_routes import shop_bp
 from .chat_routes import chat_bp
+from .message_routes import message_bp
 
 __all__ = [
     'main_bp',
@@ -21,4 +22,5 @@ __all__ = [
     'line_bp',
     'shop_bp',
     'chat_bp',
+    'message_bp',
 ]

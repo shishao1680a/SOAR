@@ -30,6 +30,7 @@ from routes import (
     line_bp,
     shop_bp,
     chat_bp,
+    message_bp,
 )
 
 app.register_blueprint(main_bp)
@@ -42,6 +43,7 @@ app.register_blueprint(order_bp)
 app.register_blueprint(line_bp)
 app.register_blueprint(shop_bp)
 app.register_blueprint(chat_bp)
+app.register_blueprint(message_bp)
 
 from routes.reservation_routes import reservation_bp
 app.register_blueprint(reservation_bp)

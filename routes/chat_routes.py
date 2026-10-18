@@ -4,7 +4,7 @@ import re
 import tempfile
 import uuid
 
-from flask import Blueprint, jsonify, redirect, render_template, request, session
+from flask import Blueprint, Response, jsonify, redirect, render_template, request, session
 
 from cloudinary_service import CloudinaryService
 from extensions import db_service, line_service
@@ -39,7 +39,7 @@ def _thread_json(t):
     return {
         'line_user_id': t.get('line_user_id'),
         'name': _thread_name(t),
-        'member': bool(t.get('user_id')),
+        'member': bool(t.get('user_id') or t.get('member_name')),
         'unread': int(t.get('unread_count') or 0),
         'last': str(last)[:80],
         'last_at': str(t.get('last_message_at') or '')[:16],
@@ -48,12 +48,18 @@ def _thread_json(t):
 
 
 def _message_json(m):
+    mid = m.get('id')
+    has_file = bool(m.get('has_attachment'))
     return {
-        'id': m.get('id'),
+        'id': mid,
         'direction': m.get('direction'),
         'kind': m.get('kind'),
         'body': m.get('body') or '',
         'image_url': m.get('image_url') or '',
+        'image_src': (f'/api/admin/chat/attachment/{mid}' if has_file
+                      else (m.get('image_url') or '')),
+        'has_attachment': has_file,
+        'via': m.get('via') or 'line',
         'status': m.get('status') or 'SENT',
         'error': m.get('error') or '',
         'admin_name': m.get('admin_name') or '',
@@ -127,7 +133,7 @@ def api_send_text(line_user_id):
     if len(text) > 5000:
         return jsonify(status='error', message='訊息最多 5000 字'), 400
     message = db_service.chat_add_message(
-        line_user_id, 'OUT', 'text', text,
+        line_user_id, 'OUT', 'text', text, via='web',
         admin_id=admin.get('id'), admin_name=admin.get('name') or '', status='PENDING')
     msg_id, ok, error = _finish_send(message)
     row = db_service.chat_get_message(msg_id)
@@ -152,11 +158,13 @@ def api_send_image(line_user_id):
     if size <= 0 or size > MAX_IMAGE_BYTES:
         return jsonify(status='error', message='圖片大小需小於 10MB'), 400
 
+    image_data = upload.stream.read()
+    mime = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png'}.get(ext.lstrip('.'), 'image/jpeg')
     tmp_path = None
     try:
         fd, tmp_path = tempfile.mkstemp(suffix=ext)
         with os.fdopen(fd, 'wb') as fh:
-            fh.write(upload.stream.read())
+            fh.write(image_data)
         url = cloudinary_service.upload_image(tmp_path, folder='uxprint/chat')
     finally:
         if tmp_path and os.path.exists(tmp_path):
@@ -168,12 +176,28 @@ def api_send_image(line_user_id):
         return jsonify(status='error', message='圖片上傳失敗，請確認 Cloudinary 設定'), 400
 
     message = db_service.chat_add_message(
-        line_user_id, 'OUT', 'image', '[圖片]', image_url=url,
-        admin_id=admin.get('id'), admin_name=admin.get('name') or '', status='PENDING')
+        line_user_id, 'OUT', 'image', '[圖片]', image_url=url, via='web',
+        admin_id=admin.get('id'), admin_name=admin.get('name') or '', status='PENDING',
+        attachment={'name': upload.filename, 'mime': mime, 'size': len(image_data), 'data': image_data})
     msg_id, ok, error = _finish_send(message)
     row = db_service.chat_get_message(msg_id)
     return jsonify(status='success', ok=ok, error='' if ok else error,
                    message=_message_json(row))
+
+
+@chat_bp.get('/api/admin/chat/attachment/<int:message_id>')
+def api_attachment(message_id):
+    if not _admin():
+        return _deny()
+    row = db_service.chat_get_attachment(message_id)
+    if not row:
+        return '', 404
+    response = Response(row['attachment_data'],
+                        mimetype=row.get('attachment_mime') or 'application/octet-stream')
+    name = (row.get('attachment_name') or 'image').replace('"', '')
+    response.headers['Content-Disposition'] = f'inline; filename="{name}"'
+    response.headers['Cache-Control'] = 'private, max-age=86400'
+    return response
 
 
 @chat_bp.post('/api/admin/chat/messages/<int:message_id>/retry')

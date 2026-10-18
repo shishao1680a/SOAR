@@ -67,27 +67,21 @@ class LineService:
             message_id = getattr(event.message, 'id', None)
             if not message_id:
                 return
-            url = None
-            tmp_path = None
+            data = None
             try:
                 content = self.line_bot_api.get_message_content(message_id)
                 data = getattr(content, 'content', content)
-                import tempfile
-                fd, tmp_path = tempfile.mkstemp(suffix='.jpg')
-                with os.fdopen(fd, 'wb') as fh:
-                    fh.write(data)
-                from extensions import cloudinary_service
-                url = cloudinary_service.upload_image(tmp_path, folder='uxprint/chat')
+                if not isinstance(data, (bytes, bytearray)) or not data:
+                    data = None
             except Exception as exc:
                 print(f"Incoming image failed: {exc}")
-            finally:
-                if tmp_path and os.path.exists(tmp_path):
-                    try:
-                        os.remove(tmp_path)
-                    except OSError:
-                        pass
-            if url:
-                self._store_incoming(event, 'image', '[圖片]', url)
+            if data:
+                raw = bytes(data)
+                mime = self._image_mime(raw)
+                ext = {'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp'}.get(mime, 'jpg')
+                self._store_incoming(event, 'image', '[圖片]', attachment={
+                    'name': f'line-{message_id}.{ext}', 'mime': mime,
+                    'size': len(raw), 'data': raw})
             else:
                 self._store_incoming(event, 'placeholder', '（客人傳了圖片，但圖片儲存失敗）')
 
@@ -134,7 +128,19 @@ class LineService:
                 except Exception:
                     pass
 
-    def _store_incoming(self, event, kind, body='', image_url=None):
+    @staticmethod
+    def _image_mime(data):
+        if data[:3] == b'\xff\xd8\xff':
+            return 'image/jpeg'
+        if data[:8] == b'\x89PNG\r\n\x1a\n':
+            return 'image/png'
+        if data[:6] in (b'GIF87a', b'GIF89a'):
+            return 'image/gif'
+        if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+            return 'image/webp'
+        return 'image/jpeg'
+
+    def _store_incoming(self, event, kind, body='', image_url=None, attachment=None):
         try:
             from extensions import db_service
             line_user_id = getattr(event.source, 'user_id', None)
@@ -156,7 +162,8 @@ class LineService:
                 user_id=(member or {}).get('id'),
                 display_name=(member or {}).get('name') or display_name,
             )
-            db_service.chat_add_message(line_user_id, 'IN', kind=kind, body=body, image_url=image_url)
+            db_service.chat_add_message(line_user_id, 'IN', kind=kind, body=body,
+                                        image_url=image_url, via='line', attachment=attachment)
         except Exception as exc:
             print(f"Store incoming chat failed: {exc}")
 

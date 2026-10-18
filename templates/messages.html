@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>留言給我們｜展夢・飛翔</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/shop.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">展夢・飛翔</a>
+  <a href="/orders">訂單查詢</a>
+  <a href="/">商品大廳</a>
+</header>
+
+<main class="wrap msg-wrap">
+  <h1>留言給我們</h1>
+  <p class="sub">只有你與管理員看得到；管理者回覆會同步傳到你的 LINE。</p>
+
+  {% if need_line %}
+  <div class="card notice">
+    <p>這個頁面需要 LINE 登入，才能把你的留言與帳號對起來。</p>
+    <a class="btn primary" href="/login/line?next=/messages">用 LINE 登入</a>
+  </div>
+  {% else %}
+  <div class="card msg-card">
+    <div id="messages" class="msgs">
+      <p class="empty">還沒有留言，從下面開始跟我們說吧。</p>
+    </div>
+    <div class="composer">
+      <textarea id="text" rows="2" maxlength="5000" placeholder="輸入留言，Enter 送出，Shift+Enter 換行"></textarea>
+      <div class="composer-actions">
+        <label class="btn ghost" for="image">📷 圖片</label>
+        <input id="image" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+        <button id="send" class="btn primary" type="button">送出</button>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+  <p class="hint">圖片會以原始檔保存，不壓縮、不轉檔；單張上限 10MB，支援 JPG／PNG／WebP。</p>
+  {% endif %}
+</main>
+
+{% if not need_line %}
+<script src="{{ url_for('static', filename='js/messages.js') }}"></script>
+{% endif %}
+</body>
+</html>

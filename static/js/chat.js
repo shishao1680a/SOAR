@@ -97,16 +97,20 @@
   }
 
   function appendMessage(m, scroll = true) {
+    if (document.querySelector(`.msg[data-id="${m.id}"]`)) return;
+    state.lastId = Math.max(Number(state.lastId) || 0, Number(m.id) || 0);
     const wrap = document.createElement('div');
     wrap.className = 'msg ' + (m.direction === 'IN' ? 'in' : 'out');
     wrap.dataset.id = m.id;
-    const body = m.kind === 'image' && m.image_url
-      ? `<img class="shot" src="${esc(m.image_url)}" alt="圖片" loading="lazy" onclick="window.open(this.src)">`
+    const imgSrc = m.image_src || m.image_url || '';
+    const body = m.kind === 'image' && imgSrc
+      ? `<img class="shot" src="${esc(imgSrc)}" alt="圖片" loading="lazy" onclick="window.open(this.src)">`
       : `<div class="bubble">${esc(m.body)}</div>`;
     const fail = m.direction === 'OUT' && m.status === 'FAILED'
       ? `<div class="failed">未送出：${esc(m.error || '未知原因')}
            <button type="button" data-retry="${m.id}">重試</button></div>` : '';
-    wrap.innerHTML = body + `<div class="meta">${esc((m.created_at || '').slice(5))}${m.direction === 'OUT' && m.admin_name ? ' · ' + esc(m.admin_name) : ''}</div>` + fail;
+    const via = m.via === 'web' ? ' · 網站' : '';
+    wrap.innerHTML = body + `<div class="meta">${esc((m.created_at || '').slice(5))}${via}${m.direction === 'OUT' && m.admin_name ? ' · ' + esc(m.admin_name) : ''}</div>` + fail;
     $('messages').appendChild(wrap);
     if (scroll) $('messages').scrollTop = $('messages').scrollHeight;
   }
