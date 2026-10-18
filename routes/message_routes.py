@@ -48,8 +48,14 @@ def page():
         return render_template('messages.html', need_line=True,
                                member={'name': raw_user.get('name') or ''})
     member = db_service.get_user_by_id(user['id']) or {}
+    name = member.get('name') or user.get('name') or ''
+    thread = db_service._fetch_one(
+        'SELECT display_name FROM chat_threads WHERE line_user_id=:l', {'l': user['line_id']})
+    display = (thread or {}).get('display_name') or name
+    unread = db_service.chat_unread_for_customer(user['line_id'])
+    db_service.chat_mark_customer_read(user['line_id'])
     return render_template('messages.html', need_line=False,
-                           member={'name': member.get('name') or user.get('name') or ''})
+                           member={'name': display}, customer_unread=unread)
 
 
 @message_bp.get('/api/messages/mine')

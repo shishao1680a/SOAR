@@ -146,21 +146,18 @@ class LineService:
             line_user_id = getattr(event.source, 'user_id', None)
             if not line_user_id:
                 return
-            thread = db_service._fetch_one(
-                'SELECT display_name FROM chat_threads WHERE line_user_id=:l', {'l': line_user_id})
             display_name = ''
-            if not thread or not (thread.get('display_name') or '').strip():
-                try:
-                    profile = self.line_bot_api.get_profile(line_user_id) if self.line_bot_api else None
-                    display_name = getattr(profile, 'display_name', '') or ''
-                except Exception:
-                    display_name = ''
+            try:
+                profile = self.line_bot_api.get_profile(line_user_id) if self.line_bot_api else None
+                display_name = getattr(profile, 'display_name', '') or ''
+            except Exception:
+                display_name = ''
             member = db_service._fetch_one(
                 'SELECT id, name FROM users WHERE line_id=:l ORDER BY id LIMIT 1', {'l': line_user_id})
             db_service.chat_upsert_thread(
                 line_user_id,
                 user_id=(member or {}).get('id'),
-                display_name=(member or {}).get('name') or display_name,
+                display_name=display_name or (member or {}).get('name'),
             )
             db_service.chat_add_message(line_user_id, 'IN', kind=kind, body=body,
                                         image_url=image_url, via='line', attachment=attachment)
@@ -303,6 +300,15 @@ class LineService:
         except Exception as e:
             print(f"Failed to get LINE user profile: {e}")
             return None
+
+    def get_display_name(self, user_id):
+        if not self.line_bot_api or not user_id:
+            return ''
+        try:
+            profile = self.line_bot_api.get_profile(user_id)
+            return getattr(profile, 'display_name', '') or ''
+        except Exception:
+            return ''
 
     def get_friendship_status(self, access_token):
         try:

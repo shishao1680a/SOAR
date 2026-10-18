@@ -8,6 +8,7 @@ from flask import Blueprint, Response, jsonify, redirect, render_template, reque
 
 from cloudinary_service import CloudinaryService
 from extensions import db_service, line_service
+import shop_service
 
 chat_bp = Blueprint('chat', __name__)
 cloudinary_service = CloudinaryService()
@@ -26,7 +27,7 @@ def _deny():
 
 
 def _thread_name(t):
-    return (t.get('member_name') or t.get('display_name') or
+    return (t.get('display_name') or t.get('member_name') or
             'LINE ' + str(t.get('line_user_id') or '')[-6:])
 
 
@@ -67,15 +68,15 @@ def _message_json(m):
     }
 
 
-def _send_push(line_user_id, message):
+def _send_push(line_user_id, message, text_override=None):
     key = str(uuid.uuid5(uuid.NAMESPACE_URL, f'soar-chat-{message["id"]}'))
     if message['kind'] == 'image':
         return line_service.push_user_image(line_user_id, message.get('image_url') or '', key)
-    return line_service.push_user_text(line_user_id, message.get('body') or '', key)
+    return line_service.push_user_text(line_user_id, text_override or message.get('body') or '', key)
 
 
-def _finish_send(message):
-    ok, error = _send_push(message['line_user_id'], message)
+def _finish_send(message, push_text=None):
+    ok, error = _send_push(message['line_user_id'], message, push_text)
     db_service.chat_update_message(message['id'], 'SENT' if ok else 'FAILED', '' if ok else error)
     return message['id'], ok, error
 
@@ -90,7 +91,8 @@ def chat_page():
     if focus:
         member = db_service._fetch_one(
             'SELECT id, name FROM users WHERE line_id=:l ORDER BY id LIMIT 1', {'l': focus})
-        display = (member or {}).get('name') or ''
+        line_name = line_service.get_display_name(focus)
+        display = line_name or (member or {}).get('name') or ''
         if not display:
             row = db_service._fetch_one(
                 'SELECT name FROM reservations WHERE line_id=:l ORDER BY created_at DESC LIMIT 1', {'l': focus})
@@ -135,7 +137,9 @@ def api_send_text(line_user_id):
     message = db_service.chat_add_message(
         line_user_id, 'OUT', 'text', text, via='web',
         admin_id=admin.get('id'), admin_name=admin.get('name') or '', status='PENDING')
-    msg_id, ok, error = _finish_send(message)
+    link = shop_service.public_base(request.url_root) + '/messages'
+    push_text = text if link in text else f'{text}\n\n留言區：{link}'
+    msg_id, ok, error = _finish_send(message, push_text)
     row = db_service.chat_get_message(msg_id)
     return jsonify(status='success', ok=ok, error='' if ok else error,
                    message=_message_json(row))

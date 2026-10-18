@@ -378,6 +378,7 @@ class DBService:
                 conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_mime VARCHAR(100)"))
                 conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_size INTEGER"))
                 conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_data BYTEA"))
+                conn.execute(text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS customer_last_read_id INTEGER NOT NULL DEFAULT 0"))
 
                 # 常用索引
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_id ON inventory_logs (product_id)"))
@@ -2192,6 +2193,18 @@ class DBService:
                          {'l': line_user_id})
             conn.execute(text("""UPDATE chat_messages SET read_at=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei')
                 WHERE line_user_id=:l AND direction='IN' AND read_at IS NULL"""), {'l': line_user_id})
+
+    def chat_unread_for_customer(self, line_user_id):
+        row = self._fetch_one("""SELECT COUNT(*) AS n FROM chat_messages
+            WHERE line_user_id=:l AND direction='OUT' AND id > COALESCE(
+                (SELECT customer_last_read_id FROM chat_threads WHERE line_user_id=:l), 0)""",
+            {'l': line_user_id})
+        return int((row or {}).get('n') or 0)
+
+    def chat_mark_customer_read(self, line_user_id):
+        self._execute("""UPDATE chat_threads SET customer_last_read_id=COALESCE(
+            (SELECT MAX(id) FROM chat_messages WHERE line_user_id=:l), 0)
+            WHERE line_user_id=:l""", {'l': line_user_id})
 
     def chat_unread_total(self):
         row = self._fetch_one('SELECT COALESCE(SUM(unread_count),0) AS n FROM chat_threads')

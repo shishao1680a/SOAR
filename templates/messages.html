@@ -24,18 +24,32 @@
     <a class="btn primary" href="/login/line?next=/messages">用 LINE 登入</a>
   </div>
   {% else %}
-  <div class="card msg-card">
-    <div id="messages" class="msgs">
-      <p class="empty">還沒有留言，從下面開始跟我們說吧。</p>
-    </div>
-    <div class="composer">
-      <textarea id="text" rows="2" maxlength="5000" placeholder="輸入留言，Enter 送出，Shift+Enter 換行"></textarea>
-      <div class="composer-actions">
-        <label class="btn ghost" for="image">📷 圖片</label>
-        <input id="image" type="file" accept="image/jpeg,image/png,image/webp" hidden>
-        <button id="send" class="btn primary" type="button">送出</button>
+  <div class="msg-shell">
+    <aside class="msg-side">
+      <div class="side-box">
+        <div class="avatar">{{ member.name[:1] }}</div>
+        <strong>{{ member.name }}</strong>
+        <span class="side-sub">與客服的對話</span>
+        {% if customer_unread %}<span class="side-badge">{{ customer_unread }} 則新回覆</span>{% endif %}
       </div>
-      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </aside>
+    <div class="card msg-card">
+      <div class="chat-head-mobile">
+        <strong>{{ member.name }}</strong>
+        {% if customer_unread %}<span class="side-badge">{{ customer_unread }}</span>{% endif %}
+      </div>
+      <div id="messages" class="msgs">
+        <p class="empty">還沒有留言，從下面開始跟我們說吧。</p>
+      </div>
+      <div class="composer">
+        <textarea id="text" rows="2" maxlength="5000" placeholder="輸入留言，Enter 送出，Shift+Enter 換行"></textarea>
+        <div class="composer-actions">
+          <label class="btn ghost" for="image">📷 圖片</label>
+          <input id="image" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+          <button id="send" class="btn primary" type="button">送出</button>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </div>
     </div>
   </div>
   <p class="hint">圖片會以原始檔保存，不壓縮、不轉檔；單張上限 10MB，支援 JPG／PNG／WebP。</p>

@@ -1,4 +1,16 @@
-.msg-wrap{max-width:820px}
+.msg-wrap{max-width:1040px}
+.msg-shell{display:grid;grid-template-columns:250px 1fr;gap:16px;align-items:start}
+.msg-side{position:sticky;top:18px}
+.side-box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;
+  display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.side-box .avatar{width:48px;height:48px;border-radius:50%;background:#1B2B37;color:var(--lime);
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem}
+.side-box strong{font-size:.95rem;word-break:break-word}
+.side-sub{font-size:.76rem;color:var(--muted)}
+.side-badge{margin-top:6px;background:var(--lime);color:#17240F;border-radius:999px;padding:3px 10px;
+  font-size:.74rem;font-weight:800}
+.chat-head-mobile{display:none;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.chat-head-mobile strong{font-size:.9rem}
 .notice{padding:24px;text-align:center}
 .notice p{color:var(--muted);margin:0 0 16px}
 .msg-card{padding:0;overflow:hidden;display:flex;flex-direction:column;min-height:60vh}
@@ -22,3 +34,8 @@
 .status.ok{color:var(--lime)}
 .hint{font-size:.76rem;color:var(--muted);margin-top:10px}
 @media(max-width:520px){.msg-card{min-height:66vh}.msgs{max-height:58vh;padding:16px 12px 6px}.msg{max-width:88%}}
+@media(max-width:820px){
+  .msg-shell{grid-template-columns:1fr}
+  .msg-side{display:none}
+  .chat-head-mobile{display:flex}
+}
