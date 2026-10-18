@@ -2113,12 +2113,12 @@ class DBService:
     def chat_upsert_thread(self, line_user_id, user_id=None, display_name=None):
         with self.engine.begin() as conn:
             conn.execute(text("""INSERT INTO chat_threads (line_user_id, user_id, display_name, last_message_at)
-                VALUES (:l, :u, :n, CURRENT_TIMESTAMP)
+                VALUES (:l, :u, :n, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei'))
                 ON CONFLICT (line_user_id) DO UPDATE SET
                     user_id = COALESCE(EXCLUDED.user_id, chat_threads.user_id),
                     display_name = CASE WHEN EXCLUDED.display_name <> '' THEN EXCLUDED.display_name
                                         ELSE chat_threads.display_name END,
-                    last_message_at = CURRENT_TIMESTAMP"""),
+                    last_message_at = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei')"""),
                 {'l': line_user_id, 'u': user_id, 'n': (display_name or '')[:255]})
 
     MESSAGE_COLUMNS = """id, line_user_id, direction, kind, body, image_url, admin_id, admin_name,
@@ -2132,9 +2132,10 @@ class DBService:
         with self.engine.begin() as conn:
             row = conn.execute(text("""INSERT INTO chat_messages
                 (line_user_id, direction, kind, body, image_url, admin_id, admin_name, status, error,
-                 via, attachment_name, attachment_mime, attachment_size, attachment_data)
+                 via, attachment_name, attachment_mime, attachment_size, attachment_data, created_at)
                 VALUES (:l, :d, :k, :b, :img, :aid, :an, :s, :e,
-                        :via, :aname, :amime, :asize, :adata)
+                        :via, :aname, :amime, :asize, :adata,
+                        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei'))
                 RETURNING id, line_user_id, direction, kind, body, image_url, admin_id, admin_name,
                           status, error, read_at, created_at, via, attachment_name, attachment_mime,
                           attachment_size, (attachment_data IS NOT NULL) AS has_attachment"""),
@@ -2147,9 +2148,9 @@ class DBService:
                  'adata': attachment.get('data')}).first()
             bump = 1 if direction == 'IN' else 0
             conn.execute(text("""INSERT INTO chat_threads (line_user_id, last_message_at, unread_count)
-                VALUES (:l, CURRENT_TIMESTAMP, :bump)
+                VALUES (:l, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei'), :bump)
                 ON CONFLICT (line_user_id) DO UPDATE SET
-                    last_message_at = CURRENT_TIMESTAMP,
+                    last_message_at = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei'),
                     unread_count = chat_threads.unread_count + :bump"""),
                 {'l': line_user_id, 'bump': bump})
         return dict(row._mapping) if row else None
@@ -2189,7 +2190,7 @@ class DBService:
         with self.engine.begin() as conn:
             conn.execute(text('UPDATE chat_threads SET unread_count=0 WHERE line_user_id=:l'),
                          {'l': line_user_id})
-            conn.execute(text("""UPDATE chat_messages SET read_at=CURRENT_TIMESTAMP
+            conn.execute(text("""UPDATE chat_messages SET read_at=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei')
                 WHERE line_user_id=:l AND direction='IN' AND read_at IS NULL"""), {'l': line_user_id})
 
     def chat_unread_total(self):
