@@ -42,6 +42,7 @@
     if (['WAITING','CALLED','NO_SHOW'].includes(t.status)) buttons += `<button data-ticket="${esc(t.id)}" data-command="cancel" data-management="${management}">取消預約</button>`;
     if (management && ['WAITING','CALLED','NO_SHOW'].includes(t.status)) buttons += `<button class="primary" data-ticket="${esc(t.id)}" data-command="notify" data-management="true">通知到場</button>`;
     if (management && ['CALLED','NO_SHOW'].includes(t.status)) buttons += `<button class="primary" data-ticket="${esc(t.id)}" data-command="check-in" data-management="true">已報到／建立訂單</button>${t.status==='CALLED'?`<button data-ticket="${esc(t.id)}" data-command="no-show" data-management="true">標記未到</button>`:''}`;
+    if (management && t.line_id) buttons += `<a class="msg-link" href="/admin/chat?thread=${encodeURIComponent(t.line_id)}" target="_blank" rel="noopener">傳訊息</a>`;
     return `<article class="ticket"><strong>${number(t.number)}</strong> · ${esc(t.name)}<p>${esc(labels[t.status])}</p><ul>${items}</ul><p>合計 NT$ ${money(t.total_amount)}${t.order_id?` · 訂單 ${esc(t.order_id)}`:''}</p>${notificationSummary}${notifications}<p class="muted">預約成功即扣庫存，取消預約才釋放。</p><div class="actions">${buttons}</div></article>`;
   }
   async function refresh() {

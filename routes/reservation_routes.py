@@ -151,7 +151,12 @@ def admin_state():
     scenes = db_service._fetch_dicts('SELECT * FROM reservation_sessions ORDER BY created_at DESC')
     scene = service.scene(request.args.get('scene'))
     tickets = service.tickets(scene['id']) if scene else []
-    return jsonify(status='success', scenes=scenes, scene=scene, tickets=[ticket_output(t) for t in tickets])
+    out = []
+    for t in tickets:
+        item = ticket_output(t)
+        item['line_id'] = t.get('line_id') or ''
+        out.append(item)
+    return jsonify(status='success', scenes=scenes, scene=scene, tickets=out)
 
 
 @reservation_bp.post('/api/admin/reservations/sessions')

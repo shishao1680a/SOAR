@@ -6,7 +6,7 @@
 <title>客服訊息｜展夢・飛翔</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
 </head>
-<body>
+<body data-focus="{{ focus_thread or '' }}">
 <header class="top">
   <a class="brand" href="/admin">展夢・飛翔</a>
   <span class="tag">客服訊息</span>

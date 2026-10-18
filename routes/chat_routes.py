@@ -1,5 +1,6 @@
 """管理員客服訊息：網站回覆、客人在 LINE 收發。"""
 import os
+import re
 import tempfile
 import uuid
 
@@ -77,7 +78,20 @@ def _finish_send(message):
 def chat_page():
     if not _admin():
         return redirect('/admin')
-    return render_template('chat.html', admin_name=(session.get('user') or {}).get('name') or '管理員')
+    focus = (request.args.get('thread') or '').strip()
+    if focus and not re.fullmatch(r'U[0-9a-f]{32}', focus):
+        focus = ''
+    if focus:
+        member = db_service._fetch_one(
+            'SELECT id, name FROM users WHERE line_id=:l ORDER BY id LIMIT 1', {'l': focus})
+        display = (member or {}).get('name') or ''
+        if not display:
+            row = db_service._fetch_one(
+                'SELECT name FROM reservations WHERE line_id=:l ORDER BY created_at DESC LIMIT 1', {'l': focus})
+            display = (row or {}).get('name') or ''
+        db_service.chat_upsert_thread(focus, (member or {}).get('id'), display)
+    return render_template('chat.html', admin_name=(session.get('user') or {}).get('name') or '管理員',
+                           focus_thread=focus)
 
 
 @chat_bp.get('/api/admin/chat/threads')

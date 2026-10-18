@@ -178,7 +178,11 @@
     document.querySelector('.shell').classList.remove('open');
   });
 
-  loadThreads();
+  const focusThread = document.body.dataset.focus || '';
+  (async () => {
+    await loadThreads();
+    if (focusThread) openThread(focusThread);
+  })();
   setInterval(loadThreads, 8000);
   setInterval(() => { if (state.current) loadMessages(); }, 4000);
 })();
