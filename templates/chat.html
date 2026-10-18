@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客服訊息｜展夢・飛翔</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/admin">展夢・飛翔</a>
+  <span class="tag">客服訊息</span>
+  <span class="who">{{ admin_name }}</span>
+  <a class="back" href="/admin">回管理後台</a>
+</header>
+
+<main class="shell">
+  <aside class="threads" id="threads-panel">
+    <div class="threads-head">
+      <h1>對話</h1>
+      <span id="unread-total" class="unread-total" hidden>0</span>
+    </div>
+    <div id="thread-list" class="thread-list">
+      <p class="empty">正在讀取…</p>
+    </div>
+  </aside>
+
+  <section class="chat" id="chat-panel">
+    <div class="chat-empty" id="chat-empty">
+      <p>選擇左邊的對話開始回覆。</p>
+      <p class="hint">客人在 LINE 傳來的文字與圖片會出現在這裡；你在這裡送出，客人會在 LINE 收到。</p>
+    </div>
+
+    <div class="chat-body" id="chat-body" hidden>
+      <div class="chat-head">
+        <button class="back-list" id="back-list" type="button">← 對話</button>
+        <div>
+          <strong id="chat-name">—</strong>
+          <span id="chat-sub" class="sub">透過 LINE 對話</span>
+        </div>
+      </div>
+      <div class="messages" id="messages"></div>
+      <div class="composer">
+        <textarea id="text" rows="2" maxlength="5000" placeholder="輸入訊息，Enter 送出，Shift+Enter 換行"></textarea>
+        <div class="composer-actions">
+          <label class="btn ghost" for="image">📷 圖片</label>
+          <input id="image" type="file" accept="image/jpeg,image/png" hidden>
+          <button class="btn primary" id="send" type="button">送出</button>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>

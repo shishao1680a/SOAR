@@ -4,7 +4,7 @@ import uuid
 import requests
 from urllib.parse import urlencode
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, PostbackEvent, TextMessage, TextSendMessage
+from linebot.models import ImageMessage, MessageEvent, PostbackEvent, TextMessage, TextSendMessage
 from linebot.exceptions import LineBotApiError, InvalidSignatureError
 
 class LineService:
@@ -57,6 +57,40 @@ class LineService:
                 else:
                     print("⚠️ Cannot reply SOAR command because LINE_CHANNEL_ACCESS_TOKEN is missing on Railway!")
 
+            if getattr(event.source, 'type', None) == 'user':
+                self._store_incoming(event, 'text', event.message.text.strip())
+
+        @self.handler.add(MessageEvent, message=ImageMessage)
+        def handle_image_message(event):
+            if getattr(event.source, 'type', None) != 'user':
+                return
+            message_id = getattr(event.message, 'id', None)
+            if not message_id:
+                return
+            url = None
+            tmp_path = None
+            try:
+                content = self.line_bot_api.get_message_content(message_id)
+                data = getattr(content, 'content', content)
+                import tempfile
+                fd, tmp_path = tempfile.mkstemp(suffix='.jpg')
+                with os.fdopen(fd, 'wb') as fh:
+                    fh.write(data)
+                from extensions import cloudinary_service
+                url = cloudinary_service.upload_image(tmp_path, folder='uxprint/chat')
+            except Exception as exc:
+                print(f"Incoming image failed: {exc}")
+            finally:
+                if tmp_path and os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except OSError:
+                        pass
+            if url:
+                self._store_incoming(event, 'image', '[圖片]', url)
+            else:
+                self._store_incoming(event, 'placeholder', '（客人傳了圖片，但圖片儲存失敗）')
+
         @self.handler.add(PostbackEvent)
         def handle_postback(event):
             """匯款回報的三個按鈕：更新付款狀態並回覆客人。"""
@@ -99,6 +133,32 @@ class LineService:
                             TextSendMessage(text='操作失敗，請稍後再試或使用後台確認。'))
                 except Exception:
                     pass
+
+    def _store_incoming(self, event, kind, body='', image_url=None):
+        try:
+            from extensions import db_service
+            line_user_id = getattr(event.source, 'user_id', None)
+            if not line_user_id:
+                return
+            thread = db_service._fetch_one(
+                'SELECT display_name FROM chat_threads WHERE line_user_id=:l', {'l': line_user_id})
+            display_name = ''
+            if not thread or not (thread.get('display_name') or '').strip():
+                try:
+                    profile = self.line_bot_api.get_profile(line_user_id) if self.line_bot_api else None
+                    display_name = getattr(profile, 'display_name', '') or ''
+                except Exception:
+                    display_name = ''
+            member = db_service._fetch_one(
+                'SELECT id, name FROM users WHERE line_id=:l ORDER BY id LIMIT 1', {'l': line_user_id})
+            db_service.chat_upsert_thread(
+                line_user_id,
+                user_id=(member or {}).get('id'),
+                display_name=(member or {}).get('name') or display_name,
+            )
+            db_service.chat_add_message(line_user_id, 'IN', kind=kind, body=body, image_url=image_url)
+        except Exception as exc:
+            print(f"Store incoming chat failed: {exc}")
 
     def handle_webhook(self, body, signature):
         """處理 LINE Webhook 簽章驗證與事件派發。
@@ -259,6 +319,59 @@ class LineService:
                 json={'to': user_id, 'messages': [{'type': 'text', 'text': content}]}, timeout=(3, 8))
             if response.status_code == 200 or (response.status_code == 409 and response.headers.get('x-line-accepted-request-id')):
                 return True, ''
-            return False, f'LINE 回應 HTTP {response.status_code}，請檢查額度或設定'
+            return False, self._push_error(response.status_code, response.text)
+        except requests.RequestException:
+            return False, 'LINE 連線中斷或逾時，可重試'
+
+    @staticmethod
+    def _push_error(status_code, body=''):
+        text = (body or '').lower()
+        if status_code == 400:
+            if 'blocked' in text:
+                return '對方已封鎖官方帳號，無法推播'
+            if 'friend' in text or 'not have added' in text:
+                return '對方尚未加入官方帳號，無法推播'
+            return 'LINE 拒絕推播（400），請確認對方狀態'
+        if status_code == 401:
+            return 'LINE 授權失效，請更新 Channel Access Token'
+        if status_code == 403:
+            return 'LINE 權限不足，請確認 Messaging API 設定'
+        if status_code == 429:
+            return 'LINE 訊息額度已用完或傳送太頻繁，請稍後再試'
+        if status_code >= 500:
+            return 'LINE 暫時無法連線，請稍後重試'
+        return f'LINE 回應 HTTP {status_code}'
+
+    @staticmethod
+    def _cloudinary_variant(url, transform):
+        if not url:
+            return url
+        if '/upload/' in url:
+            return url.replace('/upload/', f'/upload/{transform}/', 1)
+        return url
+
+    def push_user_image(self, user_id, image_url, retry_key):
+        """推播單張圖片給個人；圖片需為公開 HTTPS 網址。"""
+        if not isinstance(user_id, str) or not re.fullmatch(r'U[0-9a-f]{32}', user_id):
+            return False, '缺少有效的 LINE 個人收件人'
+        if not self.access_token:
+            return False, '尚未設定 LINE Messaging API'
+        if not isinstance(image_url, str) or not image_url.startswith('https://'):
+            return False, '圖片必須是公開的 HTTPS 網址'
+        payload = {
+            'to': user_id,
+            'messages': [{
+                'type': 'image',
+                'originalContentUrl': self._cloudinary_variant(image_url, 'w_1600,q_auto'),
+                'previewImageUrl': self._cloudinary_variant(image_url, 'w_400,q_auto'),
+            }],
+        }
+        try:
+            response = requests.post('https://api.line.me/v2/bot/message/push',
+                headers={'Authorization': f'Bearer {self.access_token}', 'X-Line-Retry-Key': retry_key},
+                json=payload, timeout=(5, 20))
+            if response.status_code == 200 or (response.status_code == 409 and response.headers.get('x-line-accepted-request-id')):
+                return True, ''
+            return False, self._push_error(response.status_code, response.text)
         except requests.RequestException:
             return False, 'LINE 連線中斷或逾時，可重試'

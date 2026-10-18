@@ -348,6 +348,32 @@ class DBService:
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_orders_user_line ON orders (user_line_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_payment_events_order ON order_payment_events (order_id)"))
 
+                # 2026-10-18 客服訊息：一個 LINE 帳號一條對話串
+                conn.execute(text("""CREATE TABLE IF NOT EXISTS chat_threads (
+                    line_user_id VARCHAR(64) PRIMARY KEY,
+                    user_id VARCHAR(255),
+                    display_name VARCHAR(255) DEFAULT '',
+                    last_message_at TIMESTAMP,
+                    unread_count INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )"""))
+                conn.execute(text("""CREATE TABLE IF NOT EXISTS chat_messages (
+                    id SERIAL PRIMARY KEY,
+                    line_user_id VARCHAR(64) NOT NULL,
+                    direction VARCHAR(3) NOT NULL CHECK(direction IN ('IN','OUT')),
+                    kind VARCHAR(16) NOT NULL DEFAULT 'text',
+                    body TEXT NOT NULL DEFAULT '',
+                    image_url TEXT,
+                    admin_id VARCHAR(255),
+                    admin_name VARCHAR(255),
+                    status VARCHAR(16) NOT NULL DEFAULT 'SENT',
+                    error VARCHAR(300) NOT NULL DEFAULT '',
+                    read_at TIMESTAMP,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )"""))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages (line_user_id, id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_threads_last ON chat_threads (last_message_at DESC)"))
+
                 # 常用索引
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_id ON inventory_logs (product_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_name ON inventory_logs (product_name)"))
@@ -2076,6 +2102,73 @@ class DBService:
             return {}
 
     # ---------- LINE 群組與公告 ----------
+
+    # ---------- 客服訊息（2026-10-18） ----------
+
+    def chat_upsert_thread(self, line_user_id, user_id=None, display_name=None):
+        with self.engine.begin() as conn:
+            conn.execute(text("""INSERT INTO chat_threads (line_user_id, user_id, display_name, last_message_at)
+                VALUES (:l, :u, :n, CURRENT_TIMESTAMP)
+                ON CONFLICT (line_user_id) DO UPDATE SET
+                    user_id = COALESCE(EXCLUDED.user_id, chat_threads.user_id),
+                    display_name = CASE WHEN EXCLUDED.display_name <> '' THEN EXCLUDED.display_name
+                                        ELSE chat_threads.display_name END,
+                    last_message_at = CURRENT_TIMESTAMP"""),
+                {'l': line_user_id, 'u': user_id, 'n': (display_name or '')[:255]})
+
+    def chat_add_message(self, line_user_id, direction, kind='text', body='', image_url=None,
+                         admin_id=None, admin_name=None, status='SENT', error=''):
+        with self.engine.begin() as conn:
+            row = conn.execute(text("""INSERT INTO chat_messages
+                (line_user_id, direction, kind, body, image_url, admin_id, admin_name, status, error)
+                VALUES (:l, :d, :k, :b, :img, :aid, :an, :s, :e) RETURNING *"""),
+                {'l': line_user_id, 'd': direction, 'k': kind, 'b': body or '',
+                 'img': image_url, 'aid': admin_id, 'an': admin_name,
+                 's': status, 'e': (error or '')[:300]}).first()
+            bump = 1 if direction == 'IN' else 0
+            conn.execute(text("""INSERT INTO chat_threads (line_user_id, last_message_at, unread_count)
+                VALUES (:l, CURRENT_TIMESTAMP, :bump)
+                ON CONFLICT (line_user_id) DO UPDATE SET
+                    last_message_at = CURRENT_TIMESTAMP,
+                    unread_count = chat_threads.unread_count + :bump"""),
+                {'l': line_user_id, 'bump': bump})
+        return dict(row._mapping) if row else None
+
+    def chat_update_message(self, message_id, status, error=''):
+        self._execute("UPDATE chat_messages SET status=:s, error=:e WHERE id=:id",
+                      {'s': status, 'e': (error or '')[:300], 'id': message_id})
+
+    def chat_get_message(self, message_id):
+        return self._fetch_one('SELECT * FROM chat_messages WHERE id=:id', {'id': message_id})
+
+    def chat_threads(self, limit=100):
+        return self._fetch_dicts("""SELECT t.*, u.name AS member_name,
+                (SELECT m.body FROM chat_messages m WHERE m.line_user_id=t.line_user_id
+                 ORDER BY m.id DESC LIMIT 1) AS last_body,
+                (SELECT m.kind FROM chat_messages m WHERE m.line_user_id=t.line_user_id
+                 ORDER BY m.id DESC LIMIT 1) AS last_kind,
+                (SELECT m.direction FROM chat_messages m WHERE m.line_user_id=t.line_user_id
+                 ORDER BY m.id DESC LIMIT 1) AS last_direction
+            FROM chat_threads t
+            LEFT JOIN users u ON u.line_id = t.line_user_id
+            ORDER BY t.last_message_at DESC NULLS LAST
+            LIMIT :n""", {'n': max(1, min(int(limit or 100), 200))})
+
+    def chat_messages(self, line_user_id, after_id=0, limit=200):
+        return self._fetch_dicts("""SELECT * FROM chat_messages
+            WHERE line_user_id=:l AND id > :a ORDER BY id ASC LIMIT :n""",
+            {'l': line_user_id, 'a': int(after_id or 0), 'n': max(1, min(int(limit or 200), 500))})
+
+    def chat_mark_read(self, line_user_id):
+        with self.engine.begin() as conn:
+            conn.execute(text('UPDATE chat_threads SET unread_count=0 WHERE line_user_id=:l'),
+                         {'l': line_user_id})
+            conn.execute(text("""UPDATE chat_messages SET read_at=CURRENT_TIMESTAMP
+                WHERE line_user_id=:l AND direction='IN' AND read_at IS NULL"""), {'l': line_user_id})
+
+    def chat_unread_total(self):
+        row = self._fetch_one('SELECT COALESCE(SUM(unread_count),0) AS n FROM chat_threads')
+        return int((row or {}).get('n') or 0)
 
     def get_line_groups(self):
         try:
