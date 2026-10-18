@@ -1919,8 +1919,31 @@
     document.getElementById('bull-edit-pinned').checked = b ? b.is_pinned : false;
     document.getElementById('bull-edit-summary').value = b ? b.summary : '';
     document.getElementById('bull-edit-content').value = b ? b.content : '';
+    document.getElementById('bull-marquee-text').value = (b && b.marquee_text_color) || '#E7EFE9';
+    document.getElementById('bull-marquee-bg').value = (b && b.marquee_bg_color) || '#0B0F14';
+    updateMarqueePreview();
     document.getElementById('modal-bulletin').classList.remove('hidden');
   }
+
+  function marqueePreviewText() {
+    const tag = document.getElementById('bull-edit-tag').value.trim();
+    const title = document.getElementById('bull-edit-title').value.trim();
+    const content = document.getElementById('bull-edit-content').value.trim();
+    return [`【${tag || '公告'}】`, title, content].filter(Boolean).join('　').replace(/\s+/g, ' ').trim();
+  }
+
+  function updateMarqueePreview() {
+    const box = document.getElementById('bull-marquee-preview');
+    if (!box) return;
+    box.style.color = document.getElementById('bull-marquee-text').value;
+    box.style.background = document.getElementById('bull-marquee-bg').value;
+    box.textContent = marqueePreviewText() || '公告內容會出現在這裡';
+  }
+
+  ['bull-marquee-text','bull-marquee-bg','bull-edit-title','bull-edit-tag','bull-edit-content'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateMarqueePreview);
+  });
 
   function editBulletin(id) {
     const b = bulletinsList.find(item => item.id === id);
@@ -1935,6 +1958,8 @@
       is_pinned: document.getElementById('bull-edit-pinned').checked,
       summary: document.getElementById('bull-edit-summary').value.trim(),
       content: document.getElementById('bull-edit-content').value.trim(),
+      marquee_text_color: document.getElementById('bull-marquee-text').value,
+      marquee_bg_color: document.getElementById('bull-marquee-bg').value,
       line_broadcasted: document.getElementById('bull-edit-broadcast').checked
     };
 

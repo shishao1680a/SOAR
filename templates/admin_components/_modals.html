@@ -896,6 +896,22 @@
       <textarea id="bull-edit-content" rows="4" class="w-full bg-surface-container-high border border-outline-variant text-white font-label-caps text-xs p-2 outline-none"></textarea>
     </div>
 
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">跑馬燈文字色</label>
+        <input type="color" id="bull-marquee-text" value="#E7EFE9" class="w-full h-9 bg-surface-container-high border border-outline-variant p-1"/>
+      </div>
+      <div>
+        <label class="block text-xs font-label-caps text-on-surface-variant mb-1">跑馬燈底色</label>
+        <input type="color" id="bull-marquee-bg" value="#0B0F14" class="w-full h-9 bg-surface-container-high border border-outline-variant p-1"/>
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-xs font-label-caps text-on-surface-variant mb-1">跑馬燈預覽（完整內容）</label>
+      <div id="bull-marquee-preview" style="height:34px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;padding:0 10px;font-size:12px;border:1px solid rgba(255,255,255,.15);background:#0B0F14;color:#E7EFE9">公告內容會出現在這裡</div>
+    </div>
+
     <div class="p-2 bg-line-green/10 border border-line-green/40">
       <label class="flex items-center gap-2 cursor-pointer font-label-caps text-xs text-line-green font-bold">
         <input type="checkbox" id="bull-edit-broadcast" checked class="form-checkbox bg-surface-container border-line-green text-line-green"/>

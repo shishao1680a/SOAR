@@ -379,6 +379,8 @@ class DBService:
                 conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_size INTEGER"))
                 conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_data BYTEA"))
                 conn.execute(text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS customer_last_read_id INTEGER NOT NULL DEFAULT 0"))
+                conn.execute(text("ALTER TABLE bulletins ADD COLUMN IF NOT EXISTS marquee_text_color VARCHAR(20) DEFAULT '#E7EFE9'"))
+                conn.execute(text("ALTER TABLE bulletins ADD COLUMN IF NOT EXISTS marquee_bg_color VARCHAR(20) DEFAULT '#0B0F14'"))
 
                 # 常用索引
                 conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_logs_product_id ON inventory_logs (product_id)"))
@@ -2245,19 +2247,26 @@ class DBService:
             print(f"Error fetching bulletins: {e}")
             return []
 
-    def save_bulletin(self, b_id, title, date_str, tag, is_pinned, summary, content, line_broadcasted):
+    def save_bulletin(self, b_id, title, date_str, tag, is_pinned, summary, content, line_broadcasted,
+                      marquee_text_color=None, marquee_bg_color=None):
         try:
             self._execute("""
-                INSERT INTO bulletins (id, title, date_str, tag, is_pinned, summary, content, line_broadcasted)
-                VALUES (:id, :title, :date_str, :tag, :is_pinned, :summary, :content, :line_broadcasted)
+                INSERT INTO bulletins (id, title, date_str, tag, is_pinned, summary, content, line_broadcasted,
+                                       marquee_text_color, marquee_bg_color)
+                VALUES (:id, :title, :date_str, :tag, :is_pinned, :summary, :content, :line_broadcasted,
+                        :mtext, :mbg)
                 ON CONFLICT (id) DO UPDATE SET
                     title = EXCLUDED.title, date_str = EXCLUDED.date_str, tag = EXCLUDED.tag,
                     is_pinned = EXCLUDED.is_pinned, summary = EXCLUDED.summary,
-                    content = EXCLUDED.content, line_broadcasted = EXCLUDED.line_broadcasted
+                    content = EXCLUDED.content, line_broadcasted = EXCLUDED.line_broadcasted,
+                    marquee_text_color = EXCLUDED.marquee_text_color,
+                    marquee_bg_color = EXCLUDED.marquee_bg_color
             """, {
                 "id": b_id, "title": title, "date_str": date_str, "tag": tag,
                 "is_pinned": is_pinned, "summary": summary,
                 "content": content, "line_broadcasted": line_broadcasted,
+                "mtext": marquee_text_color or '#E7EFE9',
+                "mbg": marquee_bg_color or '#0B0F14',
             })
             return True
         except Exception as e:

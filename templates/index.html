@@ -14,9 +14,34 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 
   <!-- 原本寫死顏色的行內樣式區塊已搬到 static/css/index-input.css，統一由主題色票控制 -->
+  <style>
+    .marquee-bar{position:sticky;top:0;z-index:60;height:34px;display:flex;align-items:center;
+      overflow:hidden;padding-right:44px;border-bottom:1px solid rgba(255,255,255,.14);
+      cursor:pointer;font-size:13px;line-height:1}
+    .marquee-bar[hidden]{display:none}
+    .marquee-track{display:flex;white-space:nowrap;animation:soar-marquee linear infinite;will-change:transform}
+    .marquee-track span{padding-right:4rem}
+    .marquee-bar:hover .marquee-track{animation-play-state:paused}
+    .marquee-close{position:absolute;right:0;top:0;height:100%;width:44px;border:0;background:transparent;
+      color:inherit;font-size:13px;cursor:pointer;opacity:.75}
+    .marquee-close:hover{opacity:1}
+    @keyframes soar-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+    @media (prefers-reduced-motion: reduce){
+      .marquee-track{animation:none;overflow:hidden}
+      .marquee-bar #marquee-b{display:none}
+    }
+  </style>
 </head>
 <body class="font-body-md selection:bg-primary-fixed selection:text-on-primary-fixed min-h-screen flex flex-col antialiased">
   
+  <!-- 置頂公告跑馬燈 -->
+  <div id="marquee-bar" class="marquee-bar" hidden role="region" aria-label="置頂公告">
+    <div class="marquee-track" id="marquee-track">
+      <span id="marquee-a"></span><span id="marquee-b" aria-hidden="true"></span>
+    </div>
+    <button type="button" class="marquee-close" id="marquee-close" aria-label="關閉置頂公告跑馬燈">✕</button>
+  </div>
+
   <!-- Top Navigation Bar -->
   <nav class="w-full top-0 sticky border-b-2 border-outline-variant bg-background/90 backdrop-blur-md shadow-[0px_0px_15px_rgba(195,244,0,0.1)] z-50">
     <div class="flex justify-between items-center px-4 md:px-margin-desktop py-unit-4 max-w-full">
@@ -526,6 +551,35 @@
         bulletinsLoadFailed = true;
       }
       renderBulletins();
+      renderMarquee();
+    }
+
+    function renderMarquee() {
+      const bar = document.getElementById('marquee-bar');
+      const nav = document.querySelector('nav');
+      if (!bar || !nav) return;
+      const hide = () => { bar.hidden = true; nav.style.top = '0px'; };
+      const b = announcementsData.find(x => x.is_pinned || x.isPinned);
+      if (!b) return hide();
+      const key = `soar-marquee-${b.id}-${b.date_str || b.date || ''}`;
+      try { if (localStorage.getItem(key)) return hide(); } catch (e) {}
+      const text = [`【${b.tag || '公告'}】`, b.title || '', b.content || '']
+        .filter(Boolean).join('　').replace(/\s+/g, ' ').trim();
+      if (!text) return hide();
+      document.getElementById('marquee-a').textContent = text;
+      document.getElementById('marquee-b').textContent = text;
+      bar.style.background = b.marquee_bg_color || '#0B0F14';
+      bar.style.color = b.marquee_text_color || '#E7EFE9';
+      const track = document.getElementById('marquee-track');
+      track.style.animationDuration = Math.max(20, Math.round(text.length * 0.32)) + 's';
+      bar.hidden = false;
+      nav.style.top = bar.offsetHeight + 'px';
+      bar.onclick = (e) => { if (e.target.closest('#marquee-close')) return; switchTab('bulletin'); };
+      document.getElementById('marquee-close').onclick = (e) => {
+        e.stopPropagation();
+        try { localStorage.setItem(key, '1'); } catch (err) {}
+        hide();
+      };
     }
 
     function switchTab(tab) {

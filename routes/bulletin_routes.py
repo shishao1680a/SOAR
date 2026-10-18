@@ -1,3 +1,4 @@
+import re
 import uuid
 from flask import Blueprint, request, jsonify
 from extensions import db_service, line_service, admin_or_coach_required, _run_in_background
@@ -23,8 +24,16 @@ def api_admin_save_bulletin():
     summary = data.get('summary', '')
     content = data.get('content', '')
     line_broadcasted = bool(data.get('line_broadcasted', True))
+    color_re = re.compile(r'^#[0-9A-Fa-f]{6}$')
+    mtext = data.get('marquee_text_color') or '#E7EFE9'
+    mbg = data.get('marquee_bg_color') or '#0B0F14'
+    if not isinstance(mtext, str) or not color_re.match(mtext):
+        mtext = '#E7EFE9'
+    if not isinstance(mbg, str) or not color_re.match(mbg):
+        mbg = '#0B0F14'
 
-    saved = db_service.save_bulletin(b_id, title, date_str, tag, is_pinned, summary, content, line_broadcasted)
+    saved = db_service.save_bulletin(b_id, title, date_str, tag, is_pinned, summary, content, line_broadcasted,
+                                     mtext, mbg)
     if saved:
         if line_broadcasted:
             _run_in_background(
